@@ -1,0 +1,63 @@
+# Cloudflare Pages Configuration
+# This file is optional but can be used to configure Functions behavior
+
+name = "chesschat-web"
+compatibility_date = "2024-01-01"
+
+# Build configuration (optional - can be set in dashboard)
+# pages_build_output_dir = "dist"
+
+# KV Namespace Bindings
+# These can also be configured via the Cloudflare Dashboard
+# Settings > Functions > KV Namespace Bindings
+
+[[kv_namespaces]]
+binding = "CACHE"
+id = "" # Set this to your production namespace ID
+preview_id = "" # Set this to your preview namespace ID
+
+[[kv_namespaces]]
+binding = "SESSIONS"
+id = "" # Set this to your production namespace ID
+preview_id = "" # Set this to your preview namespace ID
+
+[[kv_namespaces]]
+binding = "GAME_STATE"
+id = "" # Set this to your production namespace ID
+preview_id = "" # Set this to your preview namespace ID
+
+[[kv_namespaces]]
+binding = "ANALYTICS"
+id = "" # Set this to your production namespace ID
+preview_id = "" # Set this to your preview namespace ID
+
+# Environment variables
+# Note: For sensitive data, use Cloudflare secrets instead
+# Run: wrangler pages secret put SECRET_NAME --project-name=chesschat-web
+
+[vars]
+# Non-sensitive environment variables can be defined here
+# NODE_ENV = "production"
+
+# For R2 bucket bindings (if needed)
+# [[r2_buckets]]
+# binding = "MY_BUCKET"
+# bucket_name = "my-bucket"
+# preview_bucket_name = "my-bucket-preview"
+
+# For D1 database bindings (if needed)
+# [[d1_databases]]
+# binding = "DB"
+# database_name = "my-database"
+# database_id = "your-database-id"
+# preview_database_id = "your-preview-database-id"
+
+# For Durable Objects (if needed)
+# [[durable_objects.bindings]]
+# name = "MY_DURABLE_OBJECT"
+# class_name = "MyDurableObject"
+# script_name = "my-durable-object-worker"
+
+# Compatibility flags (if needed)
+# [compatibility_flags]
+# nodejs_compat = true

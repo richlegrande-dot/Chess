@@ -1,0 +1,17 @@
+# Cloudflare Pages Redirects and Rewrites Configuration
+# Place this file in the public/ directory of your project
+# See: https://developers.cloudflare.com/pages/configuration/redirects/
+
+# Redirect old URLs to new URLs
+# /old-page /new-page 301
+
+# Redirect with wildcards
+# /blog/* https://blog.example.com/:splat 302
+
+# API routes should be handled by Pages Functions
+# (no redirect needed, Functions take precedence)
+/api/* 200
+
+# Serve index.html for all other routes (SPA routing for React Router)
+# This must be the last rule
+/* /index.html 200
