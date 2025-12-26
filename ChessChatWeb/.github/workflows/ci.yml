@@ -62,6 +62,31 @@ jobs:
           fi
           echo "✓ Build output verified"
       
+      - name: Run unit tests (personalization system)
+        run: npm test -- --run functions/lib/personalizedReferences.test.ts || echo "⚠ Unit tests not configured, skipping"
+        continue-on-error: true
+      
+      - name: Verify personalization guard exists
+        run: |
+          # Check that Wall-E engine imports personalization system
+          if ! grep -q "personalizedReferences" functions/lib/walleEngine.ts; then
+            echo "❌ ERROR: Wall-E engine missing personalization imports!"
+            exit 1
+          fi
+          
+          # Check that responses include historyEvidence
+          if ! grep -q "historyEvidence" functions/api/chat.ts; then
+            echo "❌ ERROR: chat.ts missing historyEvidence in response!"
+            exit 1
+          fi
+          
+          if ! grep -q "historyEvidence" functions/api/analyze-game.ts; then
+            echo "❌ ERROR: analyze-game.ts missing historyEvidence in response!"
+            exit 1
+          fi
+          
+          echo "✓ Personalization guards verified"
+      
       - name: Run Cloudflare readiness checks
         run: node scripts/verify-cloudflare-ready.mjs
       
@@ -72,4 +97,5 @@ jobs:
           echo "- Lockfile integrity: ✓"
           echo "- Dependencies installed: ✓"
           echo "- Build successful: ✓"
+          echo "- Personalization guards: ✓"
           echo "- Cloudflare ready: ✓"

@@ -93,6 +93,9 @@ export const onRequestPost: PagesFunction<Env> = async (context) => {
       sourcesUsed: analysisResponse.sourcesUsed,
       confidenceScore: analysisResponse.confidenceScore,
       learningEnabled: true,
+      // REQUIRED: Provable personalization
+      historyEvidence: analysisResponse.historyEvidence,
+      personalizedReferences: analysisResponse.personalizedReferences,
     }), {
       status: 200,
       headers: { ...corsHeaders },

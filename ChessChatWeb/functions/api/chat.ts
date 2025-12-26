@@ -131,6 +131,9 @@ export async function onRequestPost(context: {
       sourcesUsed: chatResponse.sourcesUsed,
       learningApplied: chatResponse.learningApplied,
       learningEnabled: true,
+      // REQUIRED: Provable personalization
+      historyEvidence: chatResponse.historyEvidence,
+      personalizedReferences: chatResponse.personalizedReferences,
     }), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     });

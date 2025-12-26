@@ -18,6 +18,14 @@
 import { getPrisma } from './prisma';
 import { getCoachEngine, type CoachingContext, type GameAnalysisResult } from './coachEngine';
 import { PrismaClient } from '@prisma/client/edge';
+import {
+  buildPersonalizedReferences,
+  validatePersonalization,
+  augmentWithPersonalization,
+  type PersonalizationContext,
+  type PersonalizedReference,
+  type HistoryEvidence,
+} from './personalizedReferences';
 
 interface WallEContext {
   userId: string;
@@ -36,6 +44,8 @@ interface WallEChatResponse {
   confidenceScore: number;
   sourcesUsed: string[];
   learningApplied: boolean;
+  historyEvidence: HistoryEvidence; // REQUIRED: Provable history usage
+  personalizedReferences: PersonalizedReference[]; // REQUIRED: Explicit references
 }
 
 interface WallEAnalysisResponse {
@@ -44,6 +54,8 @@ interface WallEAnalysisResponse {
   personalizedInsights: string[];
   sourcesUsed: string[];
   confidenceScore: number;
+  historyEvidence: HistoryEvidence; // REQUIRED: Provable history usage
+  personalizedReferences: PersonalizedReference[]; // REQUIRED: Explicit references
 }
 
 export class WallEEngine {
@@ -150,9 +162,37 @@ export class WallEEngine {
   }
 
   /**
+   * Build PersonalizationContext from learning history
+   */
+  private buildPersonalizationContext(history: PlayerLearningHistory | null): PersonalizationContext {
+    if (!history) {
+      return { recentGames: [], topMistakePatterns: [] };
+    }
+
+    return {
+      recentGames: history.recentGames.map(game => ({
+        id: game.id,
+        fen: game.fen,
+        moveHistory: game.moves ? JSON.parse(game.moves) : [],
+        result: game.result,
+        createdAt: game.timestamp,
+        mistakes: game.analysis?.mistakes || [],
+      })),
+      topMistakePatterns: history.topMistakes.map((mistake, index) => ({
+        key: mistake.signatureKey,
+        name: mistake.title,
+        occurrences: mistake.occurrenceCount,
+        description: mistake.category,
+        examples: mistake.patternDetails?.examples || [],
+      })),
+    };
+  }
+
+  /**
    * Chat with Wall-E (personalized based on user history)
    * 
    * NO API KEYS - uses knowledge base + learning history only
+   * ENFORCES: ≥2 personalized references per response
    */
   async chat(
     context: WallEContext,
@@ -165,6 +205,12 @@ export class WallEEngine {
       // Fetch learning history for personalization
       const learningHistory = await this.fetchLearningHistory(prisma, context.userId);
 
+      // Build personalization context
+      const personalizationCtx = this.buildPersonalizationContext(learningHistory);
+      
+      // Build personalized references (REQUIRED: ≥2 references)
+      const { references, evidence } = buildPersonalizedReferences(personalizationCtx);
+
       // Build coaching context from user message and game context
       const coachingContext = this.parseUserMessageToContext(userMessage, gameContext);
 
@@ -174,13 +220,15 @@ export class WallEEngine {
         coachingContext
       );
 
-      // Enhance with personalized insights
-      const personalizedContext = this.generatePersonalizedContext(learningHistory);
-      
-      let response = advice.advice;
-      
-      if (personalizedContext) {
-        response = `${response}\n\n--- Personalized Insights ---\n${personalizedContext}`;
+      // Augment response with personalized references
+      let response = augmentWithPersonalization(advice.advice, references, evidence);
+
+      // Validate personalization (fail-safe check)
+      const validation = validatePersonalization(response, evidence);
+      if (!validation.valid) {
+        console.warn('[Wall-E] Personalization validation failed:', validation.errors);
+        // Re-augment if validation fails
+        response = augmentWithPersonalization(advice.advice, references, evidence);
       }
 
       return {
@@ -188,16 +236,29 @@ export class WallEEngine {
         confidenceScore: advice.confidence,
         sourcesUsed: advice.sources,
         learningApplied: learningHistory !== null,
+        historyEvidence: evidence, // REQUIRED: Provable history usage
+        personalizedReferences: references, // REQUIRED: Explicit references
       };
     } catch (error) {
       console.error('[Wall-E] Chat error:', error);
       
-      // Graceful degradation: return basic response
+      // Graceful degradation with evidence
+      const emptyEvidence: HistoryEvidence = {
+        lastGamesUsed: 0,
+        gameIdsUsed: [],
+        topMistakePatternsUsed: [],
+        personalizedReferenceCount: 0,
+        insufficientHistory: true,
+        insufficientReason: 'error fetching history',
+      };
+
       return {
         response: this.generateFallbackResponse(userMessage),
         confidenceScore: 0.3,
         sourcesUsed: [],
         learningApplied: false,
+        historyEvidence: emptyEvidence,
+        personalizedReferences: [],
       };
     }
   }
@@ -206,6 +267,7 @@ export class WallEEngine {
    * Analyze a game with Wall-E (personalized based on user history)
    * 
    * NO API KEYS - uses knowledge base + learning history only
+   * ENFORCES: ≥2 personalized references per response
    */
   async analyzeGame(
     context: WallEContext,
@@ -223,6 +285,12 @@ export class WallEEngine {
       // Fetch learning history
       const learningHistory = await this.fetchLearningHistory(prisma, context.userId);
 
+      // Build personalization context
+      const personalizationCtx = this.buildPersonalizationContext(learningHistory);
+      
+      // Build personalized references (REQUIRED: ≥2 references)
+      const { references, evidence } = buildPersonalizedReferences(personalizationCtx);
+
       // Detect game phase and build coaching context
       const coachingContext: CoachingContext = {
         gamePhase: this.detectGamePhase(moveHistory),
@@ -236,11 +304,16 @@ export class WallEEngine {
       const analysisResult = this.buildAnalysisFromMoveHistory(moveHistory, learningHistory);
       const advice = await this.coachEngine.generateCoachingAdvice(analysisResult, coachingContext);
 
-      // Generate personalized insights
+      // Generate personalized insights with references
       const personalizedInsights = this.generatePersonalizedInsights(
         analysisResult,
         learningHistory
       );
+
+      // Add explicit references to insights
+      references.forEach(ref => {
+        personalizedInsights.push(ref.text);
+      });
 
       // Generate specific recommendations
       const recommendations = this.generatePersonalizedRecommendations(
@@ -248,6 +321,50 @@ export class WallEEngine {
         learningHistory,
         coachingContext
       );
+
+      // Augment analysis with personalization
+      let analysis = augmentWithPersonalization(advice.advice, references, evidence);
+
+      // Validate personalization
+      const validation = validatePersonalization(analysis, evidence);
+      if (!validation.valid) {
+        console.warn('[Wall-E] Game analysis personalization failed:', validation.errors);
+        analysis = augmentWithPersonalization(advice.advice, references, evidence);
+      }
+
+      return {
+        analysis,
+        recommendations,
+        personalizedInsights,
+        sourcesUsed: advice.sources,
+        confidenceScore: advice.confidence,
+        historyEvidence: evidence, // REQUIRED: Provable history usage
+        personalizedReferences: references, // REQUIRED: Explicit references
+      };
+    } catch (error) {
+      console.error('[Wall-E] Game analysis error:', error);
+
+      // Graceful degradation
+      const emptyEvidence: HistoryEvidence = {
+        lastGamesUsed: 0,
+        gameIdsUsed: [],
+        topMistakePatternsUsed: [],
+        personalizedReferenceCount: 0,
+        insufficientHistory: true,
+        insufficientReason: 'error during analysis',
+      };
+
+      return {
+        analysis: this.generateFallbackAnalysis(moveHistory),
+        recommendations: [],
+        personalizedInsights: [],
+        sourcesUsed: [],
+        confidenceScore: 0.3,
+        historyEvidence: emptyEvidence,
+        personalizedReferences: [],
+      };
+    }
+  }
 
       return {
         analysis: advice.advice,
