@@ -1,0 +1,168 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Chess Application</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: #333;
+        }
+        
+        .container {
+            background: white;
+            border-radius: 20px;
+            padding: 3rem;
+            max-width: 600px;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+            text-align: center;
+        }
+        
+        h1 {
+            font-size: 2.5rem;
+            margin-bottom: 1rem;
+            color: #667eea;
+        }
+        
+        .chess-icon {
+            font-size: 4rem;
+            margin-bottom: 1rem;
+        }
+        
+        p {
+            font-size: 1.1rem;
+            color: #666;
+            margin-bottom: 2rem;
+            line-height: 1.6;
+        }
+        
+        .api-links {
+            display: flex;
+            flex-direction: column;
+            gap: 1rem;
+            margin-top: 2rem;
+        }
+        
+        .api-link {
+            display: inline-block;
+            padding: 1rem 2rem;
+            background: #667eea;
+            color: white;
+            text-decoration: none;
+            border-radius: 10px;
+            font-weight: 600;
+            transition: all 0.3s ease;
+        }
+        
+        .api-link:hover {
+            background: #764ba2;
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.2);
+        }
+        
+        .status {
+            margin-top: 2rem;
+            padding: 1rem;
+            background: #f0f0f0;
+            border-radius: 10px;
+        }
+        
+        .status-item {
+            display: flex;
+            justify-content: space-between;
+            padding: 0.5rem 0;
+            border-bottom: 1px solid #ddd;
+        }
+        
+        .status-item:last-child {
+            border-bottom: none;
+        }
+        
+        .status-label {
+            font-weight: 600;
+            color: #667eea;
+        }
+        
+        .docs-section {
+            margin-top: 2rem;
+            padding-top: 2rem;
+            border-top: 2px solid #f0f0f0;
+        }
+        
+        .docs-section h2 {
+            font-size: 1.5rem;
+            color: #667eea;
+            margin-bottom: 1rem;
+        }
+        
+        .docs-links {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 0.5rem;
+            justify-content: center;
+        }
+        
+        .docs-link {
+            padding: 0.5rem 1rem;
+            background: #f0f0f0;
+            color: #667eea;
+            text-decoration: none;
+            border-radius: 5px;
+            font-size: 0.9rem;
+            transition: all 0.3s ease;
+        }
+        
+        .docs-link:hover {
+            background: #667eea;
+            color: white;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="chess-icon">♔</div>
+        <h1>Chess Application</h1>
+        <p>Welcome to the Chess application powered by Cloudflare Pages Functions</p>
+        
+        <div class="api-links">
+            <a href="/api/health" class="api-link">🏥 Health Check API</a>
+        </div>
+        
+        <div class="status">
+            <div class="status-item">
+                <span class="status-label">Platform:</span>
+                <span>Cloudflare Pages</span>
+            </div>
+            <div class="status-item">
+                <span class="status-label">KV Namespaces:</span>
+                <span>Analytics, Rate Limiting</span>
+            </div>
+            <div class="status-item">
+                <span class="status-label">Runtime:</span>
+                <span>Cloudflare Workers</span>
+            </div>
+        </div>
+        
+        <div class="docs-section">
+            <h2>📚 Documentation</h2>
+            <div class="docs-links">
+                <a href="https://github.com/richlegrande-dot/Chess/blob/main/docs/SETUP.md" class="docs-link">Setup Guide</a>
+                <a href="https://github.com/richlegrande-dot/Chess/blob/main/docs/PAGES_FUNCTIONS_ROUTING.md" class="docs-link">Functions Routing</a>
+                <a href="https://github.com/richlegrande-dot/Chess/blob/main/docs/DASHBOARD_CONFIGURATION.md" class="docs-link">Dashboard Config</a>
+            </div>
+        </div>
+    </div>
+</body>
+</html>

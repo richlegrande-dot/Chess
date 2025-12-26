@@ -1,0 +1,47 @@
+// Prisma schema file for Chess application
+// Learn more: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// Example models for Chess application
+// Adjust these based on your actual requirements
+
+model User {
+  id        String   @id @default(cuid())
+  email     String   @unique
+  name      String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  games     Game[]   @relation("PlayerGames")
+}
+
+model Game {
+  id        String   @id @default(cuid())
+  status    String   @default("active") // active, completed, abandoned
+  board     String   // JSON string of board state
+  moves     String[] // Array of moves in algebraic notation
+  playerId  String
+  player    User     @relation("PlayerGames", fields: [playerId], references: [id])
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([playerId])
+  @@index([status])
+}
+
+model Analytics {
+  id        String   @id @default(cuid())
+  event     String
+  data      String   // JSON string
+  timestamp DateTime @default(now())
+
+  @@index([event])
+  @@index([timestamp])
+}

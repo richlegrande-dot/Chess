@@ -1,0 +1,27 @@
+{
+  "name": "chess",
+  "version": "1.0.0",
+  "description": "Chess application with Cloudflare Pages Functions",
+  "main": "index.js",
+  "scripts": {
+    "dev": "wrangler pages dev public --kv ANALYTICS_KV --kv RATE_LIMIT_KV",
+    "build": "echo 'Build completed'",
+    "deploy": "wrangler pages deploy public",
+    "deploy:preview": "wrangler pages deploy public --branch=preview",
+    "deploy:production": "wrangler pages deploy public --branch=main",
+    "setup:kv": "node scripts/setup-kv-namespaces.js",
+    "setup:secrets": "node scripts/setup-secrets.js",
+    "validate:pre-deploy": "node scripts/validate-pre-deploy.js",
+    "validate:post-deploy": "node scripts/validate-post-deploy.js",
+    "rollback": "node scripts/rollback.js"
+  },
+  "keywords": ["chess", "cloudflare", "pages"],
+  "author": "",
+  "license": "ISC",
+  "devDependencies": {
+    "wrangler": "^3.0.0"
+  },
+  "dependencies": {
+    "@prisma/client": "^5.0.0"
+  }
+}

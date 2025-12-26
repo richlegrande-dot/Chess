@@ -1,0 +1,25 @@
+name = "chess"
+compatibility_date = "2024-01-01"
+pages_build_output_dir = "./public"
+
+# KV Namespaces
+kv_namespaces = [
+  { binding = "ANALYTICS_KV", id = "", preview_id = "" },
+  { binding = "RATE_LIMIT_KV", id = "", preview_id = "" }
+]
+
+# Environment configuration
+[env.production]
+vars = { ENVIRONMENT = "production" }
+
+[env.preview]
+vars = { ENVIRONMENT = "preview" }
+
+# Build configuration
+[build]
+command = "npm run build"
+watch_dirs = ["src"]
+
+# Compatibility settings
+[compatibility_flags]
+nodejs_compat = true
