@@ -1,0 +1,14 @@
+# Cloudflare Pages Redirects Configuration
+# Documentation: https://developers.cloudflare.com/pages/platform/redirects/
+
+# Canonical Domain Enforcement: Redirect www to apex
+https://www.chesschat.uk/* https://chesschat.uk/:splat 301!
+
+# Trailing slash normalization - redirect to non-trailing slash
+/*/ /:splat 301
+
+# API routes - preserve as-is (handled by Functions)
+/api/* /api/:splat 200
+
+# SPA fallback - all non-API routes serve index.html
+/* /index.html 200

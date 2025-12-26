@@ -1,0 +1,293 @@
+/* Health Monitor Styles */
+
+.health-monitor {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  border-radius: 12px;
+  padding: 20px;
+  margin: 20px 0;
+  color: white;
+  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+  transition: all 0.3s ease;
+}
+
+.health-monitor.health-healthy {
+  background: linear-gradient(135deg, #11998e 0%, #38ef7d 100%);
+}
+
+.health-monitor.health-degraded {
+  background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+}
+
+.health-monitor.health-unhealthy {
+  background: linear-gradient(135deg, #fa709a 0%, #fee140 100%);
+}
+
+.health-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 20px;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.health-header h3 {
+  margin: 0;
+  font-size: 1.5rem;
+  font-weight: 600;
+}
+
+.health-controls {
+  display: flex;
+  gap: 15px;
+  align-items: center;
+}
+
+.health-controls label {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  cursor: pointer;
+  font-size: 0.9rem;
+}
+
+.health-controls input[type="checkbox"] {
+  cursor: pointer;
+}
+
+.health-controls button {
+  background: rgba(255, 255, 255, 0.2);
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  color: white;
+  padding: 6px 12px;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 0.9rem;
+  transition: all 0.2s;
+}
+
+.health-controls button:hover:not(:disabled) {
+  background: rgba(255, 255, 255, 0.3);
+  transform: translateY(-1px);
+}
+
+.health-controls button:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.health-status {
+  display: flex;
+  align-items: center;
+  gap: 15px;
+  margin-bottom: 20px;
+}
+
+.status-badge {
+  background: rgba(255, 255, 255, 0.3);
+  padding: 8px 16px;
+  border-radius: 20px;
+  font-weight: 600;
+  font-size: 1.1rem;
+  letter-spacing: 1px;
+}
+
+.status-badge[data-status="healthy"] {
+  background: rgba(56, 239, 125, 0.3);
+  border: 2px solid rgba(56, 239, 125, 0.5);
+}
+
+.status-badge[data-status="degraded"] {
+  background: rgba(245, 87, 108, 0.3);
+  border: 2px solid rgba(245, 87, 108, 0.5);
+}
+
+.status-badge[data-status="unhealthy"] {
+  background: rgba(254, 225, 64, 0.3);
+  border: 2px solid rgba(254, 225, 64, 0.5);
+}
+
+.last-check {
+  font-size: 0.9rem;
+  opacity: 0.9;
+}
+
+.health-metrics {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 15px;
+  margin-bottom: 20px;
+}
+
+.metric {
+  background: rgba(255, 255, 255, 0.15);
+  padding: 12px;
+  border-radius: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+
+.metric-label {
+  font-size: 0.85rem;
+  opacity: 0.8;
+  font-weight: 500;
+}
+
+.metric-value {
+  font-size: 1.1rem;
+  font-weight: 600;
+}
+
+.circuit-breakers {
+  margin-bottom: 20px;
+}
+
+.circuit-breakers h4 {
+  margin: 0 0 12px 0;
+  font-size: 1.1rem;
+  font-weight: 600;
+}
+
+.breaker-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 12px;
+}
+
+.breaker {
+  background: rgba(255, 255, 255, 0.15);
+  padding: 12px;
+  border-radius: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.breaker-name {
+  font-weight: 600;
+  font-size: 0.95rem;
+}
+
+.breaker-state {
+  font-size: 0.9rem;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.breaker-failures {
+  font-size: 0.85rem;
+  opacity: 0.8;
+  color: #ffe140;
+}
+
+.health-recommendations {
+  background: rgba(255, 255, 255, 0.2);
+  padding: 15px;
+  border-radius: 8px;
+  border-left: 4px solid #ffe140;
+  margin-bottom: 20px;
+}
+
+.health-recommendations h4 {
+  margin: 0 0 10px 0;
+  font-size: 1rem;
+  font-weight: 600;
+}
+
+.health-recommendations ul {
+  margin: 0;
+  padding-left: 20px;
+}
+
+.health-recommendations li {
+  margin: 6px 0;
+  font-size: 0.9rem;
+}
+
+.health-footer {
+  padding-top: 15px;
+  border-top: 1px solid rgba(255, 255, 255, 0.2);
+}
+
+.health-footer small {
+  opacity: 0.7;
+  font-size: 0.85rem;
+}
+
+.health-loading,
+.health-error {
+  text-align: center;
+  padding: 40px 20px;
+  font-size: 1.1rem;
+}
+
+.health-error button {
+  margin-top: 15px;
+  background: rgba(255, 255, 255, 0.3);
+  border: 1px solid rgba(255, 255, 255, 0.5);
+  color: white;
+  padding: 8px 16px;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 1rem;
+  transition: all 0.2s;
+}
+
+.health-error button:hover {
+  background: rgba(255, 255, 255, 0.4);
+  transform: translateY(-2px);
+}
+
+/* Responsive Design */
+@media (max-width: 768px) {
+  .health-monitor {
+    padding: 15px;
+  }
+
+  .health-header {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .health-header h3 {
+    font-size: 1.3rem;
+  }
+
+  .health-metrics {
+    grid-template-columns: 1fr;
+  }
+
+  .breaker-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* Animation for loading state */
+@keyframes pulse {
+  0%, 100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.5;
+  }
+}
+
+.health-loading {
+  animation: pulse 1.5s ease-in-out infinite;
+}
+
+/* Animation for refresh button */
+@keyframes spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.health-controls button:disabled {
+  animation: spin 1s linear infinite;
+}

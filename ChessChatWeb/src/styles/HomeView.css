@@ -1,0 +1,265 @@
+/* Home View Styles */
+
+.home-view {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: transparent;
+  padding: 1rem;
+}
+
+@media (min-width: 768px) {
+  .home-view {
+    padding: 2rem;
+  }
+}
+
+.home-container {
+  max-width: 90vw;
+  width: 100%;
+  min-width: 320px;
+  animation: fadeIn 0.5s ease-out;
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.home-header {
+  text-align: center;
+  margin-bottom: 48px;
+}
+
+.home-title {
+  font-size: 3.5rem;
+  font-weight: 800;
+  color: white;
+  margin: 0 0 16px 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 16px;
+  text-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+}
+
+.chess-icon {
+  font-size: 4rem;
+  animation: float 3s ease-in-out infinite;
+}
+
+@keyframes float {
+  0%, 100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-10px);
+  }
+}
+
+.home-subtitle {
+  font-size: 1.25rem;
+  color: rgba(255, 255, 255, 0.9);
+  margin: 0;
+  font-weight: 400;
+}
+
+.home-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  margin-bottom: 48px;
+}
+
+.home-button {
+  background: var(--bg-card, rgba(30, 41, 59, 0.8));
+  border: 1px solid rgba(100, 116, 139, 0.3);
+  border-radius: 16px;
+  padding: 24px;
+  cursor: pointer;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+  display: flex;
+  align-items: center;
+  gap: 20px;
+  text-align: left;
+  color: var(--text-primary, #f8fafc);
+}
+
+.home-button:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
+  background: var(--bg-card-hover, rgba(51, 65, 85, 0.8));
+  border-color: rgba(102, 126, 234, 0.5);
+}
+
+.home-button:active {
+  transform: translateY(-2px);
+}
+
+.home-button.primary {
+  background: linear-gradient(135deg, #667eea 0%, #5a67d8 100%);
+  color: white;
+  border: 2px solid rgba(102, 126, 234, 0.4);
+}
+
+.home-button.primary .button-label {
+  color: white;
+}
+
+.home-button.primary .button-sublabel {
+  color: rgba(255, 255, 255, 0.8);
+}
+
+.home-button.primary:hover {
+  border-color: rgba(255, 255, 255, 0.5);
+}
+
+.home-button.primary.animating {
+  animation: pulse 0.3s ease-out;
+}
+
+@keyframes pulse {
+  0% {
+    transform: scale(1);
+  }
+  50% {
+    transform: scale(1.05);
+  }
+  100% {
+    transform: scale(1);
+  }
+}
+
+.home-button.secondary {
+  background: rgba(255, 255, 255, 0.95);
+}
+
+.button-icon {
+  font-size: 2.5rem;
+  flex-shrink: 0;
+}
+
+.button-text {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  flex: 1;
+}
+
+.button-label {
+  font-size: 1.25rem;
+  font-weight: 600;
+  color: #2d3748;
+}
+
+.button-sublabel {
+  font-size: 0.95rem;
+  color: #718096;
+  font-weight: 400;
+}
+
+.home-features {
+  display: flex;
+  justify-content: center;
+  gap: 32px;
+  margin-bottom: 32px;
+  flex-wrap: wrap;
+}
+
+.feature {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  color: white;
+}
+
+.feature-icon {
+  font-size: 2rem;
+}
+
+.feature-text {
+  font-size: 0.9rem;
+  font-weight: 500;
+  opacity: 0.9;
+}
+
+.home-footer {
+  text-align: center;
+  padding-top: 24px;
+  border-top: 1px solid rgba(255, 255, 255, 0.2);
+}
+
+.version-info {
+  font-size: 0.85rem;
+  color: rgba(255, 255, 255, 0.7);
+  margin: 0;
+}
+
+/* Responsive Design */
+@media (max-width: 768px) {
+  .home-title {
+    font-size: 2.5rem;
+  }
+
+  .chess-icon {
+    font-size: 3rem;
+  }
+
+  .home-subtitle {
+    font-size: 1.1rem;
+  }
+
+  .home-button {
+    padding: 20px;
+  }
+
+  .button-icon {
+    font-size: 2rem;
+  }
+
+  .button-label {
+    font-size: 1.1rem;
+  }
+
+  .button-sublabel {
+    font-size: 0.85rem;
+  }
+
+  .home-features {
+    gap: 24px;
+  }
+
+  .feature-text {
+    font-size: 0.85rem;
+  }
+}
+
+@media (max-width: 480px) {
+  .home-title {
+    font-size: 2rem;
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  .chess-icon {
+    font-size: 2.5rem;
+  }
+
+  .home-subtitle {
+    font-size: 1rem;
+  }
+
+  .home-features {
+    flex-direction: column;
+    gap: 16px;
+  }
+}

@@ -1,0 +1,12 @@
+node_modules
+dist
+.wrangler
+.dev.vars
+*.log
+.DS_Store
+.env
+.env.local
+
+# Keep backup files but ignore timestamped folders (keep latest/)
+backups/knowledge-*/
+!backups/latest/

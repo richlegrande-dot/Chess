@@ -1,0 +1,237 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ============================================================================
+// KNOWLEDGE VAULT MODELS
+// ============================================================================
+
+model KnowledgeSource {
+  id         String   @id @default(cuid())
+  title      String
+  sourceType String   // DOC | URL | NOTE | IMPORT
+  url        String?
+  isDeleted  Boolean  @default(false)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  chunks     KnowledgeChunk[]
+}
+
+model KnowledgeChunk {
+  id        String   @id @default(cuid())
+  sourceId  String
+  chunkText String
+  tags      String   // JSON array stored as string (SQLite limitation)
+  language  String?
+  metadata  String?  // JSON stored as string
+  createdAt DateTime @default(now())
+
+  source    KnowledgeSource @relation(fields: [sourceId], references: [id], onDelete: Cascade)
+}
+
+model KnowledgeEditLog {
+  id         String   @id @default(cuid())
+  actor      String
+  action     String   // CREATE | UPDATE | DELETE
+  entityType String   // Source | Chunk
+  entityId   String
+  beforeJson String?  // JSON stored as string
+  afterJson  String?  // JSON stored as string
+  createdAt  DateTime @default(now())
+}
+
+// ============================================================================
+// GAME RECORDS
+// ============================================================================
+
+model GameRecord {
+  id        String   @id @default(cuid())
+  pgn       String
+  result    String   // 1-0 | 0-1 | 1/2-1/2 | *
+  playerColor String // white | black
+  difficulty  String // easy | medium | hard
+  createdAt DateTime @default(now())
+
+  takeaways TakeawayRecord[]
+  chatSessions ChatSession[]
+}
+
+model TakeawayRecord {
+  id        String   @id @default(cuid())
+  gameId    String
+  text      String
+  themeTags String   // JSON array as string
+  createdAt DateTime @default(now())
+
+  game      GameRecord @relation(fields: [gameId], references: [id], onDelete: Cascade)
+}
+
+model ChatSession {
+  id        String   @id @default(cuid())
+  gameId    String
+  messages  String   // JSON array as string
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  game      GameRecord @relation(fields: [gameId], references: [id], onDelete: Cascade)
+}
+
+// ============================================================================
+// ADMIN SESSION TOKENS
+// ============================================================================
+
+model AdminSession {
+  id        String   @id @default(cuid())
+  token     String   @unique
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+}
+
+// ============================================================================
+// WALL-E LEARNING SYSTEM (Memory Bank & Player Profile)
+// ============================================================================
+
+model PlayerProfile {
+  id        String   @id @default(cuid())
+  userId    String   @unique // Unique identifier for the player
+  
+  // Skill ratings (stored as JSON)
+  skillRatings      String   @default("{}") // JSON object
+  
+  // Learning metrics
+  gamesPlayed       Int      @default(0)
+  improvementRate   Float    @default(0.0) // Points per 10 games
+  strengthAreas     String   @default("[]") // JSON array as string
+  weaknessAreas     String   @default("[]") // JSON array as string
+  
+  // Behavioral patterns
+  playStyle         String   @default("balanced") // aggressive | defensive | balanced | positional
+  commonMistakes    String   @default("[]") // JSON array as string
+  favoriteOpenings  String   @default("[]") // JSON array as string
+  
+  // Progress tracking
+  ratingHistory     String   @default("[]") // JSON array: [{ date, rating }]
+  milestones        String   @default("[]") // JSON array: [{ achievement, date }]
+  behavioralPatterns String  @default("{}") // JSON object
+  
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  
+  trainingGames     TrainingGame[]
+  mistakeSignatures MistakeSignature[]
+  learningMetrics   LearningMetric[]
+  coachingMemory    CoachingMemory?
+}
+
+model TrainingGame {
+  id        String   @id @default(cuid())
+  userId    String
+  gameIndex Int      // Position in the 50-game rolling window (0-49)
+  
+  // Game data
+  pgn       String   @default("")
+  analysis  String   @default("{}") // JSON serialized
+  metrics   String   @default("{}") // JSON serialized
+  timestamp DateTime @default(now())
+  
+  profile   PlayerProfile @relation(fields: [userId], references: [userId], onDelete: Cascade)
+  
+  @@unique([userId, gameIndex])
+  @@index([userId, timestamp])
+}
+
+model MistakeSignature {
+  id        String   @id @default(cuid())
+  userId    String
+  
+  // Signature identification
+  category          String   // tactical | positional | endgame | opening
+  title             String
+  description       String   @default("")
+  
+  // Pattern data (JSON serialized)
+  patternDetails    String   @default("{}")
+  examplePositions  String   @default("[]")
+  relatedConcepts   String   @default("[]")
+  
+  // Tracking metrics
+  occurrenceCount   Int      @default(1)
+  lastOccurrence    DateTime @default(now())
+  confidenceScore   Float    @default(0.5)
+  masteryScore      Float    @default(0.0)
+  
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  
+  profile   PlayerProfile @relation(fields: [userId], references: [userId], onDelete: Cascade)
+  
+  @@unique([userId, category, title])
+  @@index([userId, occurrenceCount])
+}
+
+model LearningMetric {
+  id        String   @id @default(cuid())
+  userId    String
+  
+  // Session info
+  sessionId String
+  sessionStart DateTime
+  sessionEnd   DateTime?
+  
+  // Performance
+  gamesInSession    Int      @default(0)
+  averageAccuracy   Float    @default(0.0)
+  improvementDelta  Float    @default(0.0) // Change in rating during session
+  Start      DateTime
+  sessionEnd        DateTime
+  gameCount         Int      @default(0)
+  
+  // Performance
+  mistakesIdentified Int     @default(0)
+  mistakesCorrected  Int     @default(0)
+  totalMoves         Int     @default(0)
+  
+  // Insights (JSON serialized)
+  insights          String   @default("[]")
+  progress          String   @default("{}")
+// ============================================================================
+// COACHING MEMORY (Rolling aggregate for Wall-E learning loop)
+// ============================================================================
+
+model CoachingMemory {
+  id        String   @id @default(cuid())
+  userId    String   @unique
+  
+  // Aggregated learning insights
+  openingTroubleSpots     String   @default(\"[]\") // JSON array: most problematic openings
+  blunderTypes            String   @default(\"[]\") // JSON array: tactical/positional/time-pressure
+  timeTroublePatterns     String   @default(\"{}\") // JSON object: when player struggles with time
+  positionTypeWeaknesses  String   @default(\"[]\") // JSON array: open/closed/tactical positions
+  
+  // Last N takeaways (rolling window)
+  recentTakeaways         String   @default(\"[]\") // JSON array: last 10-20 coaching insights
+  adviceIssued            String   @default(\"[]\") // JSON array: track advice given to evaluate later
+  
+  // Performance trends
+  accuracyTrend           String   @default(\"[]\") // JSON array: [{date, accuracy}]
+  improvementAreas        String   @default(\"[]\") // JSON array: areas showing improvement
+  regressionAreas         String   @default(\"[]\") // JSON array: areas getting worse
+  
+  // Coaching effectiveness
+  adviceFollowedCount     Int      @default(0)
+  adviceIgnoredCount      Int      @default(0)
+  successfulInterventions Int      @default(0) // Times advice led to improvement
+  
+  lastUpdated DateTime @default(now())
+  createdAt   DateTime @default(now())
+  
+  profile   PlayerProfile @relation(fields: [userId], references: [userId], onDelete: Cascade)
+  
+  @@index([userId, lastUpdated])
+}

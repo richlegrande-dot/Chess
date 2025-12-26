@@ -1,0 +1,19 @@
+{
+  "backupDate": "2025-12-20T03:09:57.886Z",
+  "totalSources": 3,
+  "totalChunks": 42,
+  "sources": [
+    {
+      "id": "cmjbjqoto00001494vrn7h93n",
+      "chunkCount": 14
+    },
+    {
+      "id": "cmjbjqqio000u1494x704x7vg",
+      "chunkCount": 13
+    },
+    {
+      "id": "cmjbjqs0z001m1494j0p473ok",
+      "chunkCount": 15
+    }
+  ]
+}

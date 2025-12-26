@@ -1,0 +1,1099 @@
+/**
+ * Coaching Report Styles
+ */
+
+.coaching-modal {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: rgba(0, 0, 0, 0.85);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+  padding: 20px;
+  overflow-y: auto;
+}
+
+.coaching-content {
+  background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+  border-radius: 20px;
+  max-width: 900px;
+  width: 100%;
+  max-height: 90vh;
+  overflow-y: auto;
+  padding: 40px;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
+  position: relative;
+  color: #ffffff;
+}
+
+.coaching-content.analyzing {
+  text-align: center;
+  padding: 60px;
+}
+
+.coaching-content.error {
+  text-align: center;
+  padding: 60px;
+  background: linear-gradient(135deg, #2e1a1a 0%, #3e1621 100%);
+}
+
+.spinner {
+  width: 60px;
+  height: 60px;
+  border: 4px solid rgba(16, 185, 129, 0.2);
+  border-top-color: #10b981;
+  border-radius: 50%;
+  animation: spin 1s ease-in-out infinite;
+  margin: 0 auto 20px;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+@keyframes bounce {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-10px); }
+}
+
+@keyframes wave {
+  0%, 100% { transform: rotate(0deg); }
+  25% { transform: rotate(-10deg); }
+  75% { transform: rotate(10deg); }
+}
+
+@keyframes pulse {
+  0%, 100% { transform: scale(1); opacity: 1; }
+  50% { transform: scale(1.05); opacity: 0.9; }
+}
+
+.close-button-x {
+  position: absolute;
+  top: 20px;
+  right: 20px;
+  background: rgba(255, 255, 255, 0.1);
+  border: none;
+  color: #ffffff;
+  font-size: 28px;
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  cursor: pointer;
+  transition: all 0.3s;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  line-height: 1;
+}
+
+.close-button-x:hover {
+  background: rgba(255, 255, 255, 0.2);
+  transform: rotate(90deg);
+}
+
+/* Header */
+.coaching-header {
+  text-align: center;
+  margin-bottom: 40px;
+}
+
+.coaching-header h1 {
+  font-size: 36px;
+  margin: 0 0 10px 0;
+  color: #ffffff;
+  font-weight: 700;
+}
+
+.game-result {
+  font-size: 18px;
+  color: #4CAF50;
+  font-weight: 600;
+}
+
+/* Statistics Card */
+.statistics-card {
+  background: rgba(255, 255, 255, 0.05);
+  border-radius: 15px;
+  padding: 25px;
+  margin-bottom: 30px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.statistics-card h3 {
+  margin: 0 0 20px 0;
+  color: #ffffff;
+  font-size: 20px;
+}
+
+.stats-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: 15px;
+}
+
+.stat-item {
+  background: rgba(255, 255, 255, 0.05);
+  padding: 15px;
+  border-radius: 10px;
+  text-align: center;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.stat-label {
+  display: block;
+  font-size: 12px;
+  color: rgba(255, 255, 255, 0.6);
+  margin-bottom: 8px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.stat-value {
+  display: block;
+  font-size: 28px;
+  font-weight: 700;
+  color: #ffffff;
+}
+
+.stat-item.blunders .stat-value {
+  color: #f44336;
+}
+
+.stat-item.mistakes .stat-value {
+  color: #ff9800;
+}
+
+.stat-item.inaccuracies .stat-value {
+  color: #ffc107;
+}
+
+.stat-item.missed .stat-value {
+  color: #2196f3;
+}
+
+.stat-item.violations .stat-value {
+  color: #9c27b0;
+}
+
+/* Improvements Section */
+.improvements-section {
+  margin-bottom: 30px;
+}
+
+.improvements-section h2 {
+  font-size: 28px;
+  margin: 0 0 20px 0;
+  color: #ffffff;
+}
+
+.improvement-card {
+  background: rgba(255, 255, 255, 0.05);
+  border-radius: 15px;
+  padding: 25px;
+  margin-bottom: 15px;
+  border-left: 4px solid #4CAF50;
+  transition: all 0.3s;
+}
+
+.improvement-card:hover {
+  background: rgba(255, 255, 255, 0.08);
+  transform: translateX(5px);
+}
+
+.improvement-card.priority-3 {
+  border-left-color: #f44336;
+}
+
+.improvement-card.priority-2 {
+  border-left-color: #ff9800;
+}
+
+.improvement-card.priority-1 {
+  border-left-color: #ffc107;
+}
+
+.improvement-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  margin-bottom: 15px;
+}
+
+.improvement-header h3 {
+  margin: 0;
+  font-size: 20px;
+  color: #ffffff;
+  flex: 1;
+}
+
+.move-badge {
+  background: rgba(255, 255, 255, 0.1);
+  color: #ffffff;
+  padding: 4px 12px;
+  border-radius: 12px;
+  font-size: 12px;
+  font-weight: 600;
+  margin-left: 10px;
+}
+
+.improvement-description {
+  color: rgba(255, 255, 255, 0.8);
+  line-height: 1.6;
+  margin: 0 0 15px 0;
+}
+
+.category-badge {
+  display: inline-block;
+  padding: 6px 12px;
+  border-radius: 12px;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.category-badge.tactical {
+  background: rgba(244, 67, 54, 0.2);
+  color: #f44336;
+}
+
+.category-badge.strategic {
+  background: rgba(33, 150, 243, 0.2);
+  color: #2196f3;
+}
+
+/* Phase Analysis */
+.phase-analysis-section {
+  margin-bottom: 30px;
+}
+
+.phase-analysis-section h2 {
+  font-size: 28px;
+  margin: 0 0 20px 0;
+  color: #ffffff;
+}
+
+.phase-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+  gap: 15px;
+}
+
+.phase-card {
+  background: rgba(255, 255, 255, 0.05);
+  border-radius: 15px;
+  padding: 20px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.phase-card h4 {
+  margin: 0 0 10px 0;
+  color: #4CAF50;
+  font-size: 16px;
+}
+
+.phase-card p {
+  margin: 0;
+  color: rgba(255, 255, 255, 0.8);
+  line-height: 1.5;
+  font-size: 14px;
+}
+
+/* Focus Section */
+.focus-section {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+  gap: 20px;
+  margin-bottom: 30px;
+}
+
+.focus-card {
+  background: rgba(255, 255, 255, 0.05);
+  border-radius: 15px;
+  padding: 25px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.focus-card.tactical {
+  border-top: 3px solid #f44336;
+}
+
+.focus-card.strategic {
+  border-top: 3px solid #2196f3;
+}
+
+.focus-card h3 {
+  margin: 0 0 15px 0;
+  font-size: 20px;
+  color: #ffffff;
+}
+
+.focus-card p {
+  margin: 0;
+  color: rgba(255, 255, 255, 0.8);
+  line-height: 1.6;
+}
+
+/* Encouragement */
+.encouragement-section {
+  background: linear-gradient(135deg, rgba(76, 175, 80, 0.1) 0%, rgba(33, 150, 243, 0.1) 100%);
+  border-radius: 15px;
+  padding: 30px;
+  margin-bottom: 30px;
+  border: 1px solid rgba(76, 175, 80, 0.3);
+}
+
+.encouragement-section h2 {
+  margin: 0 0 15px 0;
+  font-size: 28px;
+  color: #4CAF50;
+}
+
+.encouragement-text {
+  margin: 0;
+  color: rgba(255, 255, 255, 0.9);
+  line-height: 1.7;
+  font-size: 16px;
+}
+
+/* Footer */
+.coaching-footer {
+  display: flex;
+  gap: 15px;
+  justify-content: center;
+  padding-top: 20px;
+  border-top: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.primary-button,
+.secondary-button,
+.close-button {
+  padding: 14px 28px;
+  border-radius: 10px;
+  font-size: 16px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.3s;
+  border: none;
+}
+
+.primary-button {
+  background: linear-gradient(135deg, #4CAF50 0%, #45a049 100%);
+  color: #ffffff;
+}
+
+.primary-button:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 5px 15px rgba(76, 175, 80, 0.4);
+}
+
+.secondary-button {
+  background: rgba(255, 255, 255, 0.1);
+  color: #ffffff;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+}
+
+.secondary-button:hover {
+  background: rgba(255, 255, 255, 0.15);
+}
+
+.insights-chat-button {
+  margin-left: 8px;
+}
+
+.close-button {
+  background: rgba(255, 255, 255, 0.1);
+  color: #ffffff;
+  padding: 14px 28px;
+}
+
+.close-button:hover {
+  background: rgba(255, 255, 255, 0.15);
+}
+
+/* Metadata */
+.metadata-debug {
+  text-align: center;
+  margin-top: 20px;
+  padding-top: 15px;
+  border-top: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.metadata-debug small {
+  color: rgba(255, 255, 255, 0.4);
+  font-size: 11px;
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+  .coaching-content {
+    padding: 25px;
+    max-height: 95vh;
+  }
+
+  .coaching-header h1 {
+    font-size: 28px;
+  }
+
+  .stats-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+
+  .phase-grid,
+  .focus-section {
+    grid-template-columns: 1fr;
+  }
+
+  .coaching-footer {
+    flex-direction: column;
+  }
+
+  .improvement-header {
+    flex-direction: column;
+  }
+
+  .move-badge {
+    margin-left: 0;
+    margin-top: 10px;
+    align-self: flex-start;
+  }
+}
+
+/* Player Progress Section */
+.player-progress-section {
+  margin-top: 2rem;
+  padding: 1.5rem;
+  background: rgba(16, 185, 129, 0.1);
+  border: 1px solid rgba(16, 185, 129, 0.3);
+  border-radius: 12px;
+}
+
+.player-progress-section h2 {
+  color: #10b981;
+  margin-bottom: 1rem;
+  font-size: 1.5rem;
+}
+
+.player-progress-section h3 {
+  color: #e2e8f0;
+  margin: 1rem 0 0.5rem;
+  font-size: 1.1rem;
+}
+
+.skills-overview {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 1rem;
+  margin-bottom: 1rem;
+}
+
+.skill-item {
+  background: rgba(255, 255, 255, 0.05);
+  padding: 0.75rem;
+  border-radius: 8px;
+  text-align: center;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.skill-item {
+  margin-bottom: 0.75rem;
+}
+
+.skill-item span {
+  font-weight: 600;
+  color: #e2e8f0;
+  display: block;
+  margin-top: 0.25rem;
+}
+
+.skill-bar {
+  width: 100%;
+  height: 8px;
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 4px;
+  overflow: hidden;
+  margin-bottom: 0.25rem;
+}
+
+.skill-fill {
+  height: 100%;
+  background: linear-gradient(90deg, #10b981, #3b82f6);
+  transition: width 0.5s ease;
+  border-radius: 4px;
+}
+
+.player-stats {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 1rem;
+  margin: 1.5rem 0;
+}
+
+.stat-box {
+  background: rgba(59, 130, 246, 0.1);
+  border: 1px solid rgba(59, 130, 246, 0.3);
+  border-radius: 12px;
+  padding: 1rem;
+  text-align: center;
+}
+
+.stat-number {
+  display: block;
+  font-size: 2rem;
+  font-weight: bold;
+  color: #60a5fa;
+  margin-bottom: 0.25rem;
+}
+
+.stat-label {
+  display: block;
+  font-size: 0.875rem;
+  color: #94a3b8;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.strengths-weaknesses {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1rem;
+  margin: 1.5rem 0;
+}
+
+.strengths, .weaknesses {
+  background: rgba(255, 255, 255, 0.05);
+  border-radius: 12px;
+  padding: 1.25rem;
+}
+
+.strengths {
+  border: 1px solid rgba(16, 185, 129, 0.3);
+}
+
+.weaknesses {
+  border: 1px solid rgba(251, 146, 60, 0.3);
+}
+
+.strengths h3 {
+  color: #6ee7b7;
+  margin-top: 0;
+  margin-bottom: 0.75rem;
+  font-size: 1.1rem;
+}
+
+.weaknesses h3 {
+  color: #fdba74;
+  margin-top: 0;
+  margin-bottom: 0.75rem;
+  font-size: 1.1rem;
+}
+
+.strengths ul, .weaknesses ul {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+
+.strengths li, .weaknesses li {
+  padding: 0.5rem 0;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.strengths li:last-child, .weaknesses li:last-child {
+  border-bottom: none;
+}
+
+.recurring-patterns {
+  margin: 1.5rem 0;
+  padding: 1.5rem;
+  background: rgba(244, 114, 182, 0.1);
+  border: 1px solid rgba(244, 114, 182, 0.3);
+  border-radius: 12px;
+}
+
+.recurring-patterns h3 {
+  color: #f9a8d4;
+  margin-top: 0;
+  margin-bottom: 0.75rem;
+}
+
+.pattern-intro {
+  font-style: italic;
+  color: #e879f9;
+  margin-bottom: 1rem;
+}
+
+.recurring-patterns ul {
+  list-style: none;
+  padding-left: 0;
+}
+
+.recurring-patterns li {
+  padding: 0.5rem 0;
+  padding-left: 1.5rem;
+  position: relative;
+  color: #fae8ff;
+}
+
+.recurring-patterns li::before {
+  content: "🔁";
+  position: absolute;
+  left: 0;
+}
+
+.pattern-advice {
+  margin-top: 1rem;
+  padding: 0.75rem;
+  background: rgba(168, 85, 247, 0.2);
+  border-radius: 8px;
+  color: #e9d5ff;
+  font-weight: 500;
+}
+
+.coaching-plan {
+  margin: 1.5rem 0;
+  padding: 1.5rem;
+  background: rgba(99, 102, 241, 0.1);
+  border: 1px solid rgba(99, 102, 241, 0.3);
+  border-radius: 12px;
+}
+
+.coaching-plan h3 {
+  color: #a5b4fc;
+  margin-top: 0;
+  margin-bottom: 1rem;
+}
+
+.plan-focus, .plan-exercises, .plan-timeline {
+  margin-bottom: 1rem;
+}
+
+.plan-focus strong, .plan-exercises strong, .plan-timeline strong {
+  color: #c7d2fe;
+  display: block;
+  margin-bottom: 0.5rem;
+}
+
+.plan-focus ul, .plan-exercises ul {
+  list-style: none;
+  padding-left: 0;
+}
+
+.plan-focus li, .plan-exercises li {
+  padding: 0.5rem 0;
+  padding-left: 1.5rem;
+  position: relative;
+  color: #e0e7ff;
+}
+
+.plan-focus li::before {
+  content: "🎯";
+  position: absolute;
+  left: 0;
+}
+
+.plan-exercises li::before {
+  content: "📝";
+  position: absolute;
+  left: 0;
+}
+
+.exercise-type {
+  background: rgba(99, 102, 241, 0.3);
+  padding: 0.125rem 0.5rem;
+  border-radius: 4px;
+  font-size: 0.875rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  color: #c7d2fe;
+}
+
+.difficulty {
+  color: #fbbf24;
+  font-size: 0.875rem;
+  font-style: italic;
+}
+
+.plan-timeline p {
+  color: #e0e7ff;
+  margin: 0.25rem 0;
+}
+
+.recent-progress {
+  margin-top: 1rem;
+  padding: 1rem;
+  background: rgba(59, 130, 246, 0.1);
+  border-radius: 8px;
+  border: 1px solid rgba(59, 130, 246, 0.2);
+}
+
+.recent-progress h3 {
+  color: #93c5fd;
+  margin-top: 0;
+  margin-bottom: 0.75rem;
+}
+
+.recent-progress p {
+  margin: 0.5rem 0;
+  color: #93c5fd;
+}
+
+.next-milestone {
+  margin-top: 1rem;
+  padding: 1rem;
+  background: rgba(251, 191, 36, 0.1);
+  border-radius: 8px;
+  border: 1px solid rgba(251, 191, 36, 0.2);
+  text-align: center;
+}
+
+.next-milestone p {
+  margin: 0;
+  color: #fde68a;
+  font-size: 1rem;
+}
+
+@media (max-width: 768px) {
+  .strengths-weaknesses {
+    grid-template-columns: 1fr;
+  }
+  
+  .player-stats {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* Scrollbar Styling */
+.coaching-content::-webkit-scrollbar {
+  width: 8px;
+}
+
+.coaching-content::-webkit-scrollbar-track {
+  background: rgba(255, 255, 255, 0.05);
+  border-radius: 10px;
+}
+
+.coaching-content::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.2);
+  border-radius: 10px;
+}
+
+.coaching-content::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.3);
+}
+/* Enhanced Learning System V2 Styles */
+.walle-learning-section {
+  margin-top: 2rem;
+  padding: 2rem;
+  background: linear-gradient(135deg, rgba(59, 130, 246, 0.1) 0%, rgba(99, 102, 241, 0.1) 100%);
+  border-radius: 16px;
+  border: 2px solid rgba(99, 102, 241, 0.3);
+}
+
+.walle-learning-section h2 {
+  color: #93c5fd;
+  margin-bottom: 0.5rem;
+}
+
+.learning-intro {
+  color: #cbd5e1;
+  margin-bottom: 1.5rem;
+  font-size: 0.95rem;
+}
+
+/* Next Game Focus */
+.next-game-focus {
+  margin-bottom: 1.5rem;
+}
+
+.focus-card-primary {
+  background: linear-gradient(135deg, rgba(139, 92, 246, 0.15) 0%, rgba(99, 102, 241, 0.15) 100%);
+  border: 2px solid rgba(139, 92, 246, 0.4);
+  border-radius: 12px;
+  padding: 1.5rem;
+}
+
+.focus-card-primary h4 {
+  color: #c4b5fd;
+  margin-bottom: 0.5rem;
+  font-size: 1.2rem;
+}
+
+.focus-card-primary p {
+  color: #cbd5e1;
+  margin-bottom: 0.8rem;
+}
+
+.next-objective {
+  padding: 1rem;
+  background: rgba(139, 92, 246, 0.2);
+  border-radius: 8px;
+  border-left: 4px solid #8b5cf6;
+  margin-bottom: 0.8rem;
+}
+
+.expected-games {
+  display: inline-block;
+  padding: 0.3rem 0.8rem;
+  background: rgba(99, 102, 241, 0.3);
+  border-radius: 20px;
+  font-size: 0.85rem;
+  color: #a5b4fc;
+}
+
+/* Mistake Signatures */
+.mistake-signatures {
+  margin: 1.5rem 0;
+}
+
+.signatures-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 1rem;
+  margin-top: 1rem;
+}
+
+.signature-card {
+  background: rgba(30, 41, 59, 0.6);
+  border: 1px solid rgba(148, 163, 184, 0.2);
+  border-radius: 10px;
+  padding: 1rem;
+  transition: all 0.3s ease;
+}
+
+.signature-card:hover {
+  transform: translateY(-2px);
+  border-color: rgba(99, 102, 241, 0.4);
+  box-shadow: 0 4px 12px rgba(99, 102, 241, 0.2);
+}
+
+.signature-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  margin-bottom: 0.8rem;
+}
+
+.signature-title {
+  color: #f1f5f9;
+  font-weight: 600;
+  font-size: 0.95rem;
+}
+
+.signature-category {
+  padding: 0.2rem 0.6rem;
+  background: rgba(99, 102, 241, 0.2);
+  border-radius: 12px;
+  font-size: 0.75rem;
+  color: #a5b4fc;
+  text-transform: capitalize;
+}
+
+.mastery-bar {
+  position: relative;
+  height: 24px;
+  background: rgba(0, 0, 0, 0.3);
+  border-radius: 12px;
+  overflow: hidden;
+  margin-bottom: 0.8rem;
+}
+
+.mastery-fill {
+  height: 100%;
+  transition: width 0.5s ease;
+  border-radius: 12px;
+}
+
+.mastery-label {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  color: #ffffff;
+  font-size: 0.75rem;
+  font-weight: 600;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.5);
+}
+
+.signature-desc {
+  color: #cbd5e1;
+  font-size: 0.85rem;
+  margin-bottom: 0.8rem;
+}
+
+.signature-meta {
+  display: flex;
+  justify-content: space-between;
+  font-size: 0.75rem;
+  color: #94a3b8;
+}
+
+/* Training Recommendations */
+.training-recommendations {
+  margin: 1.5rem 0;
+}
+
+.recommendations-list {
+  display: grid;
+  gap: 1rem;
+  margin-top: 1rem;
+}
+
+.recommendation-card {
+  background: rgba(16, 185, 129, 0.1);
+  border: 1px solid rgba(16, 185, 129, 0.3);
+  border-radius: 10px;
+  padding: 1rem;
+}
+
+.rec-type {
+  display: inline-block;
+  padding: 0.2rem 0.6rem;
+  background: rgba(16, 185, 129, 0.2);
+  border-radius: 12px;
+  font-size: 0.75rem;
+  color: #6ee7b7;
+  text-transform: uppercase;
+  margin-bottom: 0.5rem;
+}
+
+.recommendation-card h4 {
+  color: #6ee7b7;
+  margin: 0.5rem 0;
+  font-size: 1rem;
+}
+
+.recommendation-card p {
+  color: #cbd5e1;
+  margin-bottom: 0.8rem;
+  font-size: 0.9rem;
+}
+
+.rec-meta {
+  display: flex;
+  gap: 1rem;
+  font-size: 0.8rem;
+  color: #94a3b8;
+}
+
+/* Rotation Schedule */
+.rotation-schedule {
+  margin: 1.5rem 0;
+}
+
+.schedule-list {
+  display: grid;
+  gap: 0.8rem;
+  margin-top: 1rem;
+}
+
+.schedule-item {
+  display: grid;
+  grid-template-columns: 80px 1fr;
+  align-items: center;
+  gap: 1rem;
+  padding: 0.8rem;
+  background: rgba(59, 130, 246, 0.1);
+  border-radius: 8px;
+  border-left: 3px solid #3b82f6;
+}
+
+.game-number {
+  font-weight: 600;
+  color: #60a5fa;
+  text-align: center;
+}
+
+.game-objective {
+  color: #cbd5e1;
+  margin: 0;
+  font-size: 0.9rem;
+}
+
+/* Mastery Streaks */
+.mastery-streaks {
+  margin: 1.5rem 0;
+}
+
+.streaks-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.8rem;
+  margin-top: 1rem;
+}
+
+.streak-card {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.6rem 1rem;
+  background: linear-gradient(135deg, rgba(251, 191, 36, 0.15) 0%, rgba(245, 158, 11, 0.15) 100%);
+  border: 1px solid rgba(251, 191, 36, 0.4);
+  border-radius: 20px;
+}
+
+.streak-count {
+  font-weight: 700;
+  color: #fcd34d;
+  font-size: 1.1rem;
+}
+
+.streak-title {
+  color: #fde68a;
+  font-size: 0.9rem;
+}
+
+/* Learning Debug */
+.learning-debug {
+  margin-top: 1.5rem;
+  padding: 1rem;
+  background: rgba(0, 0, 0, 0.3);
+  border-radius: 8px;
+  border: 1px solid rgba(148, 163, 184, 0.2);
+}
+
+.learning-debug summary {
+  cursor: pointer;
+  color: #94a3b8;
+  font-size: 0.9rem;
+  user-select: none;
+}
+
+.learning-debug summary:hover {
+  color: #cbd5e1;
+}
+
+.debug-content {
+  margin-top: 1rem;
+  padding-top: 1rem;
+  border-top: 1px solid rgba(148, 163, 184, 0.2);
+}
+
+.debug-content p {
+  color: #94a3b8;
+  font-size: 0.85rem;
+  margin-bottom: 0.5rem;
+}
+
+.debug-content ul {
+  margin-left: 1.5rem;
+  color: #94a3b8;
+  font-size: 0.85rem;
+}
+
+/* Responsive Adjustments */
+@media (max-width: 768px) {
+  .signatures-grid {
+    grid-template-columns: 1fr;
+  }
+  
+  .schedule-item {
+    grid-template-columns: 1fr;
+  }
+  
+  .game-number {
+    text-align: left;
+  }
+}

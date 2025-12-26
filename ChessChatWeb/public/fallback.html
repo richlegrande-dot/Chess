@@ -1,0 +1,126 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/svg+xml" href="/chess-icon.svg" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>ChessChat - Compatibility Mode</title>
+    <style>
+      body {
+        margin: 0;
+        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+        background: linear-gradient(135deg, #0a0a0a 0%, #1a1a1a 50%, #0a0a0a 100%);
+        color: white;
+        min-height: 100vh;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        text-align: center;
+      }
+      .container {
+        max-width: 600px;
+        padding: 2rem;
+      }
+      .icon {
+        font-size: 4rem;
+        margin-bottom: 1rem;
+      }
+      .title {
+        font-size: 2.5rem;
+        margin-bottom: 1rem;
+        font-weight: bold;
+      }
+      .message {
+        font-size: 1.1rem;
+        line-height: 1.6;
+        margin-bottom: 2rem;
+        opacity: 0.9;
+      }
+      .issue-list {
+        text-align: left;
+        background: rgba(255,255,255,0.1);
+        padding: 1.5rem;
+        border-radius: 8px;
+        margin-bottom: 2rem;
+      }
+      .issue-list h3 {
+        margin-top: 0;
+        color: #ff6b6b;
+      }
+      .issue-list ul {
+        margin: 0;
+        padding-left: 1.5rem;
+      }
+      .issue-list li {
+        margin-bottom: 0.5rem;
+        opacity: 0.8;
+      }
+      .button {
+        display: inline-block;
+        padding: 12px 24px;
+        background: #fff;
+        color: #000;
+        text-decoration: none;
+        border-radius: 8px;
+        font-weight: bold;
+        margin: 0 8px;
+        cursor: pointer;
+        border: none;
+        font-size: 16px;
+      }
+      .button-secondary {
+        background: transparent;
+        color: #fff;
+        border: 2px solid #fff;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="container">
+      <div class="icon">🛠️</div>
+      <h1 class="title">ChessChat Compatibility Mode</h1>
+      <p class="message">
+        The main application failed to load due to ES module compatibility issues in the Cloudflare Pages environment.
+      </p>
+      
+      <div class="issue-list">
+        <h3>Detected Issue: ES Module Loading Failure</h3>
+        <ul>
+          <li><strong>Symptom:</strong> JavaScript modules load but never execute</li>
+          <li><strong>Cause:</strong> Cloudflare Pages ES module compatibility</li>
+          <li><strong>Environment:</strong> Production-specific module resolution issue</li>
+          <li><strong>Bundle Size:</strong> 938KB with Three.js 3D components</li>
+        </ul>
+      </div>
+
+      <p class="message">
+        <strong>Technical Details:</strong><br>
+        The app uses ES modules with Three.js for 3D chess rendering. This works perfectly in development but fails in Cloudflare Pages production due to module loading/execution issues.
+      </p>
+
+      <div>
+        <button class="button" onclick="location.href='/'">🔄 Try Main App Again</button>
+        <button class="button button-secondary" onclick="openConsole()">🔍 View Console Errors</button>
+      </div>
+
+      <p style="margin-top: 2rem; font-size: 0.9rem; opacity: 0.6;">
+        Development works perfectly • Production ES module issue • Need module loading fix
+      </p>
+    </div>
+
+    <script>
+      function openConsole() {
+        alert('Open browser Developer Tools (F12) → Console tab to see detailed error logs');
+      }
+      
+      // Try to detect more about the environment
+      console.log('🔧 COMPATIBILITY_MODE_LOADED');
+      console.log('🔧 Environment Info:', {
+        userAgent: navigator.userAgent,
+        moduleSupport: 'noModule' in document.createElement('script'),
+        location: window.location.href,
+        timestamp: new Date().toISOString()
+      });
+    </script>
+  </body>
+</html>

@@ -1,0 +1,122 @@
+// Game Analysis API endpoint
+
+interface Env {
+  OPENAI_API_KEY?: string;
+}
+
+export const onRequestPost: PagesFunction<Env> = async (context) => {
+  const { request, env } = context;
+
+  // CORS headers
+  const corsHeaders = {
+    'Access-Control-Allow-Origin': '*',
+    'Access-Control-Allow-Methods': 'POST, OPTIONS',
+    'Access-Control-Allow-Headers': 'Content-Type',
+    'Content-Type': 'application/json',
+  };
+
+  // Handle CORS
+  if (request.method === 'OPTIONS') {
+    return new Response(null, { headers: corsHeaders });
+  }
+
+  try {
+    // Check API key
+    const apiKey = env.OPENAI_API_KEY;
+    if (!apiKey) {
+      return new Response(
+        JSON.stringify({ success: false, error: 'Missing OPENAI_API_KEY configuration' }),
+        {
+          status: 500,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        }
+      );
+    }
+
+    const { pgn, moveHistory, cpuLevel, playerColor } = await request.json();
+
+    if (!pgn || !moveHistory || !cpuLevel || !playerColor) {
+      return new Response(
+        JSON.stringify({ success: false, error: 'Missing required parameters' }),
+        {
+          status: 400,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        }
+      );
+    }
+
+    // Prepare the analysis prompt
+    const analysisPrompt = `Analyze this chess game and provide strategic insights focusing on where things went wrong for the ${playerColor} player.
+
+Game Details:
+- Player Color: ${playerColor}
+- CPU Difficulty: Level ${cpuLevel}/8
+- Total Moves: ${moveHistory.length}
+
+PGN: ${pgn}
+
+Move History:
+${moveHistory.map((move, i) => `${i+1}. ${move.move}`).join('\n')}
+
+Please provide:
+1. **Opening Analysis**: How did the opening phase go? Were there any early mistakes?
+2. **Critical Turning Points**: Identify 2-3 moves where the game shifted significantly
+3. **Strategic Mistakes**: What strategic concepts were missed (center control, piece development, king safety)?
+4. **Tactical Errors**: Point out any tactical blunders or missed opportunities
+5. **Improvement Suggestions**: Specific advice for similar positions in future games
+
+Keep the analysis concise but insightful, focusing on learning opportunities rather than just criticism.`;
+
+    // Call OpenAI API
+    const openAIResponse = await fetch('https://api.openai.com/v1/chat/completions', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${apiKey}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        model: 'gpt-4',
+        messages: [
+          {
+            role: 'system',
+            content: 'You are a chess master and teacher. Provide constructive, educational game analysis that helps players improve. Focus on strategic concepts and key learning points.'
+          },
+          {
+            role: 'user',
+            content: analysisPrompt
+          }
+        ],
+        max_tokens: 800,
+        temperature: 0.7
+      })
+    });
+
+    if (!openAIResponse.ok) {
+      throw new Error(`OpenAI API error: ${openAIResponse.status}`);
+    }
+
+    const openAIData = await openAIResponse.json();
+    const analysis = openAIData.choices[0]?.message?.content || 'No analysis available';
+
+    return new Response(
+      JSON.stringify({ success: true, analysis }),
+      {
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      }
+    );
+
+  } catch (error) {
+    console.error('Game analysis error:', error);
+    
+    return new Response(
+      JSON.stringify({ 
+        success: false, 
+        error: error instanceof Error ? error.message : 'Unknown error during game analysis' 
+      }),
+      {
+        status: 500,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      }
+    );
+  }
+};

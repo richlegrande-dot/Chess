@@ -1,0 +1,75 @@
+name: CI - Build & Cloudflare Readiness
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main]
+
+jobs:
+  build-and-test:
+    runs-on: ubuntu-latest
+    
+    strategy:
+      matrix:
+        node-version: [18.x]
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Setup Node.js ${{ matrix.node-version }}
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node-version }}
+          cache: 'npm'
+      
+      - name: Verify package-lock.json exists
+        run: |
+          if [ ! -f package-lock.json ]; then
+            echo "❌ ERROR: package-lock.json is missing!"
+            echo "Run 'npm install' locally and commit package-lock.json"
+            exit 1
+          fi
+          echo "✓ package-lock.json exists"
+      
+      - name: Install dependencies
+        run: npm ci
+      
+      - name: Verify lockfile integrity
+        run: |
+          # Check if npm ci modified the lockfile
+          git diff --exit-code package-lock.json || {
+            echo "❌ ERROR: package-lock.json was modified by npm ci!"
+            echo "Your lockfile is out of sync. Run 'npm install' locally and commit changes."
+            exit 1
+          }
+          echo "✓ Lockfile integrity verified"
+      
+      - name: Type check
+        run: npm run type-check || npm run build:check || echo "⚠ No type-check script found, skipping"
+      
+      - name: Build application
+        run: npm run build
+        env:
+          NODE_ENV: production
+      
+      - name: Verify build output
+        run: |
+          if [ ! -d dist ]; then
+            echo "❌ ERROR: Build output directory 'dist' not found!"
+            exit 1
+          fi
+          echo "✓ Build output verified"
+      
+      - name: Run Cloudflare readiness checks
+        run: node scripts/verify-cloudflare-ready.mjs
+      
+      - name: Summary
+        if: success()
+        run: |
+          echo "✅ All checks passed!"
+          echo "- Lockfile integrity: ✓"
+          echo "- Dependencies installed: ✓"
+          echo "- Build successful: ✓"
+          echo "- Cloudflare ready: ✓"

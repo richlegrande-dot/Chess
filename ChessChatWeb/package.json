@@ -1,8 +1,12 @@
 {
   "name": "chesschat-web",
+  "private": true,
   "version": "1.0.0",
   "description": "ChessChat Web - Play chess against AI with post-game analysis",
   "type": "module",
+  "engines": {
+    "node": ">=18"
+  },
   "scripts": {
     "dev": "vite",
     "dev:mock": "tsx mock-backend.ts",
