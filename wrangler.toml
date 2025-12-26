@@ -3,9 +3,10 @@ compatibility_date = "2024-01-01"
 pages_build_output_dir = "./public"
 
 # KV Namespaces
+# Run 'npm run setup:kv' to populate these IDs automatically
 kv_namespaces = [
-  { binding = "ANALYTICS_KV", id = "", preview_id = "" },
-  { binding = "RATE_LIMIT_KV", id = "", preview_id = "" }
+  { binding = "ANALYTICS_KV", id = "placeholder_run_setup_kv", preview_id = "placeholder_run_setup_kv" },
+  { binding = "RATE_LIMIT_KV", id = "placeholder_run_setup_kv", preview_id = "placeholder_run_setup_kv" }
 ]
 
 # Environment configuration

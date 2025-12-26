@@ -83,28 +83,60 @@ function makeRequest(options, data = null) {
 
 // Set secret using wrangler command
 async function setSecretWithWrangler(secretName, secretValue, environment = 'production') {
-  const { exec } = require('child_process');
-  const util = require('util');
-  const execAsync = util.promisify(exec);
+  const { spawn } = require('child_process');
   
-  try {
-    const envFlag = environment === 'production' ? '--env production' : '--env preview';
-    const command = `echo "${secretValue}" | wrangler pages secret put ${secretName} --project-name=${PROJECT_NAME} ${envFlag}`;
-    
-    await execAsync(command, { 
-      env: { 
-        ...process.env, 
-        CLOUDFLARE_API_TOKEN: API_TOKEN,
-        CLOUDFLARE_ACCOUNT_ID: ACCOUNT_ID
-      }
-    });
-    
-    console.log(`✓ Set secret: ${secretName} (${environment})`);
-    return true;
-  } catch (error) {
-    console.error(`❌ Failed to set secret ${secretName}:`, error.message);
-    return false;
-  }
+  return new Promise((resolve, reject) => {
+    try {
+      const envFlag = environment === 'production' ? '--env' : '--env';
+      const envValue = environment === 'production' ? 'production' : 'preview';
+      
+      // Use spawn to avoid shell interpretation and history exposure
+      const wrangler = spawn('wrangler', [
+        'pages', 'secret', 'put', secretName,
+        '--project-name', PROJECT_NAME,
+        envFlag, envValue
+      ], {
+        env: {
+          ...process.env,
+          CLOUDFLARE_API_TOKEN: API_TOKEN,
+          CLOUDFLARE_ACCOUNT_ID: ACCOUNT_ID
+        },
+        stdio: ['pipe', 'pipe', 'pipe']
+      });
+      
+      // Write secret value to stdin (more secure than echo)
+      wrangler.stdin.write(secretValue);
+      wrangler.stdin.end();
+      
+      let stdout = '';
+      let stderr = '';
+      
+      wrangler.stdout.on('data', (data) => {
+        stdout += data.toString();
+      });
+      
+      wrangler.stderr.on('data', (data) => {
+        stderr += data.toString();
+      });
+      
+      wrangler.on('close', (code) => {
+        if (code === 0) {
+          console.log(`✓ Set secret: ${secretName} (${environment})`);
+          resolve(true);
+        } else {
+          reject(new Error(`wrangler exited with code ${code}: ${stderr}`));
+        }
+      });
+      
+      wrangler.on('error', (err) => {
+        reject(err);
+      });
+      
+    } catch (error) {
+      console.error(`❌ Failed to set secret ${secretName}:`, error.message);
+      resolve(false);
+    }
+  });
 }
 
 // List secrets for the project

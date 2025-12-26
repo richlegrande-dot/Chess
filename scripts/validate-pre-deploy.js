@@ -68,11 +68,11 @@ function validateWranglerToml() {
       addResult('failed', `Missing KV binding in wrangler.toml: ${binding}`);
       allBindingsPresent = false;
     } else {
-      // Check if ID is set (not empty)
-      const regex = new RegExp(`binding = "${binding}", id = "([^"]*)"`, 'g');
+      // Check if ID is set (not empty or placeholder)
+      const regex = new RegExp(`binding = "${binding}"[^}]*id = "([^"]*)"`, 'g');
       const match = regex.exec(content);
-      if (match && match[1] === '') {
-        addResult('failed', `KV binding ${binding} has empty ID. Run 'npm run setup:kv' to configure.`);
+      if (match && (match[1] === '' || match[1].includes('placeholder'))) {
+        addResult('failed', `KV binding ${binding} has empty or placeholder ID. Run 'npm run setup:kv' to configure.`);
         allBindingsPresent = false;
       }
     }
