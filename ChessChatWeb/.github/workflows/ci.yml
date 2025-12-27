@@ -30,6 +30,12 @@ jobs:
           node scripts/verify-repo-root.mjs
           echo "✓ Repository root layout verified"
       
+      - name: Verify Cloudflare Workers Service Build path
+        run: |
+          echo "🔍 Verifying Cloudflare Path configuration..."
+          node scripts/verify-cloudflare-path.mjs
+          echo "✓ Cloudflare Path = ChessChatWeb (verified)"
+      
       - name: Verify package-lock.json exists
         run: |
           if [ ! -f package-lock.json ]; then
