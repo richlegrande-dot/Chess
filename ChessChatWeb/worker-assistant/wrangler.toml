@@ -14,12 +14,10 @@
 name = "walle-assistant"
 main = "src/index.ts"
 compatibility_date = "2024-11-21"
+compatibility_flags = ["nodejs_compat"]
 
 # Worker service type (not Pages)
 workers_dev = true
-
-# Node.js compatibility for npm packages
-node_compat = true
 
 # Environment bindings (optional, for database access)
 [env.production]
