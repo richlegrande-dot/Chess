@@ -1,6 +1,15 @@
 # Cloudflare Worker Service: Wall-E Assistant
 # This is a standalone Worker (NOT Pages) that provides AI assistance
 # for the ChessChat application via service bindings.
+#
+# DEPLOYMENT:
+# This Worker is deployed via Cloudflare Worker Service Builds (Git integration).
+# Build/deploy commands are configured in the Cloudflare dashboard, NOT here.
+#
+# Dashboard settings:
+# - Path: ChessChatWeb/worker-assistant
+# - Build command: npm ci
+# - Deploy command: npx wrangler deploy --env production
 
 name = "walle-assistant"
 main = "src/index.ts"
@@ -8,9 +17,6 @@ compatibility_date = "2024-11-21"
 
 # Worker service type (not Pages)
 workers_dev = true
-
-[build]
-command = ""
 
 # Environment bindings (optional, for database access)
 [env.production]

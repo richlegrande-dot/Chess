@@ -36,6 +36,18 @@ jobs:
           node scripts/verify-cloudflare-path.mjs
           echo "✓ Cloudflare Path = ChessChatWeb (verified)"
       
+      - name: Verify Worker Assistant deployment path (Option B)
+        run: |
+          echo "🔍 Verifying Worker Service deployment configuration..."
+          node scripts/verify-worker-assistant-path.mjs
+          echo "✓ Worker assistant path verified"
+      
+      - name: Verify Hybrid Deployment Configuration
+        run: |
+          echo "🔍 Running comprehensive hybrid deployment verification..."
+          node scripts/verify-hybrid-deploy-paths.mjs
+          echo "✓ Hybrid deployment configuration verified"
+      
       - name: Verify package-lock.json exists
         run: |
           if [ ! -f package-lock.json ]; then
