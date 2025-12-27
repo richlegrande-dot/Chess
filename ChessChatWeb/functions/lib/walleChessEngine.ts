@@ -3,16 +3,20 @@
  * Self-contained chess move generation with NO external APIs
  * 
  * Capabilities:
+ * - Opening book for fast opening responses (first 6 plies)
+ * - Enforced CPU budget (750ms) across ALL difficulty levels
+ * - Cheap pre-pruning + progressive evaluation for efficiency
  * - Tactical micro-checks (hanging pieces, mate-in-1 detection)
  * - Blunder gate (prevents catastrophic mistakes)
  * - Material-based position evaluation
  * - Enhanced positional heuristics (piece safety, passed pawns, bishop pair, rook activity)
  * - Difficulty levels via selective randomness
  * - Conversational move commentary
- * - Consistent compute budget across all levels (750ms)
  */
 
 import { Chess, Move, Square } from 'chess.js';
+import { CPU_MOVE_BUDGET_MS } from './cpuConfig';
+import { pickOpeningMove, shouldUseOpeningBook } from './openingBook';
 
 // Piece values for material evaluation
 const PIECE_VALUES: Record<string, number> = {
@@ -116,19 +120,62 @@ interface TacticalAnalysis {
   capturedValue: number;
 }
 
+interface SelectMoveResult {
+  move: string;
+  commentary?: string;
+  // Debug fields (only populated when requested)
+  debug?: {
+    engineMs: number;
+    usedOpeningBook: boolean;
+    evaluatedMovesCount: number;
+    legalMovesCount: number;
+    mode: 'book' | 'timed-search' | 'cheap-fallback';
+  };
+}
+
 export class WalleChessEngine {
   /**
    * Select a move based on position evaluation and difficulty
    * @param fen Current position
    * @param difficulty Player skill level (affects randomness)
    * @param conversational Include natural language commentary
+   * @param enableDebug Return timing and diagnostic info
    * @returns UCI move and optional commentary
    */
   static selectMove(
     fen: string,
     difficulty: 'beginner' | 'intermediate' | 'advanced' | 'master' = 'intermediate',
-    conversational: boolean = false
-  ): { move: string; commentary?: string } {
+    conversational: boolean = false,
+    enableDebug: boolean = false
+  ): SelectMoveResult {
+    const startTime = performance.now ? performance.now() : Date.now();
+    
+    // FAST PATH: Try opening book first (first 6 plies only)
+    if (shouldUseOpeningBook(fen)) {
+      const bookMove = pickOpeningMove(fen, difficulty);
+      if (bookMove) {
+        const elapsed = (performance.now ? performance.now() : Date.now()) - startTime;
+        const result: SelectMoveResult = { move: bookMove };
+        
+        if (conversational) {
+          result.commentary = OPENING_COMMENTS[Math.floor(Math.random() * OPENING_COMMENTS.length)];
+        }
+        
+        if (enableDebug) {
+          result.debug = {
+            engineMs: elapsed,
+            usedOpeningBook: true,
+            evaluatedMovesCount: 0,
+            legalMovesCount: 0,
+            mode: 'book',
+          };
+        }
+        
+        return result;
+      }
+    }
+
+    // BUDGET ENFORCEMENT: Main evaluation with time constraints
     const chess = new Chess(fen);
     const legalMoves = chess.moves({ verbose: true });
 
@@ -136,10 +183,59 @@ export class WalleChessEngine {
       throw new Error('No legal moves available');
     }
 
-    // Evaluate all legal moves with tactical micro-checks
-    const evaluations: MoveEvaluation[] = legalMoves.map(move => 
-      this.evaluateMove(chess, move, difficulty)
-    );
+    const budget = CPU_MOVE_BUDGET_MS;
+    const budgetThreshold = budget * 0.90; // Stop at 90% to leave margin
+
+    // STEP 1: Cheap evaluation of ALL moves (material + center + dev only)
+    const cheapScores = legalMoves.map(move => ({
+      move,
+      score: this.cheapEvaluate(chess, move),
+    }));
+
+    // Sort by cheap score (best first)
+    cheapScores.sort((a, b) => b.score - a.score);
+
+    // STEP 2: Progressive evaluation with time budget
+    // Only evaluate top K moves deeply, and stop if time runs out
+    const maxDeepEvals = Math.min(legalMoves.length, 12); // Cap at 12 for efficiency
+    const evaluations: MoveEvaluation[] = [];
+
+    for (let i = 0; i < maxDeepEvals; i++) {
+      const elapsed = (performance.now ? performance.now() : Date.now()) - startTime;
+      
+      if (elapsed >= budgetThreshold) {
+        break; // Time's up!
+      }
+
+      const cheapResult = cheapScores[i];
+      const fullEval = this.evaluateMove(chess, cheapResult.move, difficulty);
+      evaluations.push(fullEval);
+    }
+
+    // FALLBACK: If we ran out of time and evaluated nothing, use cheap scores
+    if (evaluations.length === 0) {
+      const fallbackMove = cheapScores[0].move;
+      const uciMove = fallbackMove.from + fallbackMove.to + (fallbackMove.promotion || '');
+      const pieceCount = this.countPieces(chess);
+      const commentary = conversational 
+        ? this.generateCommentary(fallbackMove, !!fallbackMove.captured, false, false, pieceCount)
+        : undefined;
+
+      const elapsed = (performance.now ? performance.now() : Date.now()) - startTime;
+      const result: SelectMoveResult = { move: uciMove, commentary };
+      
+      if (enableDebug) {
+        result.debug = {
+          engineMs: elapsed,
+          usedOpeningBook: false,
+          evaluatedMovesCount: 0,
+          legalMovesCount: legalMoves.length,
+          mode: 'cheap-fallback',
+        };
+      }
+
+      return result;
+    }
 
     // Apply blunder gate: filter out catastrophic moves if alternatives exist
     const safeEvaluations = this.applyBlunderGate(evaluations, difficulty);
@@ -180,15 +276,57 @@ export class WalleChessEngine {
     }
 
     const uciMove = selectedEval.move.from + selectedEval.move.to + (selectedEval.move.promotion || '');
+    const elapsed = (performance.now ? performance.now() : Date.now()) - startTime;
+
+    const result: SelectMoveResult = { move: uciMove };
 
     if (conversational) {
-      return {
-        move: uciMove,
-        commentary: selectedEval.commentary
+      result.commentary = selectedEval.commentary;
+    }
+
+    if (enableDebug) {
+      result.debug = {
+        engineMs: elapsed,
+        usedOpeningBook: false,
+        evaluatedMovesCount: evaluations.length,
+        legalMovesCount: legalMoves.length,
+        mode: 'timed-search',
       };
     }
 
-    return { move: uciMove };
+    return result;
+  }
+
+  /**
+   * Cheap evaluation for pre-pruning (material + center + development only)
+   * No tactical analysis, no opponent response checking
+   */
+  private static cheapEvaluate(chess: Chess, move: Move): number {
+    const gameCopy = new Chess(chess.fen());
+    gameCopy.move(move);
+
+    // Material delta only
+    const materialScore = this.evaluateMaterial(gameCopy);
+    
+    // Center control bonus
+    let centerBonus = 0;
+    if (['d4', 'd5', 'e4', 'e5'].includes(move.to)) {
+      centerBonus = 10;
+    }
+
+    // Development bonus (early game)
+    let devBonus = 0;
+    const pieceCount = this.countPieces(gameCopy);
+    if (pieceCount > 28) {
+      if (move.piece === 'n' || move.piece === 'b') {
+        devBonus = 15;
+      }
+    }
+
+    // Capture bonus
+    const captureBonus = move.captured ? (PIECE_VALUES[move.captured] || 0) * 0.1 : 0;
+
+    return materialScore + centerBonus + devBonus + captureBonus;
   }
 
   /**

@@ -122,6 +122,10 @@ export const onRequestPost: PagesFunction<Env> = async (context) => {
 
     const { fen, pgn = '', difficulty = 'intermediate', gameId, userMove, chatHistory = [] } = body;
 
+    // Check for debug flag in query params
+    const url = new URL(context.request.url);
+    const enableDebug = url.searchParams.get('debug') === '1' || url.searchParams.get('debug') === 'true';
+
     // Validate FEN
     if (!isValidFEN(fen)) {
       return new Response(
@@ -204,11 +208,13 @@ export const onRequestPost: PagesFunction<Env> = async (context) => {
     
     let selectedMove: string;
     let commentary: string;
+    let engineDebug: any = undefined;
     
     try {
-      const result = WalleChessEngine.selectMove(fen, difficultyLevel, true);
+      const result = WalleChessEngine.selectMove(fen, difficultyLevel, true, enableDebug);
       selectedMove = result.move;
       commentary = result.commentary || "Here's my move!";
+      engineDebug = result.debug;
     } catch (error) {
       console.error(`[${requestId}] Wall-E engine error:`, error);
       // Fallback to random legal move
@@ -252,18 +258,25 @@ export const onRequestPost: PagesFunction<Env> = async (context) => {
     const latencyMs = Date.now() - startTime;
     console.log(`[${requestId}] Success: move="${selectedMove}" (${moveNotation}), latency=${latencyMs}ms`);
 
+    const responseData: any = {
+      success: true,
+      move: selectedMove,
+      engine: 'wall-e',
+      difficulty: difficultyLevel,
+      latencyMs,
+      requestId,
+      gameId: gameSession.gameId,
+      chatHistory: gameSession.chatHistory,
+      conversationalResponse: fullResponse,
+    };
+
+    // Add debug info if requested
+    if (enableDebug && engineDebug) {
+      responseData.debug = engineDebug;
+    }
+
     return new Response(
-      JSON.stringify({
-        success: true,
-        move: selectedMove,
-        engine: 'wall-e',
-        difficulty: difficultyLevel,
-        latencyMs,
-        requestId,
-        gameId: gameSession.gameId,
-        chatHistory: gameSession.chatHistory,
-        conversationalResponse: fullResponse,
-      }),
+      JSON.stringify(responseData),
       { status: 200, headers: corsHeaders }
     );
 
