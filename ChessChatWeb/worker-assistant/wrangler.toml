@@ -8,7 +8,7 @@
 #
 # Dashboard settings:
 # - Path: ChessChatWeb/worker-assistant
-# - Build command: npm ci
+# - Build command: cd .. && npm ci && cd worker-assistant && npm ci
 # - Deploy command: npx wrangler deploy --env production
 
 name = "walle-assistant"

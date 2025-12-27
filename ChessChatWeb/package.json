@@ -27,7 +27,11 @@
     "db:backup": "tsx scripts/backup-knowledge.ts",
     "db:restore": "tsx scripts/restore-knowledge.ts",
     "db:verify": "tsx scripts/verify-protection.ts",
-    "import:knowledge": "tsx scripts/import-knowledge.ts"
+    "import:knowledge": "tsx scripts/import-knowledge.ts",
+    "verify:worker-path": "node scripts/verify-worker-assistant-path.mjs",
+    "verify:hybrid": "node scripts/verify-hybrid-assistant.mjs",
+    "verify:integrity": "node scripts/verify-walle-integrity.mjs",
+    "verify:all": "npm run verify:worker-path && npm run verify:hybrid && npm run verify:integrity"
   },
   "dependencies": {
     "@prisma/client": "^5.22.0",

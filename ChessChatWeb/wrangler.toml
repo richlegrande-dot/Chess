@@ -17,6 +17,22 @@ pages_build_output_dir = "dist"
 # Note: KV namespaces should be bound via Cloudflare Dashboard for Pages projects
 # Go to: Pages > chesschat-web > Settings > Functions > KV namespace bindings
 
+# Service Bindings (Option B Hybrid Architecture)
+# Connect Pages Functions to Worker Service
+# Configure in dashboard: Pages > Settings > Functions > Service bindings
+# Variable name: WALLE_ASSISTANT
+# Service: walle-assistant
+# Environment: production
+[[env.production.services]]
+binding = "WALLE_ASSISTANT"
+service = "walle-assistant"
+environment = "production"
+
+[[env.preview.services]]
+binding = "WALLE_ASSISTANT"
+service = "walle-assistant"
+environment = "staging"
+
 [env.production]
 # Production environment
 name = "chesschat-web-production"
