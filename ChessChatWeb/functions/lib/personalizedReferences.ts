@@ -6,19 +6,6 @@
 
 export * from '../../shared/personalizedReferences';
 
-    gameIds?: string[]; // For aggregated references
-  };
-}
-
-export interface HistoryEvidence {
-  lastGamesUsed: number;
-  gameIdsUsed: string[];
-  topMistakePatternsUsed: string[];
-  personalizedReferenceCount: number;
-  insufficientHistory: boolean;
-  insufficientReason?: string;
-}
-
 export interface PersonalizationContext {
   recentGames: Array<{
     id: string;
