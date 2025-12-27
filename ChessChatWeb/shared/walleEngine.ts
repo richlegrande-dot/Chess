@@ -432,27 +432,6 @@ export class WallEEngine {
     }
   }
 
-      return {
-        analysis: advice.advice,
-        recommendations,
-        personalizedInsights,
-        sourcesUsed: advice.sources,
-        confidenceScore: advice.confidence,
-      };
-    } catch (error) {
-      console.error('[Wall-E] Game analysis error:', error);
-
-      // Graceful degradation
-      return {
-        analysis: 'Analysis temporarily unavailable. The learning system is still processing your game data.',
-        recommendations: ['Keep practicing and playing games to build your learning profile'],
-        personalizedInsights: [],
-        sourcesUsed: [],
-        confidenceScore: 0.2,
-      };
-    }
-  }
-
   /**
    * Parse user message into coaching context
    */
@@ -699,6 +678,21 @@ export class WallEEngine {
     }
 
     return 'I\'m here to help! Ask me about:\n• Opening principles\n• Tactical patterns\n• Endgame techniques\n• Position analysis\n• Your recent games';
+  }
+
+  /**
+   * Generate fallback analysis when learning system unavailable
+   */
+  private generateFallbackAnalysis(moveHistory: any[]): string {
+    const moveCount = moveHistory.length;
+    
+    if (moveCount < 15) {
+      return 'Opening Phase: Focus on controlling the center, developing pieces, and castling early for king safety.';
+    } else if (moveCount > 40) {
+      return 'Endgame Phase: Activate your king, create passed pawns, and work on basic checkmate patterns.';
+    } else {
+      return 'Middlegame Phase: Coordinate your pieces, look for tactical opportunities, and maintain a clear plan.';
+    }
   }
 
   /**

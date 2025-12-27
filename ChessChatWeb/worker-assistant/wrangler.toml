@@ -9,11 +9,8 @@ compatibility_date = "2024-11-21"
 # Worker service type (not Pages)
 workers_dev = true
 
-# Observability
-observability = true
-
 [build]
-command = "npm install && npm run build"
+command = ""
 
 # Environment bindings (optional, for database access)
 [env.production]
