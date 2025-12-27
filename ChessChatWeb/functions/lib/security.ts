@@ -55,29 +55,15 @@ export function sanitizePGN(pgn: string): string {
 
 /**
  * Sanitize model identifier
- * Only allow known OpenAI model names
+ * Wall-E uses internal chess engine - no external model validation needed
  */
 export function sanitizeModelIdentifier(model: string): string {
+  // Wall-E doesn't use external models
+  // Keep function for backward compatibility but always returns valid
   if (!model || typeof model !== 'string') {
-    throw new Error('Invalid model: must be a non-empty string');
+    return 'wall-e';
   }
-
-  const validModels = [
-    'gpt-4o',
-    'gpt-4o-mini',
-    'gpt-4-turbo',
-    'gpt-3.5-turbo',
-    'o1-mini',
-    'o1-preview'
-  ];
-
-  const normalized = model.toLowerCase().trim();
-
-  if (!validModels.includes(normalized)) {
-    throw new Error(`Invalid model: ${model}. Must be one of: ${validModels.join(', ')}`);
-  }
-
-  return normalized;
+  return model.toLowerCase().trim();
 }
 
 /**
@@ -164,9 +150,12 @@ export function getClientIP(request: Request): string {
 
 /**
  * Validate required environment variables
+ * Wall-E has NO required API keys
  */
 export function validateEnvironment(env: any): { valid: boolean; missing: string[] } {
-  const required = ['OPENAI_API_KEY'];
+  // Wall-E works without external dependencies
+  // DATABASE_URL is optional (enables personalization)
+  const required: string[] = [];
   const missing: string[] = [];
 
   for (const key of required) {
@@ -175,7 +164,7 @@ export function validateEnvironment(env: any): { valid: boolean; missing: string
     }
   }
 
-  return { valid: missing.length === 0, missing };
+  return { valid: true, missing }; // Always valid
 }
 
 /**

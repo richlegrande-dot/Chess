@@ -1,0 +1,402 @@
+#!/usr/bin/env node
+
+/**
+ * Wall-E Integrity Verification Script
+ * 
+ * Ensures the system maintains its core guarantees:
+ * - NO OpenAI or external AI dependencies
+ * - Personalization enforced (≥2 references)
+ * - Learning loop intact
+ * - Prisma singleton pattern maintained
+ * 
+ * EXIT CODES:
+ * 0 = All checks passed
+ * 1 = Critical failure (breaks Wall-E guarantees)
+ */
+
+import { readFileSync, existsSync, readdirSync, statSync } from 'fs';
+import { join } from 'path';
+
+const CHECKS = {
+  passed: 0,
+  failed: 0,
+  warnings: 0,
+};
+
+// ============================================================================
+// UTILITY FUNCTIONS
+// ============================================================================
+
+function log(message, type = 'info') {
+  const prefix = {
+    info: '  ',
+    success: '✓ ',
+    error: '❌',
+    warning: '⚠ ',
+  }[type];
+  
+  console.log(`${prefix} ${message}`);
+}
+
+function checkFile(filePath, description) {
+  if (!existsSync(filePath)) {
+    log(`${description}: ${filePath} NOT FOUND`, 'error');
+    CHECKS.failed++;
+    return false;
+  }
+  return true;
+}
+
+function checkFileContains(filePath, pattern, description) {
+  if (!existsSync(filePath)) {
+    log(`${description}: ${filePath} NOT FOUND`, 'error');
+    CHECKS.failed++;
+    return false;
+  }
+  
+  const content = readFileSync(filePath, 'utf-8');
+  
+  if (typeof pattern === 'string') {
+    if (!content.includes(pattern)) {
+      log(`${description}: Missing "${pattern}"`, 'error');
+      CHECKS.failed++;
+      return false;
+    }
+  } else {
+    // Regex pattern
+    if (!pattern.test(content)) {
+      log(`${description}: Pattern not found`, 'error');
+      CHECKS.failed++;
+      return false;
+    }
+  }
+  
+  return true;
+}
+
+function checkFileDoesNotContain(filePath, pattern, description) {
+  if (!existsSync(filePath)) {
+    return true; // File doesn't exist, so can't contain pattern
+  }
+  
+  const content = readFileSync(filePath, 'utf-8');
+  
+  if (typeof pattern === 'string') {
+    if (content.includes(pattern)) {
+      log(`${description}: Found forbidden "${pattern}"`, 'error');
+      CHECKS.failed++;
+      return false;
+    }
+  } else {
+    if (pattern.test(content)) {
+      log(`${description}: Found forbidden pattern`, 'error');
+      CHECKS.failed++;
+      return false;
+    }
+  }
+  
+  return true;
+}
+
+function getAllFiles(dirPath, extension = '.ts') {
+  const files = [];
+  
+  function traverse(currentPath) {
+    const items = readdirSync(currentPath);
+    
+    for (const item of items) {
+      const fullPath = join(currentPath, item);
+      const stat = statSync(fullPath);
+      
+      if (stat.isDirectory()) {
+        // Skip node_modules, dist, etc.
+        if (!['node_modules', 'dist', '.git', 'build'].includes(item)) {
+          traverse(fullPath);
+        }
+      } else if (item.endsWith(extension)) {
+        files.push(fullPath);
+      }
+    }
+  }
+  
+  traverse(dirPath);
+  return files;
+}
+
+// ============================================================================
+// CHECK SUITES
+// ============================================================================
+
+function checkNoOpenAI() {
+  console.log('\n🔍 Checking: NO OpenAI in Coaching System');
+  
+  // CRITICAL: Coaching system must not use OpenAI
+  // Chess engine (chess-move.ts) may use OpenAI for CPU opponent
+  const coachingFiles = [
+    'functions/lib/walleEngine.ts',
+    'functions/lib/coachEngine.ts',
+    'functions/lib/coachHeuristicsV2.ts',
+    'functions/lib/learningAudit.ts',
+    'functions/lib/progressionMetrics.ts',
+    'functions/lib/personalizedReferences.ts',
+    'functions/api/chat.ts',
+    'functions/api/analyze-game.ts',
+  ];
+  
+  let hasOpenAI = false;
+  
+  for (const file of coachingFiles) {
+    if (!existsSync(file)) {
+      log(`File not found: ${file}`, 'warning');
+      CHECKS.warnings++;
+      continue;
+    }
+    
+    const content = readFileSync(file, 'utf-8');
+    
+    if (content.includes("from 'openai'") || 
+        content.includes('from "openai"') ||
+        content.match(/import.*openai/i)) {
+      log(`OpenAI import found in coaching file: ${file}`, 'error');
+      hasOpenAI = true;
+      CHECKS.failed++;
+    }
+    
+    if (content.includes('OPENAI_API_KEY')) {
+      log(`OPENAI_API_KEY reference found in coaching file: ${file}`, 'error');
+      hasOpenAI = true;
+      CHECKS.failed++;
+    }
+  }
+  
+  if (!hasOpenAI) {
+    log('No OpenAI dependencies in coaching system', 'success');
+    CHECKS.passed++;
+  }
+}
+
+function checkPersonalizationEnforcement() {
+  console.log('\n🔍 Checking: Personalization Enforcement');
+  
+  // Check Wall-E engine imports personalization
+  if (checkFileContains(
+    'functions/lib/walleEngine.ts',
+    'personalizedReferences',
+    'Wall-E imports personalization system'
+  )) {
+    CHECKS.passed++;
+  }
+  
+  // Check chat endpoint returns historyEvidence
+  if (checkFileContains(
+    'functions/api/chat.ts',
+    'historyEvidence',
+    'chat.ts returns historyEvidence'
+  )) {
+    CHECKS.passed++;
+  }
+  
+  // Check analyze-game endpoint returns historyEvidence
+  if (checkFileContains(
+    'functions/api/analyze-game.ts',
+    'historyEvidence',
+    'analyze-game.ts returns historyEvidence'
+  )) {
+    CHECKS.passed++;
+  }
+  
+  // Check personalized references module exists
+  if (checkFile(
+    'functions/lib/personalizedReferences.ts',
+    'Personalized references module'
+  )) {
+    CHECKS.passed++;
+  }
+}
+
+function checkPrismaSingleton() {
+  console.log('\n🔍 Checking: Prisma Singleton Pattern');
+  
+  // Check singleton module exists
+  if (!checkFile('functions/lib/prisma.ts', 'Prisma singleton module')) {
+    return;
+  }
+  
+  // Check getPrisma function exists
+  if (checkFileContains(
+    'functions/lib/prisma.ts',
+    'export function getPrisma',
+    'getPrisma function exists'
+  )) {
+    CHECKS.passed++;
+  }
+  
+  // Check API files use singleton
+  const apiFiles = getAllFiles('functions/api');
+  
+  let singletonUsage = true;
+  
+  for (const file of apiFiles) {
+    const content = readFileSync(file, 'utf-8');
+    
+    if (content.includes('new PrismaClient')) {
+      log(`Direct PrismaClient instantiation in: ${file}`, 'error');
+      singletonUsage = false;
+      CHECKS.failed++;
+    }
+  }
+  
+  if (singletonUsage) {
+    log('All API files use Prisma singleton', 'success');
+    CHECKS.passed++;
+  }
+}
+
+function checkLearningLoop() {
+  console.log('\n🔍 Checking: Learning Loop Integrity');
+  
+  // Check Wall-E engine exists
+  if (checkFile('functions/lib/walleEngine.ts', 'Wall-E engine')) {
+    CHECKS.passed++;
+  }
+  
+  // Check coach engine exists
+  if (checkFile('functions/lib/coachEngine.ts', 'Coach engine')) {
+    CHECKS.passed++;
+  }
+  
+  // Check learning audit layer
+  if (checkFile('functions/lib/learningAudit.ts', 'Learning audit layer')) {
+    CHECKS.passed++;
+  }
+  
+  // Check progression metrics
+  if (checkFile('functions/lib/progressionMetrics.ts', 'Progression metrics')) {
+    CHECKS.passed++;
+  }
+  
+  // Check heuristics v2
+  if (checkFile('functions/lib/coachHeuristicsV2.ts', 'Coaching heuristics v2')) {
+    CHECKS.passed++;
+  }
+  
+  // Check Wall-E uses heuristics v2
+  if (checkFileContains(
+    'functions/lib/walleEngine.ts',
+    'selectCoachingStrategy',
+    'Wall-E uses coaching strategy selector'
+  )) {
+    CHECKS.passed++;
+  }
+}
+
+function checkMetricsEndpoint() {
+  console.log('\n🔍 Checking: Metrics Endpoint Completeness');
+  
+  // Check metrics endpoint exists
+  if (!checkFile('functions/api/wall-e/metrics.ts', 'Metrics endpoint')) {
+    return;
+  }
+  
+  // Check learning signals exposed
+  if (checkFileContains(
+    'functions/api/wall-e/metrics.ts',
+    'computeLearningSignals',
+    'Metrics endpoint exposes learning signals'
+  )) {
+    CHECKS.passed++;
+  }
+  
+  // Check progression metrics exposed
+  if (checkFileContains(
+    'functions/api/wall-e/metrics.ts',
+    'computeProgressionMetrics',
+    'Metrics endpoint exposes progression metrics'
+  )) {
+    CHECKS.passed++;
+  }
+}
+
+function checkDatabaseGracefulDegradation() {
+  console.log('\n🔍 Checking: Graceful Degradation (No DATABASE_URL)');
+  
+  // Check Wall-E has fallback logic
+  if (checkFileContains(
+    'functions/lib/walleEngine.ts',
+    'generateFallbackResponse',
+    'Wall-E has fallback response logic'
+  )) {
+    CHECKS.passed++;
+  }
+  
+  // Check prisma module has error response
+  if (checkFileContains(
+    'functions/lib/prisma.ts',
+    'getDatabaseErrorResponse',
+    'Prisma module has error response'
+  )) {
+    CHECKS.passed++;
+  }
+}
+
+function checkTestsExist() {
+  console.log('\n🔍 Checking: Test Coverage');
+  
+  // Check simulation tests exist
+  if (checkFile('tests/learning-simulation.test.ts', '50-game simulation tests')) {
+    CHECKS.passed++;
+  }
+  
+  // Check personalization tests exist
+  if (checkFile('functions/lib/personalizedReferences.test.ts', 'Personalization unit tests')) {
+    CHECKS.passed++;
+  }
+  
+  // Warn if no integration tests
+  if (!existsSync('tests/provable-personalization.test.ts')) {
+    log('Integration tests missing (provable-personalization.test.ts)', 'warning');
+    CHECKS.warnings++;
+  }
+}
+
+// ============================================================================
+// MAIN EXECUTION
+// ============================================================================
+
+function main() {
+  console.log('═══════════════════════════════════════════════════════');
+  console.log('  Wall-E Integrity Verification');
+  console.log('  Ensuring system maintains core guarantees');
+  console.log('═══════════════════════════════════════════════════════');
+  
+  checkNoOpenAI();
+  checkPersonalizationEnforcement();
+  checkPrismaSingleton();
+  checkLearningLoop();
+  checkMetricsEndpoint();
+  checkDatabaseGracefulDegradation();
+  checkTestsExist();
+  
+  console.log('\n═══════════════════════════════════════════════════════');
+  console.log('  Results');
+  console.log('═══════════════════════════════════════════════════════');
+  console.log(`  ✓ Passed:   ${CHECKS.passed}`);
+  console.log(`  ❌ Failed:  ${CHECKS.failed}`);
+  console.log(`  ⚠  Warnings: ${CHECKS.warnings}`);
+  console.log('═══════════════════════════════════════════════════════');
+  
+  if (CHECKS.failed > 0) {
+    console.log('\n❌ VERIFICATION FAILED - System integrity compromised!');
+    process.exit(1);
+  }
+  
+  if (CHECKS.warnings > 0) {
+    console.log('\n⚠  VERIFICATION PASSED WITH WARNINGS');
+  } else {
+    console.log('\n✅ ALL CHECKS PASSED - Wall-E integrity verified!');
+  }
+  
+  process.exit(0);
+}
+
+main();

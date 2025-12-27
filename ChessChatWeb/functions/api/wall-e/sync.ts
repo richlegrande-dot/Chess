@@ -4,9 +4,12 @@
  * 
  * Accepts complete localStorage state and syncs all tables at once.
  * This is used for initial migration and periodic full syncs.
+ * 
+ * ENFORCES: 50-game rolling window (server-side)
  */
 
 import { getPrisma, getDatabaseErrorResponse } from '../../lib/prisma';
+import { enforce50GameWindow } from '../../lib/learningProgress';
 
 interface Env {
   DATABASE_URL?: string;
@@ -105,6 +108,9 @@ export async function onRequestPost(context: { request: Request; env: Env }) {
         });
         results.gamesSynced++;
       }
+      
+      // ENFORCE: 50-game window (server-side rule)
+      await enforce50GameWindow(prisma, userId);
     }
 
     // Sync mistake signatures

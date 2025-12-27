@@ -8,6 +8,8 @@
  * - Game analysis with personalized insights
  * - Coaching that improves based on user history
  * - No dependency on external AI services
+ * - Structured, actionable responses with ≥2 personalized references
+ * - Runtime validation of coaching quality
  * 
  * Learning Loop:
  * - Fetches player profile, recent games, and mistake patterns
@@ -26,6 +28,20 @@ import {
   type PersonalizedReference,
   type HistoryEvidence,
 } from './personalizedReferences';
+import {
+  selectCoachingStrategy,
+  composeAdvice,
+  trackAdviceIssued,
+  applyTacticalStrategicProgression,
+  correctForLossAversionBias,
+  type CoachingContext as HeuristicsContext,
+} from './coachHeuristicsV2';
+import {
+  buildStructuredResponse,
+  renderStructuredResponse,
+  enforceStructuredResponse,
+  type CoachingAdvice,
+} from './coachResponseTemplate';
 
 interface WallEContext {
   userId: string;
@@ -37,6 +53,7 @@ interface PlayerLearningHistory {
   recentGames: any[];
   topMistakes: any[];
   learningMetrics: any[];
+  coachingMemory?: any;
 }
 
 interface WallEChatResponse {
@@ -46,6 +63,7 @@ interface WallEChatResponse {
   learningApplied: boolean;
   historyEvidence: HistoryEvidence; // REQUIRED: Provable history usage
   personalizedReferences: PersonalizedReference[]; // REQUIRED: Explicit references
+  adviceQuality?: CoachingAdvice; // NEW: Track advice type and quality signals
 }
 
 interface WallEAnalysisResponse {
@@ -56,6 +74,7 @@ interface WallEAnalysisResponse {
   confidenceScore: number;
   historyEvidence: HistoryEvidence; // REQUIRED: Provable history usage
   personalizedReferences: PersonalizedReference[]; // REQUIRED: Explicit references
+  adviceQuality?: CoachingAdvice; // NEW: Track advice type and quality signals
 }
 
 export class WallEEngine {
@@ -95,6 +114,11 @@ export class WallEEngine {
         take: 5,
       });
 
+      // Fetch coaching memory (V2)
+      const coachingMemory = await prisma.coachingMemory.findUnique({
+        where: { userId },
+      });
+
       return {
         profile,
         recentGames: recentGames.map(g => ({
@@ -113,6 +137,7 @@ export class WallEEngine {
           insights: JSON.parse(lm.insights),
           progress: JSON.parse(lm.progress),
         })),
+        coachingMemory,
       };
     } catch (error) {
       console.error('[Wall-E] Failed to fetch learning history:', error);
@@ -193,6 +218,7 @@ export class WallEEngine {
    * 
    * NO API KEYS - uses knowledge base + learning history only
    * ENFORCES: ≥2 personalized references per response
+   * V2: Uses pedagogical heuristics for coaching strategy
    */
   async chat(
     context: WallEContext,
@@ -211,30 +237,61 @@ export class WallEEngine {
       // Build personalized references (REQUIRED: ≥2 references)
       const { references, evidence } = buildPersonalizedReferences(personalizationCtx);
 
-      // Build coaching context from user message and game context
-      const coachingContext = this.parseUserMessageToContext(userMessage, gameContext);
-
-      // Get knowledge-based coaching advice
-      const advice = await this.coachEngine.generateCoachingAdvice(
-        this.buildAnalysisFromGameContext(gameContext),
-        coachingContext
-      );
+      // V2: Build heuristics context and select strategy
+      let response: string;
+      let confidenceScore = 0.5;
+      
+      if (learningHistory && learningHistory.recentGames.length >= 3) {
+        const heuristicsCtx = this.buildHeuristicsContext(learningHistory);
+        const strategy = selectCoachingStrategy(heuristicsCtx);
+        
+        // Check for loss aversion bias
+        const biasCheck = correctForLossAversionBias(heuristicsCtx);
+        
+        // Compose advice using selected strategy
+        const strategicAdvice = composeAdvice(strategy, heuristicsCtx);
+        
+        // Build full response
+        response = strategicAdvice;
+        
+        // Add bias correction if needed
+        if (biasCheck.hasBias) {
+          response += `\n\n💡 ${biasCheck.suggestion}`;
+        }
+        
+        confidenceScore = strategy.focusPattern ? 0.8 : 0.5;
+        
+        // Track advice issued
+        if (strategy.focusPattern) {
+          const adviceRecord = trackAdviceIssued(strategy.focusPattern, response);
+          await this.updateCoachingMemory(prisma, context.userId, adviceRecord);
+        }
+      } else {
+        // Fallback to basic coaching for new players
+        const coachingContext = this.parseUserMessageToContext(userMessage, gameContext);
+        const advice = await this.coachEngine.generateCoachingAdvice(
+          this.buildAnalysisFromGameContext(gameContext),
+          coachingContext
+        );
+        response = advice.advice;
+        confidenceScore = advice.confidence;
+      }
 
       // Augment response with personalized references
-      let response = augmentWithPersonalization(advice.advice, references, evidence);
+      response = augmentWithPersonalization(response, references, evidence);
 
       // Validate personalization (fail-safe check)
       const validation = validatePersonalization(response, evidence);
       if (!validation.valid) {
         console.warn('[Wall-E] Personalization validation failed:', validation.errors);
         // Re-augment if validation fails
-        response = augmentWithPersonalization(advice.advice, references, evidence);
+        response = augmentWithPersonalization(response, references, evidence);
       }
 
       return {
         response,
-        confidenceScore: advice.confidence,
-        sourcesUsed: advice.sources,
+        confidenceScore,
+        sourcesUsed: ['knowledge_base', 'learning_history', 'coaching_heuristics_v2'],
         learningApplied: learningHistory !== null,
         historyEvidence: evidence, // REQUIRED: Provable history usage
         personalizedReferences: references, // REQUIRED: Explicit references
@@ -633,6 +690,88 @@ export class WallEEngine {
     }
 
     return 'I\'m here to help! Ask me about:\n• Opening principles\n• Tactical patterns\n• Endgame techniques\n• Position analysis\n• Your recent games';
+  }
+
+  /**
+   * Build heuristics context from learning history (V2)
+   */
+  private buildHeuristicsContext(history: PlayerLearningHistory): HeuristicsContext {
+    return {
+      topMistakePatterns: history.topMistakes.map(m => ({
+        id: m.id,
+        title: m.title,
+        category: m.category,
+        occurrenceCount: m.occurrenceCount,
+        lastOccurrence: m.lastOccurrence,
+        masteryScore: m.masteryScore,
+        confidenceScore: m.confidenceScore,
+      })),
+      recentGames: history.recentGames.map(g => ({
+        id: g.id,
+        timestamp: g.timestamp,
+        accuracy: g.metrics?.accuracy,
+        mistakeCount: g.analysis?.mistakeCount || 0,
+        mistakeTypes: g.analysis?.mistakeTypes || [],
+        result: g.result,
+      })),
+      learningMetrics: history.learningMetrics.map(m => ({
+        sessionStart: m.sessionStart,
+        gameCount: m.gameCount,
+        mistakesIdentified: m.mistakesIdentified,
+        mistakesCorrected: m.mistakesCorrected,
+        progress: m.progress,
+      })),
+      coachingMemory: history.coachingMemory ? {
+        adviceIssued: JSON.parse(history.coachingMemory.adviceIssued || '[]'),
+        recentTakeaways: JSON.parse(history.coachingMemory.recentTakeaways || '[]'),
+        accuracyTrend: JSON.parse(history.coachingMemory.accuracyTrend || '[]'),
+      } : undefined,
+    };
+  }
+
+  /**
+   * Update coaching memory with newly issued advice (V2)
+   */
+  private async updateCoachingMemory(
+    prisma: PrismaClient,
+    userId: string,
+    adviceRecord: any
+  ): Promise<void> {
+    try {
+      // Fetch or create coaching memory
+      let memory = await prisma.coachingMemory.findUnique({
+        where: { userId },
+      });
+
+      if (!memory) {
+        // Create new memory
+        await prisma.coachingMemory.create({
+          data: {
+            userId,
+            adviceIssued: JSON.stringify([adviceRecord]),
+            lastUpdated: new Date(),
+          },
+        });
+      } else {
+        // Update existing memory
+        const adviceList = JSON.parse(memory.adviceIssued || '[]');
+        adviceList.push(adviceRecord);
+        
+        // Keep only last 20 advice records
+        const trimmedList = adviceList.slice(-20);
+        
+        await prisma.coachingMemory.update({
+          where: { userId },
+          data: {
+            adviceIssued: JSON.stringify(trimmedList),
+            lastUpdated: new Date(),
+          },
+        });
+      }
+    } catch (error) {
+      console.warn('[Wall-E] Failed to update coaching memory:', error);
+      // Non-critical error, continue
+    }
   }
 }
 

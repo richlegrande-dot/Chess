@@ -2,9 +2,13 @@
  * Cloudflare Function: Sync Wall-E Learning Metrics to Database
  * POST /api/wall-e/metrics (save metric)
  * GET /api/wall-e/metrics?userId=xxx (fetch all metrics for user)
+ * GET /api/wall-e/metrics?userId=xxx&signals=true (compute learning quality signals)
+ * GET /api/wall-e/metrics?userId=xxx&progression=true (compute progression metrics with top3 patterns)
  */
 
 import { getPrisma, getDatabaseErrorResponse } from '../../lib/prisma';
+import { computeLearningSignals, persistLearningSignals } from '../../lib/learningAudit';
+import { computeProgressionMetrics } from '../../lib/learningProgress';
 
 interface Env {
   DATABASE_URL?: string;
@@ -79,6 +83,8 @@ export async function onRequestGet(context: { request: Request; env: Env }) {
   try {
     const url = new URL(context.request.url);
     const userId = url.searchParams.get('userId');
+    const computeSignals = url.searchParams.get('signals') === 'true';
+    const computeProgression = url.searchParams.get('progression') === 'true';
 
     if (!userId) {
       return new Response(JSON.stringify({ success: false, error: 'userId required' }), {
@@ -87,6 +93,33 @@ export async function onRequestGet(context: { request: Request; env: Env }) {
       });
     }
 
+    // If progression metrics requested
+    if (computeProgression) {
+      const progression = await computeProgressionMetrics(prisma, userId);
+      
+      return new Response(JSON.stringify({ success: true, progression }), {
+        status: 200,
+        headers: { 'Content-Type': 'application/json' },
+      });
+    }
+
+    // If signals requested, compute and return learning quality signals
+    if (computeSignals) {
+      const signals = await computeLearningSignals(userId, prisma);
+      
+      // Optionally persist the snapshot
+      const persist = url.searchParams.get('persist') === 'true';
+      if (persist) {
+        await persistLearningSignals(signals, prisma);
+      }
+      
+      return new Response(JSON.stringify({ success: true, signals }), {
+        status: 200,
+        headers: { 'Content-Type': 'application/json' },
+      });
+    }
+
+    // Otherwise, return historical metrics
     const metrics = await prisma.learningMetric.findMany({
       where: { userId },
       orderBy: { sessionStart: 'desc' },

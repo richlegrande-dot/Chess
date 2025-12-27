@@ -1,11 +1,11 @@
 // Cloudflare Pages Function: Health Check and Status Monitoring
 // Path: /api/health
-// Wall-E System - No OpenAI required
 
 import { getDbHealth, checkDbHealth } from '../lib/db';
 import { initializeDatabase } from '../lib/dbMiddleware';
 
 interface Env {
+  OPENAI_API_KEY: string;
   DATABASE_URL: string;
 }
 
@@ -14,8 +14,9 @@ interface HealthStatus {
   timestamp: string;
   uptime: number;
   checks: {
+    apiKey: boolean;
     database: boolean;
-    walleEngine: boolean;
+    openAIConnectivity?: boolean;
   };
   database?: {
     dbReady: boolean;
@@ -93,9 +94,29 @@ export async function onRequestGet(context: {
   }
   
   const checks = {
+    apiKey: !!context.env.OPENAI_API_KEY,
     database: dbHealth.dbReady,
-    walleEngine: true, // Wall-E is always available (no external dependencies)
+    openAIConnectivity: undefined as boolean | undefined,
   };
+
+  // Optional: Test OpenAI connectivity (only if requested)
+  const testConnectivity = url.searchParams.get('test') === 'true';
+
+  if (testConnectivity && checks.apiKey) {
+    try {
+      const testResponse = await fetch('https://api.openai.com/v1/models', {
+        method: 'GET',
+        headers: {
+          Authorization: `Bearer ${context.env.OPENAI_API_KEY}`,
+        },
+        signal: AbortSignal.timeout(5000), // 5s timeout
+      });
+      checks.openAIConnectivity = testResponse.ok;
+    } catch (error) {
+      console.error('OpenAI connectivity check failed:', error);
+      checks.openAIConnectivity = false;
+    }
+  }
 
   // Import circuit breaker states from chess-move and chat functions
   // Note: These are per-worker instance and reset on cold start
@@ -116,15 +137,25 @@ export async function onRequestGet(context: {
   let status: 'healthy' | 'degraded' | 'unhealthy' = 'healthy';
   const recommendations: string[] = [];
 
+  if (!checks.apiKey) {
+    status = 'degraded';
+    recommendations.push('Configure OPENAI_API_KEY environment variable (optional for baseline coach)');
+  }
+
   if (!checks.database) {
-    status = 'degraded'; // Degraded not unhealthy - Wall-E works without DB
+    status = 'unhealthy';
     const errorMsg = dbInitError || dbHealth.lastError || 'Database is not ready';
-    recommendations.push(`Database error: ${errorMsg}. Wall-E will work with general advice (no personalization).`);
+    recommendations.push(`Database error: ${errorMsg}. Check DATABASE_URL and connection.`);
   }
 
   if (dbHealth.consecutiveFailures > 0) {
     status = 'degraded';
     recommendations.push(`Database health check failures: ${dbHealth.consecutiveFailures}. Last error: ${dbHealth.lastError}`);
+  }
+
+  if (checks.openAIConnectivity === false) {
+    status = 'degraded';
+    recommendations.push('OpenAI API connectivity issues detected. Check API key validity.');
   }
 
   const healthStatus: HealthStatus = {

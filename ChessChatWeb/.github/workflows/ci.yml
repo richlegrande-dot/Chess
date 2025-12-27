@@ -87,8 +87,175 @@ jobs:
           
           echo "✓ Personalization guards verified"
       
-      - name: Run Cloudflare readiness checks
+      - name: Verify Wall-E integrity (NO OpenAI ANYWHERE)
+        run: |
+          # CRITICAL: No OpenAI imports ANYWHERE in the system
+          # Wall-E handles both coaching AND chess engine (CPU opponent)
+          
+          if grep -rq "from 'openai'" functions/ 2>/dev/null; then
+            echo "❌ CRITICAL: OpenAI import detected in system!"
+            grep -rn "from 'openai'" functions/
+            exit 1
+          fi
+          
+          if grep -rq "from \"openai\"" functions/ 2>/dev/null; then
+            echo "❌ CRITICAL: OpenAI import detected in system!"
+            grep -rn "from \"openai\"" functions/
+            exit 1
+          fi
+          
+          if grep -rq "OPENAI_API_KEY" functions/*.ts functions/**/*.ts 2>/dev/null; then
+            echo "❌ CRITICAL: OPENAI_API_KEY reference detected in system!"
+            grep -rn "OPENAI_API_KEY" functions/*.ts functions/**/*.ts
+            exit 1
+          fi
+          
+          if grep -rq "api.openai.com" functions/ 2>/dev/null; then
+            echo "❌ CRITICAL: OpenAI API URL detected in system!"
+            grep -rn "api.openai.com" functions/
+            exit 1
+          fi
+          
+          if grep -rq "Authorization: Bearer" functions/ 2>/dev/null; then
+            echo "❌ CRITICAL: Bearer token pattern detected (possible API key usage)!"
+            grep -rn "Authorization: Bearer" functions/
+            exit 1
+          fi
+          
+          # Verify chess-move.ts uses Wall-E engine
+          if ! grep -q "WalleChessEngine" functions/api/chess-move.ts; then
+            echo "❌ CRITICAL: chess-move.ts not using WalleChessEngine!"
+            exit 1
+          fi
+          
+          echo "✓ Wall-E integrity verified - NO OpenAI anywhere (coaching + chess engine)"
+      
+      - name: Verify Prisma singleton pattern
+        run: |
+          # Check that Prisma singleton is used
+          if ! grep -q "getPrisma" functions/lib/prisma.ts; then
+            echo "❌ ERROR: Prisma singleton (getPrisma) missing!"
+            exit 1
+          fi
+          
+          # Check that all API endpoints use singleton
+          for file in functions/api/**/*.ts; do
+            if [ -f "$file" ] && grep -q "PrismaClient" "$file"; then
+              if ! grep -q "getPrisma" "$file"; then
+                echo "❌ ERROR: $file uses PrismaClient directly instead of singleton!"
+                exit 1
+              fi
+            fi
+          done
+          
+          echo "✓ Prisma singleton pattern verified"
+      
+      - name: Verify coaching heuristics v2 integration
+        run: |
+          # Check that Wall-E uses heuristics v2
+          if ! grep -q "coachHeuristicsV2" functions/lib/walleEngine.ts; then
+            echo "❌ ERROR: Wall-E missing heuristics v2 integration!"
+            exit 1
+          fi
+          
+          if ! grep -q "selectCoachingStrategy" functions/lib/walleEngine.ts; then
+            echo "❌ ERROR: Wall-E not using coaching strategy selector!"
+            exit 1
+          fi
+          
+          echo "✓ Coaching heuristics v2 verified"
+      
+      - name: Verify learning audit layer exists
+        run: |
+          # Check that learning audit module exists
+          if [ ! -f functions/lib/learningAudit.ts ]; then
+            echo "❌ ERROR: learningAudit.ts missing!"
+            exit 1
+          fi
+          
+          # Check that metrics endpoint exposes signals
+          if ! grep -q "computeLearningSignals" functions/api/wall-e/metrics.ts; then
+            echo "❌ ERROR: metrics endpoint missing learning signals!"
+            exit 1
+          fi
+          
+          echo "✓ Learning audit layer verified"
+      
+      - name: Verify progression metrics exist
+        run: |
+          # Check that progression metrics module exists (NEW learningProgress.ts)
+          if [ ! -f functions/lib/learningProgress.ts ]; then
+            echo "❌ ERROR: learningProgress.ts missing!"
+            exit 1
+          fi
+          
+          # Check that metrics endpoint exposes progression
+          if ! grep -q "computeProgressionMetrics" functions/api/wall-e/metrics.ts; then
+            echo "❌ ERROR: metrics endpoint missing progression metrics!"
+            exit 1
+          fi
+          
+          # Check 50-game window enforcement
+          if ! grep -q "enforce50GameWindow" functions/lib/learningProgress.ts; then
+            echo "❌ ERROR: 50-game window enforcement missing!"
+            exit 1
+          fi
+          
+          # Check sync endpoint enforces 50-game window
+          if ! grep -q "enforce50GameWindow" functions/api/wall-e/sync.ts; then
+            echo "❌ ERROR: sync.ts not enforcing 50-game window!"
+            exit 1
+          fi
+          
+          echo "✓ Progression metrics + 50-game window verified"
+      - name: Verify coaching quality + structured responses
+        run: |
+          # Check that structured response template exists
+          if [ ! -f functions/lib/coachResponseTemplate.ts ]; then
+            echo "❌ ERROR: coachResponseTemplate.ts missing!"
+            exit 1
+          fi
+          
+          # Check Wall-E imports structured responses
+          if ! grep -q "coachResponseTemplate" functions/lib/walleEngine.ts; then
+            echo "❌ ERROR: Wall-E not using structured response template!"
+            exit 1
+          fi
+          
+          # Check runtime enforcement exists
+          if ! grep -q "enforceStructuredResponse" functions/lib/coachResponseTemplate.ts; then
+            echo "❌ ERROR: Structured response enforcement missing!"
+            exit 1
+          fi
+          
+          echo "✓ Coaching quality + structured responses verified"
+      
+      - name: Verify tactical micro-checks in chess engine
+        run: |
+          # Check Wall-E chess engine has tactical analysis
+          if ! grep -q "analyzeTactics" functions/lib/walleChessEngine.ts; then
+            echo "❌ ERROR: Tactical micro-checks missing from chess engine!"
+            exit 1
+          fi
+          
+          # Check blunder gate exists
+          if ! grep -q "applyBlunderGate" functions/lib/walleChessEngine.ts; then
+            echo "❌ ERROR: Blunder gate missing from chess engine!"
+            exit 1
+          fi
+          
+          # Check CPU move budget constant exists
+          if [ ! -f src/lib/cpu/config.ts ]; then
+            echo "❌ ERROR: CPU config (consistent move budget) missing!"
+            exit 1
+          fi
+          
+          echo "✓ Chess engine tactical checks + blunder gate verified"
+      
         run: node scripts/verify-cloudflare-ready.mjs
+      
+      - name: Run Wall-E integrity verification
+        run: node scripts/verify-walle-integrity.mjs
       
       - name: Summary
         if: success()
@@ -98,4 +265,12 @@ jobs:
           echo "- Dependencies installed: ✓"
           echo "- Build successful: ✓"
           echo "- Personalization guards: ✓"
+          echo "- Wall-E integrity (NO OpenAI): ✓"
+          echo "- Chess engine tactical checks: ✓"
+          echo "- Prisma singleton: ✓"
+          echo "- Coaching heuristics v2: ✓"
+          echo "- Structured responses: ✓"
+          echo "- Learning audit layer: ✓"
+          echo "- Progression metrics + 50-game window: ✓"
           echo "- Cloudflare ready: ✓"
+
