@@ -3,10 +3,11 @@
 // 
 // NO API KEYS REQUIRED - Uses Wall-E engine with learning history
 
-import { getWallEEngine } from '../lib/walleEngine';
+import { getWallEEngine } from '../../shared/walleEngine';
 
 interface Env {
   DATABASE_URL?: string;
+  WALLE_ASSISTANT?: Fetcher; // Service binding to worker
 }
 
 interface AnalyzeGameRequest {
@@ -51,7 +52,45 @@ export const onRequestPost: PagesFunction<Env> = async (context) => {
     // Generate user ID if not provided
     const effectiveUserId = userId || `anon_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
 
-    // Check if DATABASE_URL is available
+    // Check for debug mode
+    const url = new URL(request.url);
+    const debugMode = url.searchParams.get('debug') === '1';
+
+    // Try service binding first (if available)
+    if (env.WALLE_ASSISTANT) {
+      try {
+        const workerResponse = await env.WALLE_ASSISTANT.fetch('https://internal/assist/analyze-game', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            pgn,
+            moveHistory,
+            cpuLevel,
+            playerColor,
+            result,
+            userId: effectiveUserId
+          })
+        });
+
+        const workerData = await workerResponse.json() as any;
+        
+        if (workerData.success) {
+          return new Response(JSON.stringify({
+            ...workerData,
+            ...(debugMode && { mode: 'service-binding' })
+          }), {
+            status: 200,
+            headers: { ...corsHeaders },
+          });
+        }
+        
+        console.warn('[Pages] Worker returned error, using local fallback:', workerData.error);
+      } catch (workerError) {
+        console.warn('[Pages] Worker binding failed, using local fallback:', workerError);
+      }
+    }
+
+    // Local fallback: Check if DATABASE_URL is available
     if (!env.DATABASE_URL) {
       // Fallback: Basic analysis without learning history
       const basicAnalysis = generateBasicAnalysis(moveHistory, playerColor, cpuLevel);
@@ -96,6 +135,7 @@ export const onRequestPost: PagesFunction<Env> = async (context) => {
       // REQUIRED: Provable personalization
       historyEvidence: analysisResponse.historyEvidence,
       personalizedReferences: analysisResponse.personalizedReferences,
+      ...(debugMode && { mode: 'local-fallback' })
     }), {
       status: 200,
       headers: { ...corsHeaders },

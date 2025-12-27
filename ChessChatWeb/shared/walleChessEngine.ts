@@ -1,15 +1,22 @@
 /**
- * Wall-E Chess Engine - Re-export from shared
+ * Wall-E Chess Engine
+ * Self-contained chess move generation with NO external APIs
  * 
- * This file maintains backward compatibility by re-exporting
- * the shared chess engine implementation.
- * 
- * The actual implementation is in: ../../shared/walleChessEngine.ts
+ * Capabilities:
+ * - Opening book for fast opening responses (first 6 plies)
+ * - Enforced CPU budget (750ms) across ALL difficulty levels
+ * - Cheap pre-pruning + progressive evaluation for efficiency
+ * - Tactical micro-checks (hanging pieces, mate-in-1 detection)
+ * - Blunder gate (prevents catastrophic mistakes)
+ * - Material-based position evaluation
+ * - Enhanced positional heuristics (piece safety, passed pawns, bishop pair, rook activity)
+ * - Difficulty levels via selective randomness
+ * - Conversational move commentary
  */
 
-export * from '../../shared/walleChessEngine';
-export { WalleChessEngine } from '../../shared/walleChessEngine';
-
+import { Chess, Move, Square } from 'chess.js';
+import { CPU_MOVE_BUDGET_MS } from './cpuConfig';
+import { pickOpeningMove, shouldUseOpeningBook } from './openingBook';
 
 // Piece values for material evaluation
 const PIECE_VALUES: Record<string, number> = {

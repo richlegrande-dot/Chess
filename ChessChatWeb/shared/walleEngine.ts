@@ -1,15 +1,5 @@
 /**
- * Wall-E Engine - Re-export from shared
- * 
- * This file maintains backward compatibility by re-exporting
- * the shared Wall-E engine implementation.
- * 
- * The actual implementation is in: ../../shared/walleEngine.ts
- */
-
-export * from '../../shared/walleEngine';
-export { getWallEEngine } from '../../shared/walleEngine';
-
+ * Wall-E Engine - Self-Contained AI Chess Coach
  * 
  * NO API KEYS REQUIRED - uses only knowledge base and learning data
  * 
@@ -52,6 +42,15 @@ import {
   enforceStructuredResponse,
   type CoachingAdvice,
 } from './coachResponseTemplate';
+
+// Re-export types for convenience
+export type {
+  WallEChatResponse,
+  WallEAnalysisResponse,
+  PlayerLearningHistory,
+  PersonalizedReference,
+  HistoryEvidence,
+};
 
 interface WallEContext {
   userId: string;

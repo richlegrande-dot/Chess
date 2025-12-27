@@ -1,0 +1,24 @@
+# Cloudflare Worker Service: Wall-E Assistant
+# This is a standalone Worker (NOT Pages) that provides AI assistance
+# for the ChessChat application via service bindings.
+
+name = "walle-assistant"
+main = "src/index.ts"
+compatibility_date = "2024-11-21"
+
+# Worker service type (not Pages)
+workers_dev = true
+
+# Observability
+observability = true
+
+[build]
+command = "npm install && npm run build"
+
+# Environment bindings (optional, for database access)
+[env.production]
+# Add DATABASE_URL as a secret:
+# wrangler secret put DATABASE_URL --env production
+
+[env.staging]
+# wrangler secret put DATABASE_URL --env staging

@@ -3,7 +3,7 @@
 // 
 // NO API KEYS REQUIRED - Uses Wall-E engine with learning history
 
-import { getWallEEngine } from '../lib/walleEngine';
+import { getWallEEngine } from '../../shared/walleEngine';
 import { sanitizeUserMessage, checkRateLimit, getClientIP } from '../lib/security';
 
 interface Env {
@@ -11,6 +11,7 @@ interface Env {
   RATE_LIMIT_KV?: KVNamespace;
   RATE_LIMIT_PER_IP?: string;
   RATE_LIMIT_WINDOW?: string;
+  WALLE_ASSISTANT?: Fetcher; // Service binding to worker
 }
 
 interface ChatMessage {
@@ -93,6 +94,43 @@ export async function onRequestPost(context: {
     // Generate user ID if not provided
     const effectiveUserId = userId || `anon_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
 
+    // Check for debug mode
+    const url = new URL(context.request.url);
+    const debugMode = url.searchParams.get('debug') === '1';
+
+    // Try service binding first (if available)
+    if (context.env.WALLE_ASSISTANT) {
+      try {
+        const workerResponse = await context.env.WALLE_ASSISTANT.fetch('https://internal/assist/chat', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            message: sanitizedMessage,
+            userId: effectiveUserId,
+            gameContext,
+            chatHistory
+          })
+        });
+
+        const workerData = await workerResponse.json() as any;
+        
+        if (workerData.success) {
+          return new Response(JSON.stringify({
+            ...workerData,
+            ...(debugMode && { mode: 'service-binding' })
+          }), {
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          });
+        }
+        
+        // Fall through to local fallback if worker failed
+        console.warn('[Pages] Worker returned error, using local fallback:', workerData.error);
+      } catch (workerError) {
+        console.warn('[Pages] Worker binding failed, using local fallback:', workerError);
+      }
+    }
+
+    // Local fallback: Run Wall-E directly
     // Check if DATABASE_URL is available for learning features
     if (!context.env.DATABASE_URL) {
       // Fallback: Basic coaching without personalization
@@ -134,6 +172,7 @@ export async function onRequestPost(context: {
       // REQUIRED: Provable personalization
       historyEvidence: chatResponse.historyEvidence,
       personalizedReferences: chatResponse.personalizedReferences,
+      ...(debugMode && { mode: 'local-fallback' })
     }), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     });

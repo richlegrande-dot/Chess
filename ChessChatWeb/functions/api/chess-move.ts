@@ -4,11 +4,12 @@
  */
 
 import { Chess } from 'chess.js';
-import { WalleChessEngine } from '../lib/walleChessEngine';
+import { WalleChessEngine } from '../../shared/walleChessEngine';
 
 interface Env {
   CHESS_RATE_LIMIT?: KVNamespace;
   GAME_SESSIONS?: KVNamespace;
+  WALLE_ASSISTANT?: Fetcher; // Service binding to worker
 }
 
 interface ChessMoveRequest {
@@ -139,6 +140,37 @@ export const onRequestPost: PagesFunction<Env> = async (context) => {
       );
     }
 
+    // Try service binding first (if available)
+    if (context.env.WALLE_ASSISTANT) {
+      try {
+        const workerResponse = await context.env.WALLE_ASSISTANT.fetch('https://internal/assist/chess-move', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ fen, pgn, difficulty, gameId })
+        });
+
+        const workerData = await workerResponse.json() as any;
+        
+        if (workerData.success) {
+          const responseData = {
+            ...workerData,
+            requestId,
+            ...(enableDebug && { mode: 'service-binding' })
+          };
+          return new Response(JSON.stringify(responseData), {
+            status: 200,
+            headers: corsHeaders
+          });
+        }
+        
+        console.warn(`[${requestId}] Worker returned error, using local fallback:`, workerData.error);
+      } catch (workerError) {
+        console.warn(`[${requestId}] Worker binding failed, using local fallback:`, workerError);
+      }
+    }
+
+    // Local fallback: Run Wall-E chess engine directly
+
     // Initialize or load game session
     let gameSession: GameSession;
     const sessionKey = gameId || `game_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
@@ -268,6 +300,7 @@ export const onRequestPost: PagesFunction<Env> = async (context) => {
       gameId: gameSession.gameId,
       chatHistory: gameSession.chatHistory,
       conversationalResponse: fullResponse,
+      ...(enableDebug && { mode: 'local-fallback' })
     };
 
     // Add debug info if requested

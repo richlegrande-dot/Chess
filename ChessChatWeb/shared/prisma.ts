@@ -1,12 +1,10 @@
 /**
- * Prisma Client - Re-export from shared
+ * Prisma Client Singleton for Cloudflare Workers/Pages Functions
  * 
- * The actual implementation is in: ../../shared/prisma.ts
- */
-
-export * from '../../shared/prisma';
-export { getPrisma } from '../../shared/prisma';
-
+ * This module provides a connection-pooled Prisma client optimized for
+ * Cloudflare's serverless environment.
+ * 
+ * Key Features:
  * - Module-level singleton to reuse connections across requests
  * - Prisma Accelerate support for connection pooling
  * - Edge-compatible client

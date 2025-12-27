@@ -1,11 +1,23 @@
 /**
- * Personalized References - Re-export from shared
+ * Personalized Reference System
  * 
- * The actual implementation is in: ../../shared/personalizedReferences.ts
+ * Enforces that Wall-E coaching responses include provable references
+ * to the user's stored gameplay history.
+ * 
+ * REQUIREMENT: Every coaching response must include ≥2 personalized references
+ * sourced from:
+ * - User's last 10 games
+ * - User's top 3 mistake patterns
  */
 
-export * from '../../shared/personalizedReferences';
+export type PersonalizedReferenceKind = 'last10games' | 'topMistakePattern';
 
+export interface PersonalizedReference {
+  kind: PersonalizedReferenceKind;
+  text: string;
+  source: {
+    gameId?: string;
+    patternKey?: string;
     gameIds?: string[]; // For aggregated references
   };
 }

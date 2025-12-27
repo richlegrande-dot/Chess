@@ -1,0 +1,11 @@
+{
+  "name": "walle-assistant-worker",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Standalone Cloudflare Worker for Wall-E chess coaching assistant",
+  "scripts": {
+    "dev": "wrangler dev",
+    "deploy": "wrangler deploy",
+    "deploy:production": "wrangler deploy --env production"
+  }
+}

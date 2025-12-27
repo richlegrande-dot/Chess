@@ -81,7 +81,7 @@ jobs:
       - name: Verify personalization guard exists
         run: |
           # Check that Wall-E engine imports personalization system
-          if ! grep -q "personalizedReferences" functions/lib/walleEngine.ts; then
+          if ! grep -q "personalizedReferences" shared/walleEngine.ts; then
             echo "❌ ERROR: Wall-E engine missing personalization imports!"
             exit 1
           fi
@@ -98,6 +98,12 @@ jobs:
           fi
           
           echo "✓ Personalization guards verified"
+      
+      - name: Verify hybrid assistant architecture
+        run: |
+          echo "🔍 Verifying Option B hybrid architecture..."
+          node scripts/verify-hybrid-assistant.mjs
+          echo "✓ Hybrid assistant architecture verified"
       
       - name: Verify Wall-E integrity (NO OpenAI ANYWHERE)
         run: |
