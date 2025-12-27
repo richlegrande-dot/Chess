@@ -1,17 +1,18 @@
 /**
  * CoachEngine Service
  * 
- * Self-created agent baseline that provides chess coaching without external AI APIs.
- * Uses the Knowledge Vault to retrieve relevant coaching content and generate advice.
+ * Self-contained chess coach using knowledge base (when available).
+ * Degrades gracefully without database access.
  * 
  * Core Capabilities:
- * - Retrieve relevant knowledge chunks based on game context
+ * - Retrieve relevant knowledge chunks based on game context (if DB available)
  * - Generate coaching takeaways from knowledge base
  * - Provide contextual advice for tactical/strategic positions
  * - No external API dependencies (fully self-contained)
  */
 
-import { db } from './db';
+import { getPrisma } from './prisma';
+import { PrismaClient } from '@prisma/client/edge';
 
 // Local types to avoid dependency on broken analysis types
 interface GameAnalysisResult {
@@ -59,19 +60,30 @@ interface CoachingAdvice {
 }
 
 export class CoachEngine {
-  private dbService = db;
+  // Database is optional - coach engine works without it
+  private databaseUrl?: string;
+
+  constructor(databaseUrl?: string) {
+    this.databaseUrl = databaseUrl;
+  }
 
   /**
-   * Retrieve relevant knowledge chunks based on context
+   * Retrieve relevant knowledge chunks based on context (requires database)
    */
   async retrieveRelevantKnowledge(context: CoachingContext, limit: number = 5): Promise<KnowledgeChunk[]> {
-    const client = await this.dbService.getClient();
+    // If no database available, return empty array (graceful degradation)
+    if (!this.databaseUrl) {
+      return [];
+    }
 
-    // Build search tags from context
-    const searchTags = this.buildSearchTags(context);
-    
-    // Search for chunks matching any of the tags
-    const chunks = await client.knowledgeChunk.findMany({
+    try {
+      const prisma = getPrisma(this.databaseUrl);
+
+      // Build search tags from context
+      const searchTags = this.buildSearchTags(context);
+      
+      // Search for chunks matching any of the tags
+      const chunks = await prisma.knowledgeChunk.findMany({
       where: {
         source: {
           isDeleted: false,
@@ -389,34 +401,44 @@ export class CoachEngine {
   }
 
   /**
-   * Search knowledge base by query
+   * Search knowledge base by query (requires database)
    */
   async searchKnowledge(query: string, limit: number = 5): Promise<KnowledgeChunk[]> {
-    const client = await this.dbService.getClient();
+    // If no database available, return empty array
+    if (!this.databaseUrl) {
+      return [];
+    }
 
-    // Simple text search in chunk content and tags
-    const chunks = await client.knowledgeChunk.findMany({
-      where: {
-        source: {
-          isDeleted: false,
+    try {
+      const prisma = getPrisma(this.databaseUrl);
+
+      // Simple text search in chunk content and tags
+      const chunks = await prisma.knowledgeChunk.findMany({
+        where: {
+          source: {
+            isDeleted: false,
+          },
+          OR: [
+            { chunkText: { contains: query, mode: 'insensitive' } },
+            { tags: { contains: query, mode: 'insensitive' } },
+          ],
         },
-        OR: [
-          { chunkText: { contains: query, mode: 'insensitive' } },
-          { tags: { contains: query, mode: 'insensitive' } },
-        ],
-      },
-      include: {
-        source: {
-          select: {
-            title: true,
-            sourceType: true,
+        include: {
+          source: {
+            select: {
+              title: true,
+              sourceType: true,
+            },
           },
         },
-      },
-      take: limit,
-    });
+        take: limit,
+      });
 
-    return chunks;
+      return chunks;
+    } catch (error) {
+      console.warn('[CoachEngine] Knowledge search failed:', error);
+      return [];
+    }
   }
 
   // Helper methods
@@ -439,12 +461,12 @@ export class CoachEngine {
   }
 }
 
-// Singleton instance
+// Singleton instance - no DB by default (can be overridden by passing databaseUrl)
 let coachEngineInstance: CoachEngine | null = null;
 
-export function getCoachEngine(): CoachEngine {
-  if (!coachEngineInstance) {
-    coachEngineInstance = new CoachEngine();
+export function getCoachEngine(databaseUrl?: string): CoachEngine {
+  if (!coachEngineInstance || (databaseUrl && coachEngineInstance['databaseUrl'] !== databaseUrl)) {
+    coachEngineInstance = new CoachEngine(databaseUrl);
   }
   return coachEngineInstance;
 }
