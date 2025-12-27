@@ -6,12 +6,13 @@ compatibility_date = "2024-11-21"
 pages_build_output_dir = "dist"
 
 # Environment variables (set via Cloudflare dashboard or wrangler secret)
-# REQUIRED:
-#   OPENAI_API_KEY - OpenAI API key for AI opponents and chat
-#
+# 
 # OPTIONAL:
+#   DATABASE_URL - Prisma connection string (graceful degradation if missing)
 #   RATE_LIMIT_PER_IP - Max requests per IP per minute (default: 30)
 #   RATE_LIMIT_WINDOW - Rate limit window in seconds (default: 60)
+#
+# NOTE: NO API KEYS REQUIRED - Wall-E-only architecture (no external AI services)
 
 # Note: KV namespaces should be bound via Cloudflare Dashboard for Pages projects
 # Go to: Pages > chesschat-web > Settings > Functions > KV namespace bindings

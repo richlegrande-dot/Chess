@@ -24,6 +24,12 @@ jobs:
           node-version: ${{ matrix.node-version }}
           cache: 'npm'
       
+      - name: Verify repository root layout
+        run: |
+          echo "🔍 Checking repository root integrity (Cloudflare deploy requirement)..."
+          node scripts/verify-repo-root.mjs
+          echo "✓ Repository root layout verified"
+      
       - name: Verify package-lock.json exists
         run: |
           if [ ! -f package-lock.json ]; then
@@ -244,13 +250,36 @@ jobs:
             exit 1
           fi
           
-          # Check CPU move budget constant exists
-          if [ ! -f src/lib/cpu/config.ts ]; then
-            echo "❌ ERROR: CPU config (consistent move budget) missing!"
+          # Check CPU move budget constant exists (Functions runtime)
+          if [ ! -f functions/lib/cpuConfig.ts ]; then
+            echo "❌ ERROR: CPU config (Functions runtime) missing!"
             exit 1
           fi
           
-          echo "✓ Chess engine tactical checks + blunder gate verified"
+          # CRITICAL: Verify engine IMPORTS and USES the CPU budget
+          if ! grep -q "CPU_MOVE_BUDGET_MS" functions/lib/walleChessEngine.ts; then
+            echo "❌ ERROR: Chess engine not importing CPU_MOVE_BUDGET_MS!"
+            exit 1
+          fi
+          
+          if ! grep -q "performance.now()" functions/lib/walleChessEngine.ts; then
+            echo "❌ ERROR: Chess engine missing time tracking for budget enforcement!"
+            exit 1
+          fi
+          
+          # Check opening book exists
+          if [ ! -f functions/lib/openingBook.ts ]; then
+            echo "❌ ERROR: Opening book missing (required for fast opening responses)!"
+            exit 1
+          fi
+          
+          # Verify engine uses opening book
+          if ! grep -q "pickOpeningMove\|shouldUseOpeningBook" functions/lib/walleChessEngine.ts; then
+            echo "❌ ERROR: Chess engine not using opening book!"
+            exit 1
+          fi
+          
+          echo "✓ Chess engine: tactical checks + budget enforcement + opening book verified"
       
         run: node scripts/verify-cloudflare-ready.mjs
       
