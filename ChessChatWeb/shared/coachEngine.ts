@@ -116,6 +116,10 @@ export class CoachEngine {
       .sort((a, b) => b.score - a.score)
       .slice(0, limit)
       .map(sc => sc.chunk);
+    } catch (error) {
+      console.warn('[CoachEngine] Knowledge retrieval failed:', error);
+      return [];
+    }
   }
 
   /**
