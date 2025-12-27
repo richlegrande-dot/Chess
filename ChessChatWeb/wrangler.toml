@@ -19,19 +19,9 @@ pages_build_output_dir = "dist"
 
 # Service Bindings (Option B Hybrid Architecture)
 # Connect Pages Functions to Worker Service
-# Configure in dashboard: Pages > Settings > Functions > Service bindings
-# Variable name: WALLE_ASSISTANT
-# Service: walle-assistant
-# Environment: production
-[[env.production.services]]
+[[services]]
 binding = "WALLE_ASSISTANT"
-service = "walle-assistant"
-environment = "production"
-
-[[env.preview.services]]
-binding = "WALLE_ASSISTANT"
-service = "walle-assistant"
-environment = "staging"
+service = "walle-assistant-production"
 
 [env.production]
 # Production environment
