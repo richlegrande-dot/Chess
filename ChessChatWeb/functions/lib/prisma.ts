@@ -6,55 +6,6 @@
 
 export * from '../../shared/prisma';
 export { getPrisma } from '../../shared/prisma';
-
- * - Module-level singleton to reuse connections across requests
- * - Prisma Accelerate support for connection pooling
- * - Edge-compatible client
- * - Defensive error handling for missing DATABASE_URL
- * - Safe logging (no credential leakage)
- * 
- * Usage:
- * ```typescript
- * import { getPrisma } from '../lib/prisma';
- * 
- * export async function onRequestPost(context: { request: Request; env: Env }) {
- *   const prisma = getPrisma(context.env.DATABASE_URL);
- *   const results = await prisma.playerProfile.findMany();
- *   // DO NOT call prisma.$disconnect() in production
- *   return Response.json(results);
- * }
- * ```
- */
-
-import { PrismaClient } from '@prisma/client/edge';
-import { withAccelerate } from '@prisma/extension-accelerate';
-
-// Module-level singleton cache
-let prismaSingleton: PrismaClient | null = null;
-let lastDatabaseUrl: string | null = null;
-
-/**
- * Get or create Prisma client singleton
- * 
- * @param databaseUrl - The DATABASE_URL from context.env
- * @returns Prisma client instance
- * @throws Error if DATABASE_URL is missing or invalid
- */
-export function getPrisma(databaseUrl: string | undefined): PrismaClient {
-  // Defensive check: DATABASE_URL must be provided
-  if (!databaseUrl) {
-    const error = 'DATABASE_URL not provided. Cannot initialize Prisma client.';
-    console.error(`[Prisma] FATAL: ${error}`);
-    throw new Error(error);
-  }
-
-  // Safe logging: only log prefix to avoid credential leakage
-  const urlPrefix = databaseUrl.substring(0, 12);
-  
-  // Check if we need to create a new client (URL changed)
-  if (prismaSingleton && lastDatabaseUrl === databaseUrl) {
-    // Reuse existing singleton
-    return prismaSingleton;
   }
 
   // Create new client
