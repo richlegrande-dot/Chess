@@ -388,9 +388,43 @@ Watch for:
 
 ## Deployment Fix (December 28, 2025)
 
-### Issue: Prisma Import Breaking Worker Deployment
+### Issue 1: Pages Build Trying to Deploy Worker (CRITICAL)
 
 **Error:**
+```
+Executing user deploy command: npx wrangler deploy --env production
+✘ [ERROR] Uncaught ReferenceError: module is not defined
+  at worker-assistant/src/shared/prisma.ts:27:30
+```
+
+**Root Cause:** 
+**The Cloudflare Pages build configuration is WRONG!**
+- Pages dashboard has "Build command" AND "Deploy command" configured
+- Deploy command is set to: `npx wrangler deploy --env production`
+- This tries to deploy the **worker** as part of Pages build (WRONG!)
+- Worker and Pages must be deployed **separately**
+
+**CRITICAL FIX - Update Cloudflare Dashboard:**
+
+1. **Go to:** Cloudflare Dashboard → Workers & Pages → chesschat-web → Settings → Builds & deployments
+
+2. **Build configuration should be:**
+   - **Build command:** `npm ci` (or leave blank to use package.json default)
+   - **Build output directory:** `dist`
+   - **Deploy command:** **DELETE THIS / LEAVE BLANK**
+
+3. **Root directory:** Leave blank (use repo root)
+
+**Why This Matters:**
+- Pages should ONLY build the static frontend (`npm run build` → `dist/`)
+- Worker is deployed separately via: `cd worker-assistant && npx wrangler deploy`
+- Having Pages try to deploy the worker causes architecture conflicts
+
+---
+
+### Issue 2: Prisma Import Breaking Worker Deployment
+
+**Error (when deploying worker separately):**
 ```
 Uncaught ReferenceError: module is not defined
   at node_modules/.prisma/client/edge.js:27:1
@@ -441,21 +475,55 @@ const result = WalleChessEngine.selectMove(fen, difficulty, true, true);
 - Lazy-loading delays Prisma import until actually needed
 - Static method `selectMove` has zero dependencies on Prisma
 
-**Deployment Command:**
+---
+
+### Correct Deployment Process
+
+**Step 1: Fix Pages Build Configuration (Dashboard)**
+```
+Dashboard → Workers & Pages → chesschat-web → Settings → Builds & deployments
+
+Build command: npm ci
+Build output directory: dist
+Deploy command: [DELETE/BLANK]
+```
+
+**Step 2: Deploy Worker Separately (Local)**
 ```bash
 cd ChessChatWeb/worker-assistant
+npm ci
 npx wrangler deploy --env production
 ```
 
-**Verification:**
+**Step 3: Deploy Pages (Automatic via Git Push)**
 ```bash
-# Test move generation
+git push origin main
+# Pages auto-deploys from dist/ folder
+```
+
+---
+
+### Verification After Deployment
+
+**Test Pages (Static Frontend):**
+```bash
+curl -I https://chesschat.uk
+# Should return: 200 OK, content-type: text/html
+```
+
+**Test Pages Function (Public API):**
+```bash
 curl -X POST https://chesschat.uk/api/chess-move \
   -H "Content-Type: application/json" \
   -d '{"fen":"rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1","difficulty":"medium"}'
 
-# Should return:
-# { "success": true, "move": "e2e4", "mode": "service-binding", ... }
+# Should return: { "success": true, "move": "e2e4", "mode": "service-binding", ... }
+```
+
+**Test Worker (Internal Only - Should Fail):**
+```bash
+curl https://walle-assistant-production.weatherwearapi1.workers.dev/assist/chess-move
+# Should return: {"success":false,"error":"Method not allowed"} (GET not supported)
 ```
 
 ## References
