@@ -4,6 +4,12 @@ import { ErrorBoundary } from './components/ErrorBoundary';
 import { ProductionDiagnostics } from './components/ProductionDiagnostics';
 import { autoSyncOnStartViaAPI } from './lib/api/walleApiSync';
 import './utils/diagnostics'; // Load frontend diagnostics
+import { useGameStore } from './store/gameStore';
+
+// Expose gameStore to window for debugging and logging
+if (typeof window !== 'undefined') {
+  (window as any).gameStore = useGameStore;
+}
 
 // Import types
 type AppView = 'home' | 'model-selection' | 'game' | 'coaching' | 'admin' | 'training-data';
