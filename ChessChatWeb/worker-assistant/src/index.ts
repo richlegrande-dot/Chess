@@ -49,6 +49,8 @@ interface ChessMoveRequest {
   pgn?: string;
   difficulty?: string;
   gameId?: string;
+  timeMs?: number; // Requested compute budget in milliseconds
+  cpuLevel?: number; // CPU level (1-8) for diagnostics
 }
 
 /**
@@ -202,8 +204,8 @@ async function handleChessMove(request: Request, env: Env): Promise<Response> {
   
   try {
     const data = await request.json() as ChessMoveRequest;
-    const { fen, difficulty = 'medium', gameId } = data;
-    console.log('[Worker] Request data:', { fen: fen?.substring(0, 30), difficulty, gameId });
+    const { fen, difficulty = 'medium', gameId, timeMs: requestedTimeMs, cpuLevel } = data;
+    console.log('[Worker] Request data:', { fen: fen?.substring(0, 30), difficulty, gameId, requestedTimeMs, cpuLevel });
 
     if (!fen) {
       console.error('[Worker] Missing FEN in request');
@@ -234,11 +236,30 @@ async function handleChessMove(request: Request, env: Env): Promise<Response> {
     };
     const difficultyLevel = difficultyMap[difficulty.toLowerCase()] || 'intermediate';
     
+    // Calculate effective time budget
+    const defaultTimeMs = 750; // Default worker budget
+    const effectiveTimeMs = requestedTimeMs && requestedTimeMs > 0 ? requestedTimeMs : defaultTimeMs;
+    const cappedTimeMs = Math.min(effectiveTimeMs, 15000); // Cap at 15s for Cloudflare CPU limits
+    
+    console.log('[Worker] Time budget:', { requested: requestedTimeMs, effective: effectiveTimeMs, capped: cappedTimeMs });
+    
     // Generate move using WalleChessEngine
     let result: any;
+    let abortReason: string | undefined;
     try {
-      result = WalleChessEngine.selectMove(fen, difficultyLevel, true, true);
+      result = WalleChessEngine.selectMove(fen, difficultyLevel, true, true, cappedTimeMs);
       console.log('[Worker] Move generated:', result.move);
+      
+      // Check if computation was cut short
+      if (result.debug && result.debug.engineMs < cappedTimeMs * 0.5) {
+        if (result.debug.usedOpeningBook) {
+          abortReason = 'opening_book';
+        } else if (result.debug.mode === 'cheap-fallback') {
+          abortReason = 'time_exhausted';
+        } else {
+          abortReason = 'early_completion';
+        }
+      }
     } catch (error: any) {
       console.error('[Worker] Chess engine error:', error);
       const latencyMs = Date.now() - startTime;
@@ -246,13 +267,23 @@ async function handleChessMove(request: Request, env: Env): Promise<Response> {
         success: false,
         error: 'Chess engine error: ' + error.message,
         mode: 'service-binding',
+        diagnostics: {
+          difficultyRequested: difficulty,
+          difficultyMappedTo: difficultyLevel,
+          cpuLevel: cpuLevel || 'unknown',
+          requestedTimeMs: requestedTimeMs || 0,
+          effectiveTimeMs: effectiveTimeMs,
+          cappedTimeMs: cappedTimeMs,
+          searchTimeMs: 0,
+          abortReason: 'error'
+        },
         workerCallLog: {
           endpoint: '/assist/chess-move',
           method: 'POST',
           success: false,
           latencyMs,
           error: error.message,
-          request: { fen: fen.substring(0, 50), difficulty, gameId },
+          request: { fen: fen.substring(0, 50), difficulty, gameId, timeMs: requestedTimeMs },
           response: { mode: 'service-binding' }
         }
       }, { status: 500 });
@@ -278,7 +309,9 @@ async function handleChessMove(request: Request, env: Env): Promise<Response> {
     }
 
     const latencyMs = Date.now() - startTime;
-    console.log('[Worker] Returning successful response with workerCallLog');
+    const searchTimeMs = result.debug?.engineMs || 0;
+    
+    console.log('[Worker] Returning successful response with comprehensive diagnostics');
     return Response.json({
       success: true,
       move: result.move,
@@ -286,27 +319,50 @@ async function handleChessMove(request: Request, env: Env): Promise<Response> {
       mode: 'service-binding',
       commentary: result.commentary,
       diagnostics: {
+        // Difficulty mapping
+        difficultyRequested: difficulty,
+        difficultyMappedTo: difficultyLevel,
+        cpuLevel: cpuLevel || 'unknown',
+        
+        // Time budget tracking
+        requestedTimeMs: requestedTimeMs || 0,
+        effectiveTimeMs: effectiveTimeMs,
+        cappedTimeMs: cappedTimeMs,
+        searchTimeMs: searchTimeMs,
+        abortReason: abortReason,
+        
+        // Engine results
         depthReached: result.debug?.evaluatedMovesCount || 0,
         nodes: result.debug?.legalMovesCount || 0,
+        nodesSearched: result.debug?.evaluatedMovesCount || 0,
         eval: 0,
         selectedLine: result.move,
         openingBook: result.debug?.usedOpeningBook || false,
         reason: result.debug?.usedOpeningBook ? 'Opening book move' : 'Computed move',
-        engineMs: result.debug?.engineMs || 0,
-        mode: result.debug?.mode || 'unknown'
+        engineMs: searchTimeMs,
+        mode: result.debug?.mode || 'unknown',
+        
+        // Engine parameters (from difficulty config)
+        engineParamsUsed: {
+          difficulty: difficultyLevel,
+          timeMs: cappedTimeMs,
+          mode: result.debug?.mode || 'unknown'
+        }
       },
       workerCallLog: {
         endpoint: '/assist/chess-move',
         method: 'POST',
         success: true,
         latencyMs,
-        request: { fen: fen.substring(0, 50), difficulty, gameId },
+        request: { fen: fen.substring(0, 50), difficulty, gameId, timeMs: requestedTimeMs, cpuLevel },
         response: {
           move: result.move,
           depthReached: result.debug?.evaluatedMovesCount || 0,
           usedOpeningBook: result.debug?.usedOpeningBook || false,
           engine: 'worker',
-          mode: 'service-binding'
+          mode: 'service-binding',
+          searchTimeMs: searchTimeMs,
+          abortReason: abortReason
         }
       }
     });

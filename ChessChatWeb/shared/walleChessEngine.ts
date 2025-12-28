@@ -140,13 +140,15 @@ export class WalleChessEngine {
    * @param difficulty Player skill level (affects randomness)
    * @param conversational Include natural language commentary
    * @param enableDebug Return timing and diagnostic info
+   * @param timeBudgetMs Optional time budget override (defaults to CPU_MOVE_BUDGET_MS)
    * @returns UCI move and optional commentary
    */
   static selectMove(
     fen: string,
     difficulty: 'beginner' | 'intermediate' | 'advanced' | 'master' = 'intermediate',
     conversational: boolean = false,
-    enableDebug: boolean = false
+    enableDebug: boolean = false,
+    timeBudgetMs?: number
   ): SelectMoveResult {
     const startTime = performance.now ? performance.now() : Date.now();
     
@@ -183,7 +185,7 @@ export class WalleChessEngine {
       throw new Error('No legal moves available');
     }
 
-    const budget = CPU_MOVE_BUDGET_MS;
+    const budget = timeBudgetMs && timeBudgetMs > 0 ? timeBudgetMs : CPU_MOVE_BUDGET_MS;
     const budgetThreshold = budget * 0.90; // Stop at 90% to leave margin
 
     // STEP 1: Cheap evaluation of ALL moves (material + center + dev only)

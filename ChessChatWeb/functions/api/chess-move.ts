@@ -29,6 +29,8 @@ interface ChessMoveRequest {
   gameId?: string;
   userMove?: string;
   chatHistory?: ChatMessage[];
+  timeMs?: number; // Requested compute budget in milliseconds
+  cpuLevel?: number; // CPU level (1-8) for diagnostics
 }
 
 interface ChatMessage {
@@ -89,7 +91,7 @@ export const onRequestPost: PagesFunction<Env> = async (context) => {
       );
     }
 
-    const { fen, pgn = '', difficulty = 'intermediate', gameId, userMove, chatHistory = [] } = body;
+    const { fen, pgn = '', difficulty = 'intermediate', gameId, userMove, chatHistory = [], timeMs, cpuLevel } = body;
 
     // Check for debug flag in query params
     const url = new URL(context.request.url);
@@ -167,7 +169,7 @@ export const onRequestPost: PagesFunction<Env> = async (context) => {
             'Content-Type': 'application/json',
             ...(context.env.INTERNAL_AUTH_TOKEN ? { 'X-Internal-Token': context.env.INTERNAL_AUTH_TOKEN } : {})
           },
-          body: JSON.stringify({ fen, pgn, difficulty, gameId })
+          body: JSON.stringify({ fen, pgn, difficulty, gameId, timeMs, cpuLevel })
         }),
         timeoutPromise
       ]);

@@ -37,7 +37,9 @@
     "verify:all": "npm run verify:worker-path && npm run verify:hybrid && npm run verify:hybrid-deploy && npm run verify:shared-sync && npm run verify:integrity && npm run verify:worker-required",
     "sync:shared": "node scripts/sync-shared-code.mjs",
     "test:worker": "node scripts/test-worker-call.mjs",
-    "test:worker:prod": "node scripts/test-worker-call.mjs --production"
+    "test:worker:prod": "node scripts/test-worker-call.mjs --production",
+    "test:strength": "node scripts/test-strength.mjs",
+    "test:strength:prod": "node scripts/test-strength.mjs --production"
   },
   "dependencies": {
     "@prisma/client": "^5.22.0",
