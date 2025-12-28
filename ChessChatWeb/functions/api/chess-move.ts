@@ -120,7 +120,7 @@ export const onRequestPost: PagesFunction<Env> = async (context) => {
         success: false,
         latencyMs,
         error: 'Worker service binding not configured (WALLE_ASSISTANT missing)',
-        request: { fen: fen.substring(0, 50), difficulty, gameId },
+        request: { fen: fen.substring(0, 50), difficulty, gameId, timeMs, cpuLevel },
         response: null
       };
       
@@ -184,7 +184,7 @@ export const onRequestPost: PagesFunction<Env> = async (context) => {
         success: false,
         latencyMs: workerLatency,
         error: `Worker fetch failed: ${errorMessage}`,
-        request: { fen: fen.substring(0, 50), difficulty, gameId },
+        request: { fen: fen.substring(0, 50), difficulty, gameId, timeMs, cpuLevel },
         response: null
       };
       
@@ -248,7 +248,7 @@ export const onRequestPost: PagesFunction<Env> = async (context) => {
         success: false,
         latencyMs: workerLatency,
         error: `Worker returned ${workerResponse.status}: ${workerResponse.statusText}`,
-        request: { fen: fen.substring(0, 50), difficulty, gameId },
+        request: { fen: fen.substring(0, 50), difficulty, gameId, timeMs, cpuLevel },
         response: null
       };
       
@@ -314,7 +314,7 @@ export const onRequestPost: PagesFunction<Env> = async (context) => {
         success: false,
         latencyMs: workerLatency,
         error: `Worker returned invalid JSON: ${parseError instanceof Error ? parseError.message : String(parseError)}`,
-        request: { fen: fen.substring(0, 50), difficulty, gameId },
+        request: { fen: fen.substring(0, 50), difficulty, gameId, timeMs, cpuLevel },
         response: null
       };
       
@@ -378,7 +378,9 @@ export const onRequestPost: PagesFunction<Env> = async (context) => {
       request: { 
         fen: fen.substring(0, 50), 
         difficulty, 
-        gameId 
+        gameId,
+        timeMs, // Include time budget in log
+        cpuLevel // Include CPU level in log
       },
       response: workerData.success ? {
         move: workerData.move,
