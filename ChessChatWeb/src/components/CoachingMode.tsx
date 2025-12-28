@@ -10,6 +10,7 @@ import { PostGameCoaching } from './PostGameCoaching';
 import { PlayerProfile } from './PlayerProfile';
 import { getCpuWorkerClient } from '../lib/cpu/cpuWorkerClient';
 import { getLevelConfig, getTimeBudget, getTotalTimeout } from '../lib/cpu/cpuConfig';
+import { mapCpuLevelToDifficulty } from '../lib/difficultyMapping';
 import '../styles/CoachingMode.css';
 import '../styles/CoachingBoardEnhanced.css';
 
@@ -379,7 +380,7 @@ export const CoachingMode: React.FC = () => {
               body: JSON.stringify({
                 fen: chess.getFEN(),
                 pgn: chess.getPGN(),
-                difficulty: cpuLevel === 1 ? 'beginner' : cpuLevel <= 3 ? 'intermediate' : cpuLevel <= 5 ? 'advanced' : 'master',
+                difficulty: mapCpuLevelToDifficulty(cpuLevel),
                 gameId: `game_${Date.now()}`,
               }),
             });

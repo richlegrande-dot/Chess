@@ -37,6 +37,7 @@ export const WorkerCallsTab: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [dataSource, setDataSource] = useState<'api' | 'memory'>('memory');
+  const [showDiagnostics, setShowDiagnostics] = useState(false);
 
   const formatTime = (timestamp: number) => {
     return new Date(timestamp).toLocaleString();
@@ -146,7 +147,42 @@ export const WorkerCallsTab: React.FC = () => {
           ) : (
             <span className="warning">⚠️ Showing in-memory logs only (KV not available)</span>
           )}
+          <button 
+            className="refresh-btn"
+            onClick={() => window.location.reload()}
+            style={{ marginLeft: '1rem', padding: '0.5rem 1rem' }}
+          >
+            🔄 Refresh
+          </button>
         </div>
+      </div>
+
+      {/* Diagnostic Panel */}
+      <div className="diagnostic-panel">
+        <button 
+          className="diagnostic-toggle"
+          onClick={() => setShowDiagnostics(!showDiagnostics)}
+        >
+          🔍 {showDiagnostics ? 'Hide' : 'Show'} Frontend Diagnostics
+        </button>
+        
+        {showDiagnostics && (
+          <div className="diagnostic-content">
+            <h4>Frontend Storage Status</h4>
+            <ul style={{ listStyle: 'none', padding: 0 }}>
+              <li>📊 In-Memory Worker Calls: <strong>{debugInfo.workerCalls?.length || 0}</strong></li>
+              <li>💾 Debug Info Exists: <strong>{debugInfo ? '✓ Yes' : '✗ No'}</strong></li>
+              <li>🔧 Console Commands Available: <strong>window.chessChatDiagnostics</strong></li>
+            </ul>
+            <p style={{ fontSize: '0.9rem', opacity: 0.8, marginTop: '1rem' }}>
+              💡 <strong>Tip:</strong> Open DevTools Console and run:
+              <br />
+              <code style={{ background: '#000', padding: '0.25rem 0.5rem', borderRadius: '4px', display: 'inline-block', marginTop: '0.5rem' }}>
+                window.chessChatDiagnostics.help()
+              </code>
+            </p>
+          </div>
+        )}
       </div>
 
       {/* Service Binding Status */}

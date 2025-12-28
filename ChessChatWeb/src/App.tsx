@@ -3,6 +3,7 @@ import './styles/global.css';
 import { ErrorBoundary } from './components/ErrorBoundary';
 import { ProductionDiagnostics } from './components/ProductionDiagnostics';
 import { autoSyncOnStartViaAPI } from './lib/api/walleApiSync';
+import './utils/diagnostics'; // Load frontend diagnostics
 
 // Import types
 type AppView = 'home' | 'model-selection' | 'game' | 'coaching' | 'admin' | 'training-data';

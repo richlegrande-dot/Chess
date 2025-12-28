@@ -1,18 +1,25 @@
 /**
  * Chess Move API - Cloudflare Pages Function
- * Uses Wall-E Chess Engine (NO external APIs required)
- * Version: 2.0 - Worker Call Tracking Added
+ * Uses Wall-E Chess Engine via Worker Service Binding
+ * Version: 3.0 - Worker Required Mode (No Fallback)
+ * 
+ * IMPORTANT: This function requires Worker service binding.
+ * If Worker fails, the request fails (no local fallback).
+ * 
+ * Emergency Fallback: Set ALLOW_FALLBACK_MAIN_THREAD=true to re-enable
+ * archived fallback (not recommended for production debugging).
  */
 
 import { Chess } from 'chess.js';
-import { WalleChessEngine } from '../../shared/walleChessEngine';
+import { executeFallbackMove } from '../../archive/fallback/main_thread_chess_move';
 
 interface Env {
   CHESS_RATE_LIMIT?: KVNamespace;
   GAME_SESSIONS?: KVNamespace;
   WORKER_CALL_LOGS?: KVNamespace; // Persistent worker call logs for admin portal
-  WALLE_ASSISTANT?: Fetcher; // Service binding to worker
+  WALLE_ASSISTANT?: Fetcher; // Service binding to worker (REQUIRED)
   INTERNAL_AUTH_TOKEN?: string; // Optional auth token for worker
+  ALLOW_FALLBACK_MAIN_THREAD?: string; // Emergency fallback flag (default: false)
 }
 
 interface ChessMoveRequest {
@@ -49,50 +56,6 @@ function isValidFEN(fen: string): boolean {
   return true;
 }
 
-// UCI move format validation
-function isValidUCI(move: string): boolean {
-  return /^[a-h][1-8][a-h][1-8][qrbn]?$/.test(move);
-}
-
-// Convert UCI move to algebraic notation for chat
-function convertUciToAlgebraic(uciMove: string, fen: string): string {
-  try {
-    const chess = new Chess(fen);
-    const move = chess.move(uciMove);
-    return move ? move.san : uciMove;
-  } catch {
-    return uciMove;
-  }
-}
-
-// Validate if a UCI move is legal in the given position
-function isLegalMove(fen: string, uciMove: string): boolean {
-  try {
-    const chess = new Chess(fen);
-    const from = uciMove.substring(0, 2);
-    const to = uciMove.substring(2, 4);
-    const promotion = uciMove.length === 5 ? uciMove[4] : undefined;
-    
-    const result = chess.move({ from, to, promotion });
-    return result !== null;
-  } catch {
-    return false;
-  }
-}
-
-// Get list of legal moves in UCI format
-function getLegalMoves(fen: string): string[] {
-  try {
-    const chess = new Chess(fen);
-    return chess.moves({ verbose: true }).map(m => {
-      const uci = m.from + m.to + (m.promotion || '');
-      return uci;
-    });
-  } catch {
-    return [];
-  }
-}
-
 export const onRequestPost: PagesFunction<Env> = async (context) => {
   const startTime = Date.now();
   const requestId = crypto.randomUUID().slice(0, 8);
@@ -106,8 +69,9 @@ export const onRequestPost: PagesFunction<Env> = async (context) => {
   };
 
   try {
-    console.log(`[${requestId}] Request started - using Wall-E Chess Engine`);
+    console.log(`[${requestId}] Request started - Worker Required Mode`);
     console.log(`[${requestId}] Service binding available:`, !!context.env.WALLE_ASSISTANT);
+    console.log(`[${requestId}] Fallback allowed:`, context.env.ALLOW_FALLBACK_MAIN_THREAD === 'true');
 
     // Parse and validate request body
     let body: ChessMoveRequest;
@@ -144,317 +108,359 @@ export const onRequestPost: PagesFunction<Env> = async (context) => {
       );
     }
 
-    // Try service binding first (if available)
-    if (context.env.WALLE_ASSISTANT) {
-      try {
-        const workerStartTime = Date.now();
-        
-        // Create timeout promise (15 seconds for worker to respond)
-        const timeoutMs = 15000;
-        const timeoutPromise = new Promise((_, reject) => 
-          setTimeout(() => reject(new Error('Worker timeout after 15s')), timeoutMs)
-        );
-        
-        // Race worker fetch against timeout
-        const workerResponse = await Promise.race([
-          context.env.WALLE_ASSISTANT.fetch('https://internal/assist/chess-move', {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-              ...(context.env.INTERNAL_AUTH_TOKEN ? { 'X-Internal-Token': context.env.INTERNAL_AUTH_TOKEN } : {})
-            },
-            body: JSON.stringify({ fen, pgn, difficulty, gameId })
-          }),
-          timeoutPromise
-        ]) as Response;
-
-        const workerLatency = Date.now() - workerStartTime;
-        
-        // Defensive parsing: attempt JSON parse with fallback
-        let workerData: any;
-        try {
-          const responseText = await workerResponse.text();
-          workerData = JSON.parse(responseText);
-        } catch (parseError) {
-          throw new Error(`Worker returned non-JSON response: ${workerResponse.status} ${workerResponse.statusText}`);
-        }
-        
-        // Build comprehensive worker call log
-        const workerCallLog = {
-          timestamp: Date.now(),
-          endpoint: '/assist/chess-move',
-          method: 'POST',
-          success: workerData.success === true,
-          latencyMs: workerLatency,
-          error: workerData.success ? undefined : (workerData.error || 'Unknown worker error'),
-          request: { 
-            fen: fen.substring(0, 50), 
-            difficulty, 
-            gameId 
-          },
-          response: workerData.success ? {
-            move: workerData.move,
-            depthReached: workerData.diagnostics?.depthReached || workerData.depth,
-            evaluation: workerData.diagnostics?.eval || workerData.evaluation,
-            engine: workerData.engine || 'worker',
-            mode: workerData.mode || 'service-binding',
-            source: workerData.source
-          } : undefined
-        };
-        
-        // Store log persistently in KV (fire and forget)
-        if (context.env.WORKER_CALL_LOGS) {
-          const logKey = `log_${Date.now()}_${requestId}`;
-          context.waitUntil(
-            context.env.WORKER_CALL_LOGS.put(logKey, JSON.stringify(workerCallLog), {
-              expirationTtl: 86400 // 24 hours retention
-            })
-          );
-        }
-        
-        if (workerData.success) {
-          const responseData = {
-            ...workerData,
-            requestId,
-            workerCallLog, // Include worker call log in response for frontend logging
-            mode: 'service-binding',
-            engine: workerData.engine || 'worker',
-            ...(enableDebug && { debugMode: true })
-          };
-          console.log(`[${requestId}] Worker success: move=${workerData.move}, latency=${workerLatency}ms`);
-          return new Response(JSON.stringify(responseData), {
-            status: 200,
-            headers: corsHeaders
-          });
-        }
-        
-        // Worker returned error response
-        console.warn(`[${requestId}] Worker returned error, using local fallback:`, workerData.error);
-        
-        // Store error log
-        if (context.env.WORKER_CALL_LOGS) {
-          const logKey = `log_error_${Date.now()}_${requestId}`;
-          context.waitUntil(
-            context.env.WORKER_CALL_LOGS.put(logKey, JSON.stringify(workerCallLog), {
-              expirationTtl: 86400
-            })
-          );
-        }
-        
-      } catch (workerError) {
-        const errorMessage = workerError instanceof Error ? workerError.message : String(workerError);
-        const workerLatency = Date.now() - startTime;
-        
-        console.warn(`[${requestId}] Worker binding failed (${errorMessage}), using local fallback`);
-        
-        // Log worker failure
-        const failureLog = {
-          timestamp: Date.now(),
-          endpoint: '/assist/chess-move',
-          method: 'POST',
-          success: false,
-          latencyMs: workerLatency,
-          error: `Worker fetch failed: ${errorMessage}`,
-          request: { fen: fen.substring(0, 50), difficulty, gameId },
-          response: undefined
-        };
-        
-        if (context.env.WORKER_CALL_LOGS) {
-          const logKey = `log_failure_${Date.now()}_${requestId}`;
-          context.waitUntil(
-            context.env.WORKER_CALL_LOGS.put(logKey, JSON.stringify(failureLog), {
-              expirationTtl: 86400
-            })
-          );
-        }
-        
-        // Log additional context for debugging
-        console.log(`[${requestId}] Worker error details:`, {
-          errorType: workerError instanceof Error ? workerError.constructor.name : typeof workerError,
-          hasBinding: !!context.env.WALLE_ASSISTANT,
-          hasAuthToken: !!context.env.INTERNAL_AUTH_TOKEN
-        });
-      }
-    } else {
-      console.log(`[${requestId}] No worker service binding available, using local engine`);
-    }
-
-    // Local fallback: Run Wall-E chess engine directly
-
-    // Initialize or load game session
-    let gameSession: GameSession;
-    const sessionKey = gameId || `game_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-    
-    try {
-      const existingSession = gameId && context.env.GAME_SESSIONS ? 
-        await context.env.GAME_SESSIONS.get(gameId) : null;
-      gameSession = existingSession ? JSON.parse(existingSession) : {
-        gameId: sessionKey,
-        chatHistory: [],
-        moveCount: 0,
-        startTime: Date.now()
-      };
-    } catch {
-      gameSession = {
-        gameId: sessionKey,
-        chatHistory: [],
-        moveCount: 0,
-        startTime: Date.now()
-      };
-    }
-
-    // Get legal moves for validation
-    const legalMoves = getLegalMoves(fen);
-    console.log(`[${requestId}] Legal moves: ${legalMoves.length} available`);
-
-    if (legalMoves.length === 0) {
-      return new Response(
-        JSON.stringify({
-          success: false,
-          error: 'No legal moves available (game may be over)',
-          errorCode: 'NO_MOVES',
-          requestId,
-        }),
-        { status: 400, headers: corsHeaders }
-      );
-    }
-
-    // Initialize chat if this is the first move
-    if (gameSession.moveCount === 0) {
-      const sideToPlay = fen.includes(' w ') ? 'Black' : 'White';
-      const challengeMessage: ChatMessage = {
-        id: `msg_${Date.now()}_1`,
-        role: 'user',
-        content: `Hello! I challenge you to a game of chess. You'll be playing as ${sideToPlay}. Let's have a friendly but competitive match!`,
-        timestamp: Date.now(),
-        moveContext: 'game_start'
-      };
-      gameSession.chatHistory.push(challengeMessage);
-    }
-
-    // Add user move to conversation if provided
-    if (userMove && gameSession.moveCount > 0) {
-      const moveNotation = convertUciToAlgebraic(userMove, fen);
-      const userMoveMessage: ChatMessage = {
-        id: `msg_${Date.now()}_${gameSession.chatHistory.length + 1}`,
-        role: 'user',
-        content: `I played ${moveNotation}. Your turn!`,
-        timestamp: Date.now(),
-        moveContext: userMove
-      };
-      gameSession.chatHistory.push(userMoveMessage);
-    }
-
-    // Use Wall-E Chess Engine to select move
-    const difficultyLevel = (difficulty as 'beginner' | 'intermediate' | 'advanced' | 'master') || 'intermediate';
-    
-    let selectedMove: string;
-    let commentary: string;
-    let engineDebug: any = undefined;
-    
-    try {
-      const result = WalleChessEngine.selectMove(fen, difficultyLevel, true, enableDebug);
-      selectedMove = result.move;
-      commentary = result.commentary || "Here's my move!";
-      engineDebug = result.debug;
-    } catch (error) {
-      console.error(`[${requestId}] Wall-E engine error:`, error);
-      // Fallback to random legal move
-      selectedMove = legalMoves[Math.floor(Math.random() * legalMoves.length)];
-      commentary = "Let me think... here's my move!";
-    }
-
-    // Verify move is legal (should always be, but double-check)
-    if (!isLegalMove(fen, selectedMove)) {
-      console.error(`[${requestId}] Wall-E selected illegal move: ${selectedMove}`);
-      // Fallback to random legal move
-      selectedMove = legalMoves[Math.floor(Math.random() * legalMoves.length)];
-      commentary = "Interesting position! Let me play this.";
-    }
-
-    // Add Wall-E's response to chat history
-    const moveNotation = convertUciToAlgebraic(selectedMove, fen);
-    const fullResponse = `${commentary}\nMOVE: ${selectedMove}`;
-    
-    const aiMessage: ChatMessage = {
-      id: `msg_${Date.now()}_${gameSession.chatHistory.length + 1}`,
-      role: 'assistant',
-      content: fullResponse,
-      timestamp: Date.now(),
-      moveContext: selectedMove
-    };
-    gameSession.chatHistory.push(aiMessage);
-    gameSession.moveCount++;
-
-    // Save updated session (if KV is available)
-    try {
-      if (context.env.GAME_SESSIONS) {
-        await context.env.GAME_SESSIONS.put(gameSession.gameId, JSON.stringify(gameSession), {
-          expirationTtl: 3600 // 1 hour expiration
-        });
-      }
-    } catch (error) {
-      console.warn(`[${requestId}] Failed to save session:`, error);
-    }
-
-    const latencyMs = Date.now() - startTime;
-    console.log(`[${requestId}] Success: move="${selectedMove}" (${moveNotation}), latency=${latencyMs}ms`);
-
-    const responseData: any = {
-      success: true,
-      move: selectedMove,
-      engine: 'wall-e',
-      mode: 'local-fallback',
-      difficulty: difficultyLevel,
-      latencyMs,
-      requestId,
-      gameId: gameSession.gameId,
-      chatHistory: gameSession.chatHistory,
-      conversationalResponse: fullResponse,
-      diagnostics: {
-        depthReached: engineDebug?.depthReached || 0,
-        nodes: engineDebug?.nodesEvaluated || 0,
-        eval: engineDebug?.evaluation || 0,
-        selectedLine: engineDebug?.bestLine || '',
-        openingBook: engineDebug?.usedOpeningBook || false,
-        reason: 'Local fallback engine'
-      },
-      workerCallLog: {
+    // CRITICAL: Service binding is REQUIRED in worker-required mode
+    if (!context.env.WALLE_ASSISTANT) {
+      const latencyMs = Date.now() - startTime;
+      const errorLog = {
         timestamp: Date.now(),
         endpoint: '/api/chess-move',
         method: 'POST',
         success: false,
-        latencyMs: latencyMs,
-        error: 'Worker service binding not available - used local fallback engine',
-        request: { fen: fen.substring(0, 50), difficulty: difficultyLevel, gameId: gameSession.gameId },
-        response: { 
-          move: selectedMove, 
-          mode: 'local-fallback', 
-          engine: 'wall-e',
-          depthReached: engineDebug?.depthReached || 0
-        }
-      },
-      ...(enableDebug && { debugMode: true })
-    };
-    
-    // Store fallback log
-    if (context.env.WORKER_CALL_LOGS) {
-      const logKey = `log_fallback_${Date.now()}_${requestId}`;
-      context.waitUntil(
-        context.env.WORKER_CALL_LOGS.put(logKey, JSON.stringify(responseData.workerCallLog), {
-          expirationTtl: 86400
-        })
+        latencyMs,
+        error: 'Worker service binding not configured (WALLE_ASSISTANT missing)',
+        request: { fen: fen.substring(0, 50), difficulty, gameId },
+        response: null
+      };
+      
+      // Store error log in KV
+      if (context.env.WORKER_CALL_LOGS) {
+        context.waitUntil(
+          context.env.WORKER_CALL_LOGS.put(
+            `log_no_binding_${Date.now()}_${requestId}`,
+            JSON.stringify(errorLog),
+            { expirationTtl: 86400 }
+          )
+        );
+      }
+      
+      console.error(`[${requestId}] FATAL: No Worker service binding available`);
+      return new Response(
+        JSON.stringify({
+          success: false,
+          mode: 'worker-required',
+          engine: 'none',
+          error: 'Worker service binding not configured. Set WALLE_ASSISTANT binding in Cloudflare Dashboard.',
+          errorCode: 'NO_WORKER_BINDING',
+          requestId,
+          workerCallLog: errorLog
+        }),
+        { status: 503, headers: corsHeaders }
       );
     }
 
-    // Add debug info if requested
-    if (enableDebug && engineDebug) {
-      responseData.debug = engineDebug;
+    // Call Worker via service binding
+    const workerStartTime = Date.now();
+    let workerResponse: Response;
+    
+    try {
+      // Create timeout promise (15 seconds for worker to respond)
+      const timeoutMs = 15000;
+      const timeoutPromise = new Promise<Response>((_, reject) => 
+        setTimeout(() => reject(new Error('Worker timeout after 15s')), timeoutMs)
+      );
+      
+      // Race worker fetch against timeout
+      workerResponse = await Promise.race([
+        context.env.WALLE_ASSISTANT.fetch('https://internal/assist/chess-move', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            ...(context.env.INTERNAL_AUTH_TOKEN ? { 'X-Internal-Token': context.env.INTERNAL_AUTH_TOKEN } : {})
+          },
+          body: JSON.stringify({ fen, pgn, difficulty, gameId })
+        }),
+        timeoutPromise
+      ]);
+    } catch (fetchError) {
+      const workerLatency = Date.now() - workerStartTime;
+      const errorMessage = fetchError instanceof Error ? fetchError.message : String(fetchError);
+      
+      const errorLog = {
+        timestamp: Date.now(),
+        endpoint: '/assist/chess-move',
+        method: 'POST',
+        success: false,
+        latencyMs: workerLatency,
+        error: `Worker fetch failed: ${errorMessage}`,
+        request: { fen: fen.substring(0, 50), difficulty, gameId },
+        response: null
+      };
+      
+      // Store error log
+      if (context.env.WORKER_CALL_LOGS) {
+        context.waitUntil(
+          context.env.WORKER_CALL_LOGS.put(
+            `log_fetch_error_${Date.now()}_${requestId}`,
+            JSON.stringify(errorLog),
+            { expirationTtl: 86400 }
+          )
+        );
+      }
+      
+      console.error(`[${requestId}] Worker fetch failed:`, errorMessage);
+      
+      // Check for emergency fallback flag
+      if (context.env.ALLOW_FALLBACK_MAIN_THREAD === 'true') {
+        console.warn(`[${requestId}] Emergency fallback enabled - using local engine`);
+        const fallbackResult = await executeFallbackMove(
+          fen,
+          difficulty,
+          gameId,
+          userMove,
+          enableDebug,
+          requestId,
+          startTime,
+          {
+            GAME_SESSIONS: context.env.GAME_SESSIONS,
+            WORKER_CALL_LOGS: context.env.WORKER_CALL_LOGS
+          }
+        );
+        return new Response(JSON.stringify(fallbackResult), {
+          status: 200,
+          headers: corsHeaders
+        });
+      }
+      
+      return new Response(
+        JSON.stringify({
+          success: false,
+          mode: 'worker-required',
+          engine: 'none',
+          error: `Worker unreachable: ${errorMessage}`,
+          errorCode: 'WORKER_FETCH_FAILED',
+          requestId,
+          workerCallLog: errorLog
+        }),
+        { status: 502, headers: corsHeaders }
+      );
     }
 
+    const workerLatency = Date.now() - workerStartTime;
+    
+    // Validate Worker response status
+    if (!workerResponse.ok) {
+      const errorLog = {
+        timestamp: Date.now(),
+        endpoint: '/assist/chess-move',
+        method: 'POST',
+        success: false,
+        latencyMs: workerLatency,
+        error: `Worker returned ${workerResponse.status}: ${workerResponse.statusText}`,
+        request: { fen: fen.substring(0, 50), difficulty, gameId },
+        response: null
+      };
+      
+      // Store error log
+      if (context.env.WORKER_CALL_LOGS) {
+        context.waitUntil(
+          context.env.WORKER_CALL_LOGS.put(
+            `log_bad_status_${Date.now()}_${requestId}`,
+            JSON.stringify(errorLog),
+            { expirationTtl: 86400 }
+          )
+        );
+      }
+      
+      console.error(`[${requestId}] Worker returned non-200 status:`, workerResponse.status);
+      
+      // Check for emergency fallback flag
+      if (context.env.ALLOW_FALLBACK_MAIN_THREAD === 'true') {
+        console.warn(`[${requestId}] Emergency fallback enabled - using local engine`);
+        const fallbackResult = await executeFallbackMove(
+          fen,
+          difficulty,
+          gameId,
+          userMove,
+          enableDebug,
+          requestId,
+          startTime,
+          {
+            GAME_SESSIONS: context.env.GAME_SESSIONS,
+            WORKER_CALL_LOGS: context.env.WORKER_CALL_LOGS
+          }
+        );
+        return new Response(JSON.stringify(fallbackResult), {
+          status: 200,
+          headers: corsHeaders
+        });
+      }
+      
+      return new Response(
+        JSON.stringify({
+          success: false,
+          mode: 'worker-required',
+          engine: 'none',
+          error: `Worker returned error status: ${workerResponse.status} ${workerResponse.statusText}`,
+          errorCode: 'WORKER_ERROR_STATUS',
+          requestId,
+          workerCallLog: errorLog
+        }),
+        { status: 502, headers: corsHeaders }
+      );
+    }
+    
+    // Parse Worker response JSON
+    let workerData: any;
+    try {
+      const responseText = await workerResponse.text();
+      workerData = JSON.parse(responseText);
+    } catch (parseError) {
+      const errorLog = {
+        timestamp: Date.now(),
+        endpoint: '/assist/chess-move',
+        method: 'POST',
+        success: false,
+        latencyMs: workerLatency,
+        error: `Worker returned invalid JSON: ${parseError instanceof Error ? parseError.message : String(parseError)}`,
+        request: { fen: fen.substring(0, 50), difficulty, gameId },
+        response: null
+      };
+      
+      // Store error log
+      if (context.env.WORKER_CALL_LOGS) {
+        context.waitUntil(
+          context.env.WORKER_CALL_LOGS.put(
+            `log_parse_error_${Date.now()}_${requestId}`,
+            JSON.stringify(errorLog),
+            { expirationTtl: 86400 }
+          )
+        );
+      }
+      
+      console.error(`[${requestId}] Worker returned non-JSON response`);
+      
+      // Check for emergency fallback flag
+      if (context.env.ALLOW_FALLBACK_MAIN_THREAD === 'true') {
+        console.warn(`[${requestId}] Emergency fallback enabled - using local engine`);
+        const fallbackResult = await executeFallbackMove(
+          fen,
+          difficulty,
+          gameId,
+          userMove,
+          enableDebug,
+          requestId,
+          startTime,
+          {
+            GAME_SESSIONS: context.env.GAME_SESSIONS,
+            WORKER_CALL_LOGS: context.env.WORKER_CALL_LOGS
+          }
+        );
+        return new Response(JSON.stringify(fallbackResult), {
+          status: 200,
+          headers: corsHeaders
+        });
+      }
+      
+      return new Response(
+        JSON.stringify({
+          success: false,
+          mode: 'worker-required',
+          engine: 'none',
+          error: 'Worker returned invalid JSON response',
+          errorCode: 'WORKER_INVALID_JSON',
+          requestId,
+          workerCallLog: errorLog
+        }),
+        { status: 502, headers: corsHeaders }
+      );
+    }
+    
+    // Build comprehensive worker call log
+    const workerCallLog = {
+      timestamp: Date.now(),
+      endpoint: '/assist/chess-move',
+      method: 'POST',
+      success: workerData.success === true,
+      latencyMs: workerLatency,
+      error: workerData.success ? undefined : (workerData.error || 'Unknown worker error'),
+      request: { 
+        fen: fen.substring(0, 50), 
+        difficulty, 
+        gameId 
+      },
+      response: workerData.success ? {
+        move: workerData.move,
+        depthReached: workerData.diagnostics?.depthReached || workerData.depth,
+        evaluation: workerData.diagnostics?.eval || workerData.evaluation,
+        engine: workerData.engine || 'worker',
+        mode: workerData.mode || 'service-binding',
+        source: workerData.source
+      } : null
+    };
+    
+    // Store log persistently in KV (fire and forget)
+    if (context.env.WORKER_CALL_LOGS) {
+      const logKey = `log_${Date.now()}_${requestId}`;
+      context.waitUntil(
+        context.env.WORKER_CALL_LOGS.put(logKey, JSON.stringify(workerCallLog), {
+          expirationTtl: 86400 // 24 hours retention
+        })
+      );
+    }
+    
+    // Handle Worker success
+    if (workerData.success) {
+      const responseData = {
+        ...workerData,
+        requestId,
+        workerCallLog, // Include worker call log in response for frontend logging
+        mode: 'service-binding',
+        engine: workerData.engine || 'worker',
+        // Add difficulty diagnostics
+        difficultyDiagnostics: {
+          requested: difficulty,
+          mappedTo: workerData.diagnostics?.mode || 'unknown',
+          depthReached: workerData.diagnostics?.depthReached || 0,
+          nodesEvaluated: workerData.diagnostics?.nodes || 0,
+          engineMs: workerData.diagnostics?.engineMs || 0,
+          openingBook: workerData.diagnostics?.openingBook || false,
+          reason: workerData.diagnostics?.reason || 'computed'
+        },
+        ...(enableDebug && { debugMode: true })
+      };
+      console.log(`[${requestId}] Worker success: move=${workerData.move}, difficulty=${difficulty}, latency=${workerLatency}ms`);
+      return new Response(JSON.stringify(responseData), {
+        status: 200,
+        headers: corsHeaders
+      });
+    }
+    
+    // Worker returned success=false (validation error or chess engine error)
+    console.error(`[${requestId}] Worker returned success=false:`, workerData.error);
+    
+    // Check for emergency fallback flag
+    if (context.env.ALLOW_FALLBACK_MAIN_THREAD === 'true') {
+      console.warn(`[${requestId}] Emergency fallback enabled - using local engine`);
+      const fallbackResult = await executeFallbackMove(
+        fen,
+        difficulty,
+        gameId,
+        userMove,
+        enableDebug,
+        requestId,
+        startTime,
+        {
+          GAME_SESSIONS: context.env.GAME_SESSIONS,
+          WORKER_CALL_LOGS: context.env.WORKER_CALL_LOGS
+        }
+      );
+      return new Response(JSON.stringify(fallbackResult), {
+        status: 200,
+        headers: corsHeaders
+      });
+    }
+    
     return new Response(
-      JSON.stringify(responseData),
-      { status: 200, headers: corsHeaders }
+      JSON.stringify({
+        success: false,
+        mode: 'worker-required',
+        engine: 'none',
+        error: workerData.error || 'Worker returned error',
+        errorCode: 'WORKER_RETURNED_ERROR',
+        requestId,
+        workerCallLog
+      }),
+      { status: 502, headers: corsHeaders }
     );
 
   } catch (error) {

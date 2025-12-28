@@ -313,6 +313,38 @@ export const DebugPanel: React.FC = () => {
                   <span className="debug-label">Latency:</span>
                   <span className="debug-value">{formatLatency(debugInfo.lastApiResponse.latencyMs)}</span>
                   
+                  <span className="debug-label">Engine:</span>
+                  <span className="debug-value">{debugInfo.lastApiResponse.engine || 'unknown'}</span>
+                  
+                  <span className="debug-label">Mode:</span>
+                  <span className={`debug-value ${debugInfo.lastApiResponse.mode === 'service-binding' ? 'status-success' : 'status-warning'}`}>
+                    {debugInfo.lastApiResponse.mode || 'unknown'}
+                  </span>
+                  
+                  {/* Difficulty Diagnostics */}
+                  {debugInfo.lastApiResponse.difficultyDiagnostics && (
+                    <>
+                      <span className="debug-label">Difficulty:</span>
+                      <span className="debug-value">{debugInfo.lastApiResponse.difficultyDiagnostics.requested}</span>
+                      
+                      <span className="debug-label">Mapped To:</span>
+                      <span className="debug-value">{debugInfo.lastApiResponse.difficultyDiagnostics.mappedTo}</span>
+                      
+                      <span className="debug-label">Depth Reached:</span>
+                      <span className="debug-value">{debugInfo.lastApiResponse.difficultyDiagnostics.depthReached}</span>
+                      
+                      <span className="debug-label">Nodes Evaluated:</span>
+                      <span className="debug-value">{debugInfo.lastApiResponse.difficultyDiagnostics.nodesEvaluated}</span>
+                      
+                      {debugInfo.lastApiResponse.difficultyDiagnostics.openingBook && (
+                        <>
+                          <span className="debug-label">Source:</span>
+                          <span className="debug-value status-info">📖 Opening Book</span>
+                        </>
+                      )}
+                    </>
+                  )}
+                  
                   {debugInfo.lastApiResponse.error && (
                     <>
                       <span className="debug-label">Error:</span>

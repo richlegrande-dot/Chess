@@ -129,6 +129,12 @@ jobs:
           node scripts/verify-shared-sync.mjs
           echo "✓ Shared code is in sync - no drift detected"
       
+      - name: Verify Worker Required Mode (CRITICAL - no hidden fallback)
+        run: |
+          echo "🔍 Verifying Worker Required Mode configuration..."
+          node scripts/verify-worker-required.mjs
+          echo "✓ Worker Required Mode verified - fallback properly disabled"
+      
       - name: Verify Wall-E integrity (NO OpenAI ANYWHERE)
         run: |
           # CRITICAL: No OpenAI imports ANYWHERE in the system
@@ -164,10 +170,15 @@ jobs:
             exit 1
           fi
           
-          # Verify chess-move.ts uses Wall-E engine
-          if ! grep -q "WalleChessEngine" functions/api/chess-move.ts; then
-            echo "❌ CRITICAL: chess-move.ts not using WalleChessEngine!"
+          # Verify chess-move.ts uses Worker (not direct WalleChessEngine)
+          if grep -q "import.*WalleChessEngine.*from.*shared" functions/api/chess-move.ts; then
+            echo "❌ CRITICAL: chess-move.ts directly imports WalleChessEngine (should use Worker)!"
             exit 1
+          fi
+          
+          # Verify archived fallback exists (for emergency use only)
+          if [ ! -f archive/fallback/main_thread_chess_move.ts ]; then
+            echo "⚠️ WARNING: Fallback archive not found (may be intentional)"
           fi
           
           echo "✓ Wall-E integrity verified - NO OpenAI anywhere (coaching + chess engine)"
