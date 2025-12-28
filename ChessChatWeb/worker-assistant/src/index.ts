@@ -13,8 +13,11 @@
  * - POST /assist/chess-move
  */
 
-import { getWallEEngine } from './shared/walleEngine';
+// Only import the chess engine (no Prisma dependency)
 import { WalleChessEngine } from './shared/walleChessEngine';
+
+// Lazy-load Wall-E engine with database features only when needed
+// This avoids importing Prisma at module level, which breaks Workers deployment
 import type { 
   WallEChatResponse, 
   WallEAnalysisResponse 
@@ -98,6 +101,8 @@ async function handleChat(request: Request, env: Env): Promise<Response> {
       });
     }
 
+    // Lazy-load Wall-E engine to avoid importing Prisma at module level
+    const { getWallEEngine } = await import('./shared/walleEngine');
     const engine = getWallEEngine();
     const response = await engine.chat(
       {
@@ -158,6 +163,8 @@ async function handleAnalyzeGame(request: Request, env: Env): Promise<Response> 
       });
     }
 
+    // Lazy-load Wall-E engine to avoid importing Prisma at module level
+    const { getWallEEngine } = await import('./shared/walleEngine');
     const engine = getWallEEngine();
     const response = await engine.analyzeGame(
       {
@@ -216,13 +223,42 @@ async function handleChessMove(request: Request, env: Env): Promise<Response> {
       }, { status: 400 });
     }
 
-    console.log('[Worker] Creating WalleChessEngine instance');
-    const engine = new WalleChessEngine();
-    console.log('[Worker] Getting best move for difficulty:', difficulty);
-    const move = await engine.getBestMove(fen, difficulty);
-    console.log('[Worker] Move generated:', move?.move);
+    console.log('[Worker] Generating best move for difficulty:', difficulty);
+    
+    // Map difficulty levels
+    const difficultyMap: Record<string, 'beginner' | 'intermediate' | 'advanced' | 'master'> = {
+      'easy': 'beginner',
+      'medium': 'intermediate',
+      'hard': 'advanced',
+      'expert': 'master'
+    };
+    const difficultyLevel = difficultyMap[difficulty.toLowerCase()] || 'intermediate';
+    
+    // Generate move using WalleChessEngine
+    let result: any;
+    try {
+      result = WalleChessEngine.selectMove(fen, difficultyLevel, true, true);
+      console.log('[Worker] Move generated:', result.move);
+    } catch (error: any) {
+      console.error('[Worker] Chess engine error:', error);
+      const latencyMs = Date.now() - startTime;
+      return Response.json({
+        success: false,
+        error: 'Chess engine error: ' + error.message,
+        mode: 'service-binding',
+        workerCallLog: {
+          endpoint: '/assist/chess-move',
+          method: 'POST',
+          success: false,
+          latencyMs,
+          error: error.message,
+          request: { fen: fen.substring(0, 50), difficulty, gameId },
+          response: { mode: 'service-binding' }
+        }
+      }, { status: 500 });
+    }
 
-    if (!move) {
+    if (!result || !result.move) {
       console.error('[Worker] No legal moves found');
       const latencyMs = Date.now() - startTime;
       return Response.json({
@@ -245,21 +281,19 @@ async function handleChessMove(request: Request, env: Env): Promise<Response> {
     console.log('[Worker] Returning successful response with workerCallLog');
     return Response.json({
       success: true,
-      move: move.move,
-      evaluation: move.evaluation,
-      depth: move.depth,
-      timeMs: move.timeMs,
-      source: move.source,
-      openingName: move.openingName,
+      move: result.move,
       engine: 'worker',
       mode: 'service-binding',
+      commentary: result.commentary,
       diagnostics: {
-        depthReached: move.depth || 0,
-        nodes: move.nodes || 0,
-        eval: move.evaluation || 0,
-        selectedLine: move.pv || '',
-        openingBook: move.source === 'opening_book',
-        reason: move.source === 'opening_book' ? 'Opening book move' : 'Computed move'
+        depthReached: result.debug?.evaluatedMovesCount || 0,
+        nodes: result.debug?.legalMovesCount || 0,
+        eval: 0,
+        selectedLine: result.move,
+        openingBook: result.debug?.usedOpeningBook || false,
+        reason: result.debug?.usedOpeningBook ? 'Opening book move' : 'Computed move',
+        engineMs: result.debug?.engineMs || 0,
+        mode: result.debug?.mode || 'unknown'
       },
       workerCallLog: {
         endpoint: '/assist/chess-move',
@@ -268,10 +302,9 @@ async function handleChessMove(request: Request, env: Env): Promise<Response> {
         latencyMs,
         request: { fen: fen.substring(0, 50), difficulty, gameId },
         response: {
-          move: move.move,
-          depthReached: move.depth,
-          evaluation: move.evaluation,
-          source: move.source,
+          move: result.move,
+          depthReached: result.debug?.evaluatedMovesCount || 0,
+          usedOpeningBook: result.debug?.usedOpeningBook || false,
           engine: 'worker',
           mode: 'service-binding'
         }

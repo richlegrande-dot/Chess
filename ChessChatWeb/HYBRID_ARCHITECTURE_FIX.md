@@ -386,6 +386,78 @@ Watch for:
 4. **Update Docs:** Add learnings to project wiki
 5. **Performance Tuning:** Adjust depth/timeout based on metrics
 
+## Deployment Fix (December 28, 2025)
+
+### Issue: Prisma Import Breaking Worker Deployment
+
+**Error:**
+```
+Uncaught ReferenceError: module is not defined
+  at node_modules/.prisma/client/edge.js:27:1
+  at worker-assistant/src/shared/prisma.ts:27:30
+```
+
+**Root Cause:** 
+- Worker was importing `getWallEEngine` at module level (top of file)
+- `getWallEEngine` imports `prisma.ts` which imports `@prisma/client/edge`
+- Prisma Client tries to use Node.js CommonJS (`module` global)
+- Cloudflare Workers don't have `module` global (ES modules only)
+
+**Solution:**
+1. **Changed top-level imports** to only import `WalleChessEngine` (no Prisma dependency)
+2. **Lazy-loaded** `getWallEEngine` only when needed (chat/analysis endpoints)
+3. **Fixed chess move endpoint** to use `WalleChessEngine.selectMove()` static method
+4. **Updated response format** to match expected diagnostics structure
+
+**Files Modified:**
+- [worker-assistant/src/index.ts](ChessChatWeb/worker-assistant/src/index.ts)
+  - Lines 1-25: Changed imports (removed `getWallEEngine`, added lazy-load comment)
+  - Lines 105-107: Lazy-load `getWallEEngine` in chat handler
+  - Lines 167-169: Lazy-load `getWallEEngine` in analyze-game handler
+  - Lines 200-300: Fixed chess-move handler to use `WalleChessEngine.selectMove()`
+
+**Key Changes:**
+
+```typescript
+// BEFORE (BROKEN):
+import { getWallEEngine } from './shared/walleEngine';  // ← Imports Prisma at module level
+const engine = getWallEEngine();
+
+// AFTER (FIXED):
+// Only import chess engine (no Prisma)
+import { WalleChessEngine } from './shared/walleChessEngine';
+
+// Lazy-load when needed
+const { getWallEEngine } = await import('./shared/walleEngine');
+const engine = getWallEEngine();
+
+// For chess moves (no DB needed):
+const result = WalleChessEngine.selectMove(fen, difficulty, true, true);
+```
+
+**Why This Works:**
+- Chess move endpoint (`/assist/chess-move`) doesn't need database access
+- Only chat/analysis endpoints need Wall-E with personalization (database)
+- Lazy-loading delays Prisma import until actually needed
+- Static method `selectMove` has zero dependencies on Prisma
+
+**Deployment Command:**
+```bash
+cd ChessChatWeb/worker-assistant
+npx wrangler deploy --env production
+```
+
+**Verification:**
+```bash
+# Test move generation
+curl -X POST https://chesschat.uk/api/chess-move \
+  -H "Content-Type: application/json" \
+  -d '{"fen":"rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1","difficulty":"medium"}'
+
+# Should return:
+# { "success": true, "move": "e2e4", "mode": "service-binding", ... }
+```
+
 ## References
 
 - [TROUBLESHOOTING_WORKER_VS_PAGES.md](ChessChatWeb/TROUBLESHOOTING_WORKER_VS_PAGES.md) - Detailed debugging guide
@@ -401,6 +473,7 @@ For issues or questions:
 
 ---
 
-**Status:** Ready for deployment  
+**Status:** Fixed and ready for deployment  
 **Risk Level:** Low (graceful fallback exists)  
-**Estimated Downtime:** None (rolling update)
+**Estimated Downtime:** None (rolling update)  
+**Last Updated:** December 28, 2025 - Fixed Prisma import issue
