@@ -1,24 +1,28 @@
 // Cloudflare Pages Function: Admin Authentication
 // Path: /api/admin/auth/unlock
 
-import { getPrismaClient } from '../../../lib/db';
+import { getPrismaClient, db } from '../../../lib/db';
 import { initializeDatabase } from '../../../lib/dbMiddleware';
 import { AdminAuthService } from '../../../lib/adminAuthService';
 
 interface Env {
   ADMIN_PASSWORD: string;
-  DATABASE_URL: string;
+  DB?: D1Database; // D1 binding (preferred)
+  DATABASE_URL?: string; // Fallback
 }
 
 export async function onRequestPost(context: {
   request: Request;
   env: Env;
 }): Promise<Response> {
+  const corsHeaders = {
+    'Access-Control-Allow-Origin': '*',
+    'Access-Control-Allow-Methods': 'POST, OPTIONS',
+    'Access-Control-Allow-Headers': 'Content-Type',
+    'Content-Type': 'application/json',
+  };
+
   try {
-    // Initialize database
-    await initializeDatabase(context.env);
-    const prisma = await getPrismaClient();
-    
     // Get admin password from environment
     const adminPassword = context.env.ADMIN_PASSWORD;
     if (!adminPassword) {
@@ -29,9 +33,17 @@ export async function onRequestPost(context: {
         }),
         {
           status: 503,
-          headers: { 'Content-Type': 'application/json' },
+          headers: corsHeaders,
         }
       );
+    }
+
+    // Initialize database (optional - database features may not be available)
+    try {
+      await initializeDatabase(context.env);
+    } catch (dbError) {
+      console.warn('[Admin] Database not available:', dbError);
+      // Continue without database - admin auth can work without it
     }
 
     // Parse request body
@@ -45,12 +57,48 @@ export async function onRequestPost(context: {
         }),
         {
           status: 400,
-          headers: { 'Content-Type': 'application/json' },
+          headers: corsHeaders,
         }
       );
     }
 
-    // Create auth service and attempt unlock
+    // Simple password check (without database)
+    if (!db.isAvailable()) {
+      // No database - do simple password comparison
+      if (body.password === adminPassword) {
+        // Generate a simple JWT-style token
+        const token = Buffer.from(JSON.stringify({
+          exp: Date.now() + 3600000, // 1 hour
+          iat: Date.now(),
+        })).toString('base64');
+        
+        return new Response(
+          JSON.stringify({
+            success: true,
+            token,
+            expiresAt: new Date(Date.now() + 3600000).toISOString(),
+          }),
+          {
+            status: 200,
+            headers: corsHeaders,
+          }
+        );
+      } else {
+        return new Response(
+          JSON.stringify({
+            success: false,
+            error: 'Invalid password',
+          }),
+          {
+            status: 401,
+            headers: corsHeaders,
+          }
+        );
+      }
+    }
+
+    // Database available - use full auth service
+    const prisma = await getPrismaClient();
     const authService = new AdminAuthService(prisma, adminPassword);
     const session = await authService.unlock(body.password);
 
@@ -62,7 +110,7 @@ export async function onRequestPost(context: {
       }),
       {
         status: 200,
-        headers: { 'Content-Type': 'application/json' },
+        headers: corsHeaders,
       }
     );
   } catch (error) {
@@ -77,7 +125,7 @@ export async function onRequestPost(context: {
         }),
         {
           status: 401,
-          headers: { 'Content-Type': 'application/json' },
+          headers: corsHeaders,
         }
       );
     }
@@ -91,13 +139,13 @@ export async function onRequestPost(context: {
         }),
         {
           status: 503,
-          headers: { 'Content-Type': 'application/json' },
+          headers: corsHeaders,
         }
       );
     }
 
     // Other errors
-    console.error('Admin unlock error:', error);
+    console.error('[Admin] Unlock error:', error);
     return new Response(
       JSON.stringify({
         success: false,
@@ -105,8 +153,21 @@ export async function onRequestPost(context: {
       }),
       {
         status: 500,
-        headers: { 'Content-Type': 'application/json' },
+        headers: corsHeaders,
       }
     );
   }
+}
+
+// OPTIONS handler for CORS preflight
+export async function onRequestOptions(): Promise<Response> {
+  return new Response(null, {
+    status: 204,
+    headers: {
+      'Access-Control-Allow-Origin': '*',
+      'Access-Control-Allow-Methods': 'POST, OPTIONS',
+      'Access-Control-Allow-Headers': 'Content-Type',
+      'Access-Control-Max-Age': '86400',
+    },
+  });
 }

@@ -16,9 +16,10 @@ import { KnowledgeVaultTab } from './admin/KnowledgeVaultTab';
 import { AuditLogTab } from './admin/AuditLogTab';
 import { GameLogsTab } from './admin/GameLogsTab';
 import { CoachEngineTest } from './CoachEngineTest';
+import { WorkerCallsTab } from './admin/WorkerCallsTab';
 import './AdminPortal.css';
 
-type Tab = 'health' | 'vault' | 'audit' | 'logs' | 'coach';
+type Tab = 'health' | 'vault' | 'audit' | 'logs' | 'coach' | 'worker';
 
 export const AdminPortal: React.FC = () => {
   const { isAuthenticated, isSessionValid, clearSession } = useAdminStore();
@@ -87,6 +88,12 @@ export const AdminPortal: React.FC = () => {
         >
           🧠 CoachEngine
         </button>
+        <button
+          className={`tab-button ${activeTab === 'worker' ? 'active' : ''}`}
+          onClick={() => setActiveTab('worker')}
+        >
+          🔗 Worker Calls
+        </button>
       </div>
 
       <div className="admin-content">
@@ -95,6 +102,7 @@ export const AdminPortal: React.FC = () => {
         {activeTab === 'audit' && <AuditLogTab />}
         {activeTab === 'logs' && <GameLogsTab />}
         {activeTab === 'coach' && <CoachEngineTest />}
+        {activeTab === 'worker' && <WorkerCallsTab />}
       </div>
     </div>
   );

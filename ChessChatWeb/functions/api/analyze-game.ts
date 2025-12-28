@@ -8,6 +8,7 @@ import { getWallEEngine } from '../../shared/walleEngine';
 interface Env {
   DATABASE_URL?: string;
   WALLE_ASSISTANT?: Fetcher; // Service binding to worker
+  INTERNAL_AUTH_TOKEN?: string; // Optional auth token for worker
 }
 
 interface AnalyzeGameRequest {
@@ -59,9 +60,13 @@ export const onRequestPost: PagesFunction<Env> = async (context) => {
     // Try service binding first (if available)
     if (env.WALLE_ASSISTANT) {
       try {
+        const workerStartTime = Date.now();
         const workerResponse = await env.WALLE_ASSISTANT.fetch('https://internal/assist/analyze-game', {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          headers: {
+            'Content-Type': 'application/json',
+            ...(env.INTERNAL_AUTH_TOKEN ? { 'X-Internal-Token': env.INTERNAL_AUTH_TOKEN } : {})
+          },
           body: JSON.stringify({
             pgn,
             moveHistory,
@@ -72,11 +77,24 @@ export const onRequestPost: PagesFunction<Env> = async (context) => {
           })
         });
 
+        const workerLatency = Date.now() - workerStartTime;
         const workerData = await workerResponse.json() as any;
+        
+        // Log worker call for debugging
+        const workerCallLog = {
+          endpoint: '/assist/analyze-game',
+          method: 'POST',
+          success: workerData.success,
+          latencyMs: workerLatency,
+          error: workerData.success ? undefined : workerData.error,
+          request: { pgn: pgn.substring(0, 100), cpuLevel, playerColor },
+          response: workerData.success ? { analysisLength: workerData.analysis?.length } : undefined
+        };
         
         if (workerData.success) {
           return new Response(JSON.stringify({
             ...workerData,
+            workerCallLog, // Include worker call log in response
             ...(debugMode && { mode: 'service-binding' })
           }), {
             status: 200,

@@ -192,6 +192,15 @@ export interface ChessMoveResponse {
   gameId?: string;
   chatHistory?: ChessConversationMessage[];
   conversationalResponse?: string;
+  workerCallLog?: {
+    endpoint: string;
+    method: string;
+    success: boolean;
+    latencyMs: number;
+    error?: string;
+    request?: any;
+    response?: any;
+  };
 }
 
 export interface ChatRequest {

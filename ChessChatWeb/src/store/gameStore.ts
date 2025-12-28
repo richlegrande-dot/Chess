@@ -45,6 +45,25 @@ export interface DebugInfo {
     fen: string;
     timestamp: number;
   }>;
+  // Worker call tracking (Pages → Worker service binding calls)
+  workerCalls: Array<{
+    timestamp: number;
+    endpoint: string;
+    method: string;
+    success: boolean;
+    latencyMs: number;
+    error?: string;
+    request?: {
+      fen?: string;
+      difficulty?: number;
+      pgn?: string;
+    };
+    response?: {
+      move?: string;
+      depthReached?: number;
+      evaluation?: number;
+    };
+  }>;
   // Advanced engine features debugging
   lastWorkerMetadata: {
     depthReached: number;
@@ -152,6 +171,15 @@ interface GameStore {
   updateWorkerMetadata: (metadata: any) => void;
   logFeatureError: (feature: 'quiescence' | 'beam' | 'aspiration' | 'worker' | 'general', error: string, context?: any) => void;
   updateEngineFeatures: (features: Partial<DebugInfo['engineFeatures']>) => void;
+  logWorkerCall: (call: {
+    endpoint: string;
+    method: string;
+    success: boolean;
+    latencyMs: number;
+    error?: string;
+    request?: any;
+    response?: any;
+  }) => void;
 }
 
 export const useGameStore = create<GameStore>()(
@@ -175,6 +203,7 @@ export const useGameStore = create<GameStore>()(
         lastApiCall: null,
         lastApiResponse: null,
         moveHistory: [],
+        workerCalls: [],
         lastWorkerMetadata: null,
         engineFeatures: {
           quiescence: {
@@ -362,6 +391,29 @@ export const useGameStore = create<GameStore>()(
                 const latencyMs = Date.now() - startTime;
                 
                 cpuLogger.info(`CPU move received: ${response.move} (${latencyMs}ms)`);
+                
+                // 🔍 DIAGNOSTIC: Log response structure
+                console.log('[DIAGNOSTIC] GameStore API Response:', {
+                  hasMove: !!response.move,
+                  hasWorkerCallLog: !!response.workerCallLog,
+                  workerCallLog: response.workerCallLog,
+                  mode: response.mode,
+                  engine: response.engine
+                });
+
+                // Log worker call if present in response
+                if (response.workerCallLog) {
+                  console.log('[DIAGNOSTIC] GameStore calling logWorkerCall with:', response.workerCallLog);
+                  const beforeCount = get().debugInfo.workerCalls?.length || 0;
+                  
+                  get().logWorkerCall(response.workerCallLog);
+                  
+                  const afterCount = get().debugInfo.workerCalls?.length || 0;
+                  console.log('[DIAGNOSTIC] GameStore worker calls count: before=', beforeCount, 'after=', afterCount);
+                  console.log('[GameStore] ✅ Worker call logged');
+                } else {
+                  console.warn('[DIAGNOSTIC] ⚠️ No workerCallLog in response');
+                }
 
                 // Track API response in debug info
                 set((s) => ({
@@ -438,6 +490,23 @@ export const useGameStore = create<GameStore>()(
                 lastError = error instanceof Error ? error : new Error(String(error));
                 cpuLogger.error(`CPU move error (attempt ${retries + 1})`, lastError);
                 
+                const latencyMs = state.debugInfo.lastApiCall ? Date.now() - state.debugInfo.lastApiCall.timestamp : 0;
+                
+                // Log failed API call as worker call (even if it didn't reach the worker)
+                get().logWorkerCall({
+                  endpoint: '/api/chess-move',
+                  method: 'POST',
+                  success: false,
+                  latencyMs,
+                  error: lastError?.message || 'API call failed',
+                  request: {
+                    fen: state.chess.getFEN().substring(0, 50),
+                    model: state.selectedModel.modelIdentifier,
+                    gameId: state.gameId || 'unknown'
+                  },
+                  response: undefined
+                });
+                
                 // Track error in debug info
                 set((s) => ({
                   debugInfo: {
@@ -445,7 +514,7 @@ export const useGameStore = create<GameStore>()(
                     lastApiResponse: { 
                       move: null, 
                       error: lastError?.message || 'Unknown error', 
-                      latencyMs: s.debugInfo.lastApiCall ? Date.now() - s.debugInfo.lastApiCall.timestamp : 0,
+                      latencyMs,
                       timestamp: Date.now() 
                     },
                   },
@@ -781,6 +850,57 @@ export const useGameStore = create<GameStore>()(
             },
           },
         }));
+      },
+
+      // Log worker service binding calls
+      logWorkerCall: (call) => {
+        console.log('[DIAGNOSTIC] 🎯 logWorkerCall() CALLED with:', call);
+        console.log('[DIAGNOSTIC] Current state before logging:', {
+          workerCallsCount: get().debugInfo.workerCalls?.length || 0,
+          workerCalls: get().debugInfo.workerCalls
+        });
+        
+        set((state) => {
+          const newCall = {
+            timestamp: Date.now(),
+            endpoint: call.endpoint,
+            method: call.method,
+            success: call.success,
+            latencyMs: call.latencyMs,
+            error: call.error,
+            request: call.request,
+            response: call.response,
+          };
+          
+          console.log('[DIAGNOSTIC] Creating new call object:', newCall);
+          
+          // Keep last 50 calls
+          const previousCalls = state.debugInfo.workerCalls || [];
+          const workerCalls = [...previousCalls, newCall].slice(-50);
+          
+          console.log('[DIAGNOSTIC] Worker calls array:', {
+            previousCount: previousCalls.length,
+            newCount: workerCalls.length,
+            newCall: newCall
+          });
+          
+          console.log(`[Worker Call] ${call.method} ${call.endpoint}:`, {
+            success: call.success,
+            latency: `${call.latencyMs}ms`,
+            error: call.error,
+          });
+          
+          const newState = {
+            debugInfo: {
+              ...state.debugInfo,
+              workerCalls,
+            },
+          };
+          
+          console.log('[DIAGNOSTIC] ✅ Returning new state with', workerCalls.length, 'worker calls');
+          
+          return newState;
+        });
       },
     }),
     {

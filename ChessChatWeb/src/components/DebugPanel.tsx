@@ -429,6 +429,70 @@ export const DebugPanel: React.FC = () => {
               </div>
             </section>
 
+            {/* Worker Binding Troubleshooting Guide */}
+            <section className="debug-section debug-troubleshooting">
+              <h4>🔍 Worker Binding Verification</h4>
+              <div className="debug-info-box">
+                <div className="info-title">📋 Required API Response Fields:</div>
+                <div className="info-content">
+                  <p><strong>To verify worker service binding is active:</strong></p>
+                  <ol>
+                    <li>Open Browser DevTools (F12) → <strong>Network</strong> tab</li>
+                    <li>Make a CPU move in the game</li>
+                    <li>Find the <code>/api/chess-move</code> request</li>
+                    <li>Check the <strong>Response</strong> tab for these fields:</li>
+                  </ol>
+                  <div className="required-fields">
+                    <div className="field-item">
+                      <code className="field-name">workerCallLog</code>
+                      <span className="field-desc">Object containing worker service binding call details</span>
+                    </div>
+                    <div className="field-item">
+                      <code className="field-name">workerCallLog.source</code>
+                      <span className="field-desc">Should be <strong>"worker"</strong> (NOT "fallback main_thread")</span>
+                    </div>
+                    <div className="field-item">
+                      <code className="field-name">workerCallLog.endpoint</code>
+                      <span className="field-desc">Should be "/assist/chess-move"</span>
+                    </div>
+                    <div className="field-item">
+                      <code className="field-name">workerCallLog.latencyMs</code>
+                      <span className="field-desc">Response time in milliseconds</span>
+                    </div>
+                    <div className="field-item">
+                      <code className="field-name">mode</code>
+                      <span className="field-desc">Should be "service-binding" when debug enabled</span>
+                    </div>
+                  </div>
+                  <div className="status-indicators">
+                    <div className="indicator-item success">
+                      <strong>✓ Worker Active:</strong> <code>source: "worker"</code>
+                    </div>
+                    <div className="indicator-item warning">
+                      <strong>⚠️ Using Fallback:</strong> <code>source: "fallback main_thread"</code>
+                    </div>
+                    <div className="indicator-item error">
+                      <strong>✗ Field Missing:</strong> Deployment issue - Functions not updated
+                    </div>
+                  </div>
+                </div>
+              </div>
+              
+              {/* Current Status */}
+              <div className="debug-grid" style={{ marginTop: '1rem' }}>
+                <span className="debug-label">Worker Calls Logged:</span>
+                <span className={`debug-value ${debugInfo.workerCalls?.length > 0 ? 'status-success' : 'status-warning'}`}>
+                  {debugInfo.workerCalls?.length || 0}
+                  {debugInfo.workerCalls?.length === 0 && ' (workerCallLog not in API response)'}
+                </span>
+                
+                <span className="debug-label">Last CPU Source:</span>
+                <span className={`debug-value ${debugInfo.lastWorkerMetadata?.source === 'worker' ? 'status-success' : 'status-warning'}`}>
+                  {debugInfo.lastWorkerMetadata?.source || 'Unknown'}
+                </span>
+              </div>
+            </section>
+
             {/* Engine Features Debug - NEW */}
             <section className="debug-section">
               <h4>🔬 Engine Features (Phase 2/3)</h4>
@@ -460,6 +524,36 @@ export const DebugPanel: React.FC = () => {
                         <span className="debug-value">{(debugInfo.lastWorkerMetadata.evaluation / 100).toFixed(2)}</span>
                       </>
                     )}
+                  </div>
+                </div>
+              )}
+
+              {/* Worker Service Binding Calls */}
+              {debugInfo.workerCalls && debugInfo.workerCalls.length > 0 && (
+                <div className="debug-subsection">
+                  <div className="debug-subtitle">🔗 Worker Calls (Last {Math.min(debugInfo.workerCalls.length, 10)})</div>
+                  <div className="debug-worker-calls">
+                    {debugInfo.workerCalls.slice(-10).reverse().map((call, idx) => (
+                      <div key={idx} className={`debug-worker-call ${call.success ? 'success' : 'error'}`}>
+                        <div className="call-header">
+                          <span className={`call-status ${call.success ? 'status-success' : 'status-error'}`}>
+                            {call.success ? '✓' : '✗'}
+                          </span>
+                          <span className="call-method">{call.method}</span>
+                          <span className="call-endpoint">{call.endpoint}</span>
+                          <span className="call-time">{formatTime(call.timestamp)}</span>
+                        </div>
+                        <div className="call-details">
+                          <span className="call-latency">⏱️ {formatLatency(call.latencyMs)}</span>
+                          {call.error && <span className="call-error">❌ {call.error}</span>}
+                          {call.response?.move && <span className="call-move">♟️ {call.response.move}</span>}
+                          {call.response?.depthReached && <span className="call-depth">🎯 Depth: {call.response.depthReached}</span>}
+                          {call.response?.evaluation !== undefined && (
+                            <span className="call-eval">📊 Eval: {(call.response.evaluation / 100).toFixed(2)}</span>
+                          )}
+                        </div>
+                      </div>
+                    ))}
                   </div>
                 </div>
               )}

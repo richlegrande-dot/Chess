@@ -366,25 +366,125 @@ export const CoachingMode: React.FC = () => {
         }
         
         if (useWorker) {
-          console.log('[CPU Move] Using Web Worker for off-thread computation');
-          
-          const workerClient = getCpuWorkerClient();
+          console.log('[CPU Move] Using API for server-side computation');
           
           try {
-            const workerResult = await workerClient.computeMove({
-              fen: chess.getFEN(),
-              cpuLevel,
-              timeLimitMs: allocatedTime,
-              minDepth: levelConfig.minDepth,
-              maxDepth: levelConfig.hardCap,
-              debug: localStorage.getItem('debug') === 'true',
-              openingBook: levelConfig.openingBook,  // Pass opening book flag
-              useQuiescence: levelConfig.useQuiescence,
-              quiescenceDepth: levelConfig.quiescenceMaxDepth,
-              beamWidth: levelConfig.beamWidth,
-              useAspiration: levelConfig.useAspiration,
-              aspirationWindow: levelConfig.aspirationWindow
+            // Call the /api/chess-move API endpoint
+            const apiStartTime = Date.now();
+            const apiResponse = await fetch('/api/chess-move', {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+              },
+              body: JSON.stringify({
+                fen: chess.getFEN(),
+                pgn: chess.getPGN(),
+                difficulty: cpuLevel === 1 ? 'beginner' : cpuLevel <= 3 ? 'intermediate' : cpuLevel <= 5 ? 'advanced' : 'master',
+                gameId: `game_${Date.now()}`,
+              }),
             });
+            
+            if (!apiResponse.ok) {
+              throw new Error(`API returned ${apiResponse.status}: ${apiResponse.statusText}`);
+            }
+            
+            const apiData = await apiResponse.json();
+            const apiElapsedMs = Date.now() - apiStartTime;
+            
+            if (!apiData.success) {
+              throw new Error(apiData.error || 'API returned unsuccessful response');
+            }
+            
+            // Convert API response to worker result format
+            const workerResult = {
+              move: apiData.move ? {
+                from: apiData.move.substring(0, 2),
+                to: apiData.move.substring(2, 4)
+              } : null,
+              metadata: {
+                depthReached: apiData.debug?.depthReached || searchDepth,
+                source: apiData.workerCallLog?.success ? 'worker' : 'fallback main_thread',
+                timeMs: apiElapsedMs,
+                sliceCount: 1,
+                complete: true,
+                tacticalSafety: apiData.debug?.tacticalSafety,
+              }
+            };
+            
+            // 🔍 DIAGNOSTIC: Log full API response structure
+            console.log('[DIAGNOSTIC] API Response:', {
+              hasMove: !!apiData.move,
+              move: apiData.move,
+              hasWorkerCallLog: !!apiData.workerCallLog,
+              workerCallLog: apiData.workerCallLog,
+              mode: apiData.mode,
+              engine: apiData.engine,
+              hasDiagnostics: !!apiData.diagnostics,
+              diagnostics: apiData.diagnostics
+            });
+            
+            // Store worker call log for admin portal
+            if (typeof window !== 'undefined' && (window as any).gameStore) {
+              console.log('[DIAGNOSTIC] gameStore is available, attempting to log worker call');
+              
+              try {
+                const store = (window as any).gameStore;
+                
+                // Log gameStore state before logging
+                const currentWorkerCalls = store.getState().debugInfo.workerCalls || [];
+                console.log('[DIAGNOSTIC] Current worker calls count:', currentWorkerCalls.length);
+                
+                if (apiData.workerCallLog) {
+                  // Worker was called - log the actual call
+                  const logData = {
+                    endpoint: apiData.workerCallLog.endpoint,
+                    method: apiData.workerCallLog.method,
+                    success: apiData.workerCallLog.success,
+                    latencyMs: apiData.workerCallLog.latencyMs,
+                    error: apiData.workerCallLog.error,
+                    request: apiData.workerCallLog.request,
+                    response: apiData.workerCallLog.response,
+                  };
+                  
+                  console.log('[DIAGNOSTIC] Calling logWorkerCall() with:', logData);
+                  store.getState().logWorkerCall(logData);
+                  
+                  // Verify it was stored
+                  const updatedWorkerCalls = store.getState().debugInfo.workerCalls || [];
+                  console.log('[DIAGNOSTIC] After logging, worker calls count:', updatedWorkerCalls.length);
+                  console.log('[CPU Move] ✅ Worker call logged:', apiData.workerCallLog);
+                } else {
+                  // Fallback was used - log it as a failed worker call
+                  const fallbackLog = {
+                    endpoint: '/api/chess-move',
+                    method: 'POST',
+                    success: false,
+                    latencyMs: apiElapsedMs,
+                    error: 'Worker not available - used local fallback',
+                    request: { fen: chess.getFEN(), difficulty: cpuLevel, gameId: `game_${Date.now()}` },
+                    response: { move: apiData.move, mode: apiData.mode || 'local-fallback' },
+                  };
+                  
+                  console.log('[DIAGNOSTIC] No workerCallLog in response, logging fallback:', fallbackLog);
+                  store.getState().logWorkerCall(fallbackLog);
+                  
+                  // Verify it was stored
+                  const updatedWorkerCalls = store.getState().debugInfo.workerCalls || [];
+                  console.log('[DIAGNOSTIC] After logging fallback, worker calls count:', updatedWorkerCalls.length);
+                  console.log('[CPU Move] ⚠️ Fallback logged (no worker call)');
+                }
+              } catch (err) {
+                console.error('[CPU Move] ❌ Failed to log worker call:', err);
+                console.error('[DIAGNOSTIC] Error details:', {
+                  message: err instanceof Error ? err.message : String(err),
+                  stack: err instanceof Error ? err.stack : undefined
+                });
+              }
+            } else {
+              console.error('[DIAGNOSTIC] ❌ gameStore not available on window');
+              console.error('[DIAGNOSTIC] window type:', typeof window);
+              console.error('[DIAGNOSTIC] window.gameStore:', (window as any)?.gameStore);
+            }
             
             selectedMove = workerResult.move as { from: Square; to: Square };
             actualSearchDepth = workerResult.metadata.depthReached;
@@ -426,13 +526,36 @@ export const CoachingMode: React.FC = () => {
             }
             
             if (selectedMove) {
-              console.log(`[CPU Move] Worker result: depth ${workerResult.metadata.depthReached}, time ${Math.round(workerElapsed)}ms, source: ${workerResult.metadata.source}`);
+              console.log(`[CPU Move] API result: depth ${workerResult.metadata.depthReached}, time ${Math.round(workerElapsed)}ms, source: ${workerResult.metadata.source}`);
+            
+              // Track success stats
+              const wasWorkerSuccess = workerResult.metadata.source === 'worker';
+              setWorkerStats(prev => {
+                const newMove = {
+                  timestamp: new Date(),
+                  success: wasWorkerSuccess,
+                  timeMs: workerElapsed,
+                  depth: workerResult.metadata.depthReached,
+                  source: workerResult.metadata.source as 'worker' | 'fallback_main_thread' | 'search',
+                };
+                
+                return {
+                  totalAttempts: prev.totalAttempts + 1,
+                  successfulWorkerCalls: wasWorkerSuccess ? prev.successfulWorkerCalls + 1 : prev.successfulWorkerCalls,
+                  fallbackCount: wasWorkerSuccess ? prev.fallbackCount : prev.fallbackCount + 1,
+                  timeoutCount: prev.timeoutCount,
+                  lastTimeout: prev.lastTimeout,
+                  totalWorkerTime: prev.totalWorkerTime + workerElapsed,
+                  totalFallbackTime: wasWorkerSuccess ? prev.totalFallbackTime : prev.totalFallbackTime + workerElapsed,
+                  recentMoves: [newMove, ...prev.recentMoves].slice(0, 10),
+                };
+              });
             
               if (workerResult.metadata.tacticalSafety) {
                 console.log(`[CPU Move] Tactical safety: rejected ${workerResult.metadata.tacticalSafety.rejectedMoves} moves`);
               }
               
-              persistentLogger.info('CPU move - worker search completed', {
+              persistentLogger.info('CPU move - API search completed', {
                 from: selectedMove.from,
                 to: selectedMove.to,
                 source: moveSource,
@@ -446,15 +569,15 @@ export const CoachingMode: React.FC = () => {
             }
             
           } catch (error) {
-            const isTimeout = error instanceof Error && error.message.includes('timeout');
+            const isTimeout = error instanceof Error && (error.message.includes('timeout') || error.message.includes('timed out'));
             const errorDetails = {
               message: error instanceof Error ? error.message : String(error),
               stack: error instanceof Error ? error.stack : undefined,
               type: error instanceof Error ? error.constructor.name : typeof error,
               fullError: error
             };
-            console.error('[CPU Move] Worker error, falling back to main thread:', errorDetails);
-            persistentLogger.error('Worker computation failed', { error: errorDetails });
+            console.error('[CPU Move] API error, falling back to main thread:', errorDetails);
+            persistentLogger.error('API computation failed', { error: errorDetails });
             
             // Track timeout/failure stats
             setWorkerStats(prev => ({

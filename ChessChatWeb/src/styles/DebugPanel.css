@@ -481,3 +481,237 @@
 .debug-errors::-webkit-scrollbar-thumb:hover {
   background: rgba(255, 255, 255, 0.3);
 }
+
+/* Worker Calls Styling */
+.debug-worker-calls {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  max-height: 300px;
+  overflow-y: auto;
+}
+
+.debug-worker-call {
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 6px;
+  padding: 0.5rem;
+}
+
+.debug-worker-call.success {
+  border-left: 3px solid #22c55e;
+}
+
+.debug-worker-call.error {
+  border-left: 3px solid #ef4444;
+}
+
+.call-header {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-bottom: 0.25rem;
+  font-size: 0.75rem;
+}
+
+.call-status {
+  font-weight: bold;
+  font-size: 0.8rem;
+}
+
+.call-method {
+  background: rgba(37, 99, 235, 0.3);
+  padding: 0.1rem 0.4rem;
+  border-radius: 3px;
+  font-family: monospace;
+  font-size: 0.7rem;
+  color: #93c5fd;
+}
+
+.call-endpoint {
+  flex: 1;
+  font-family: monospace;
+  font-size: 0.7rem;
+  color: #cbd5e1;
+}
+
+.call-time {
+  font-size: 0.7rem;
+  color: #94a3b8;
+}
+
+.call-details {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-top: 0.25rem;
+  font-size: 0.7rem;
+}
+
+.call-latency,
+.call-move,
+.call-depth,
+.call-eval {
+  background: rgba(255, 255, 255, 0.05);
+  padding: 0.2rem 0.4rem;
+  border-radius: 3px;
+  font-size: 0.7rem;
+}
+
+.call-error {
+  background: rgba(239, 68, 68, 0.2);
+  color: #fecaca;
+  padding: 0.2rem 0.4rem;
+  border-radius: 3px;
+  font-size: 0.7rem;
+  flex: 1 0 100%;
+}
+
+.debug-worker-calls::-webkit-scrollbar {
+  width: 6px;
+}
+
+.debug-worker-calls::-webkit-scrollbar-track {
+  background: rgba(255, 255, 255, 0.05);
+  border-radius: 3px;
+}
+
+.debug-worker-calls::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.2);
+  border-radius: 3px;
+}
+
+.debug-worker-calls::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.3);
+}
+
+/* Worker Binding Troubleshooting Styles */
+.debug-troubleshooting {
+  background: rgba(37, 99, 235, 0.05);
+  border: 2px solid rgba(37, 99, 235, 0.3);
+}
+
+.debug-info-box {
+  background: rgba(15, 23, 42, 0.8);
+  border: 1px solid rgba(59, 130, 246, 0.3);
+  border-radius: 8px;
+  padding: 1rem;
+  margin-top: 0.5rem;
+}
+
+.info-title {
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: #60a5fa;
+  margin-bottom: 0.75rem;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.info-content {
+  color: #e2e8f0;
+  font-size: 0.85rem;
+  line-height: 1.6;
+}
+
+.info-content p {
+  margin: 0 0 0.5rem 0;
+}
+
+.info-content ol {
+  margin: 0.5rem 0;
+  padding-left: 1.5rem;
+}
+
+.info-content li {
+  margin-bottom: 0.25rem;
+}
+
+.info-content code {
+  background: rgba(59, 130, 246, 0.2);
+  padding: 2px 6px;
+  border-radius: 3px;
+  color: #93c5fd;
+  font-family: 'Courier New', monospace;
+  font-size: 0.85rem;
+}
+
+.required-fields {
+  margin: 1rem 0;
+  background: rgba(0, 0, 0, 0.3);
+  border-radius: 6px;
+  padding: 0.75rem;
+}
+
+.field-item {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  padding: 0.5rem;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+.field-item:last-child {
+  border-bottom: none;
+}
+
+.field-name {
+  color: #60a5fa !important;
+  font-weight: 600;
+  font-size: 0.9rem !important;
+}
+
+.field-desc {
+  color: #cbd5e1;
+  font-size: 0.8rem;
+  margin-left: 1rem;
+}
+
+.field-desc strong {
+  color: #10b981;
+  font-weight: 600;
+}
+
+.status-indicators {
+  margin-top: 1rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.indicator-item {
+  padding: 0.5rem;
+  border-radius: 6px;
+  font-size: 0.85rem;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.indicator-item code {
+  margin-left: auto;
+  background: rgba(0, 0, 0, 0.3) !important;
+}
+
+.indicator-item.success {
+  background: rgba(16, 185, 129, 0.15);
+  border: 1px solid rgba(16, 185, 129, 0.3);
+  color: #6ee7b7;
+}
+
+.indicator-item.warning {
+  background: rgba(251, 191, 36, 0.15);
+  border: 1px solid rgba(251, 191, 36, 0.3);
+  color: #fcd34d;
+}
+
+.indicator-item.error {
+  background: rgba(239, 68, 68, 0.15);
+  border: 1px solid rgba(239, 68, 68, 0.3);
+  color: #fca5a5;
+}
+
+.indicator-item strong {
+  font-weight: 600;
+}

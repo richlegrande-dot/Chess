@@ -13,15 +13,16 @@
  * - POST /assist/chess-move
  */
 
-import { getWallEEngine } from '../../shared/walleEngine';
-import { WalleChessEngine } from '../../shared/walleChessEngine';
+import { getWallEEngine } from './shared/walleEngine';
+import { WalleChessEngine } from './shared/walleChessEngine';
 import type { 
   WallEChatResponse, 
   WallEAnalysisResponse 
-} from '../../shared/walleEngine';
+} from './shared/walleEngine';
 
 interface Env {
   DATABASE_URL?: string;
+  INTERNAL_AUTH_TOKEN?: string;
 }
 
 interface ChatRequest {
@@ -45,6 +46,20 @@ interface ChessMoveRequest {
   pgn?: string;
   difficulty?: string;
   gameId?: string;
+}
+
+/**
+ * Validate internal auth token
+ * Returns true if auth is valid or not configured (for backward compatibility)
+ */
+function validateAuth(request: Request, env: Env): boolean {
+  // If no token is configured, allow all requests (backward compatibility)
+  if (!env.INTERNAL_AUTH_TOKEN) {
+    return true;
+  }
+
+  const token = request.headers.get('X-Internal-Token');
+  return token === env.INTERNAL_AUTH_TOKEN;
 }
 
 /**
@@ -175,27 +190,59 @@ async function handleAnalyzeGame(request: Request, env: Env): Promise<Response> 
  * Handle chess move requests (CPU opponent)
  */
 async function handleChessMove(request: Request, env: Env): Promise<Response> {
+  console.log('[Worker] Handling chess move request');
+  const startTime = Date.now();
+  
   try {
     const data = await request.json() as ChessMoveRequest;
     const { fen, difficulty = 'medium', gameId } = data;
+    console.log('[Worker] Request data:', { fen: fen?.substring(0, 30), difficulty, gameId });
 
     if (!fen) {
+      console.error('[Worker] Missing FEN in request');
       return Response.json({
         success: false,
-        error: 'FEN position is required'
+        error: 'FEN position is required',
+        mode: 'service-binding',
+        workerCallLog: {
+          endpoint: '/assist/chess-move',
+          method: 'POST',
+          success: false,
+          latencyMs: Date.now() - startTime,
+          error: 'FEN position is required',
+          request: { fen, difficulty, gameId },
+          response: { mode: 'service-binding' }
+        }
       }, { status: 400 });
     }
 
+    console.log('[Worker] Creating WalleChessEngine instance');
     const engine = new WalleChessEngine();
+    console.log('[Worker] Getting best move for difficulty:', difficulty);
     const move = await engine.getBestMove(fen, difficulty);
+    console.log('[Worker] Move generated:', move?.move);
 
     if (!move) {
+      console.error('[Worker] No legal moves found');
+      const latencyMs = Date.now() - startTime;
       return Response.json({
         success: false,
-        error: 'No legal moves available'
+        error: 'No legal moves available',
+        mode: 'service-binding',
+        workerCallLog: {
+          endpoint: '/assist/chess-move',
+          method: 'POST',
+          success: false,
+          latencyMs,
+          error: 'No legal moves available',
+          request: { fen, difficulty, gameId },
+          response: { mode: 'service-binding' }
+        }
       }, { status: 400 });
     }
 
+    const latencyMs = Date.now() - startTime;
+    console.log('[Worker] Returning successful response with workerCallLog');
     return Response.json({
       success: true,
       move: move.move,
@@ -203,23 +250,69 @@ async function handleChessMove(request: Request, env: Env): Promise<Response> {
       depth: move.depth,
       timeMs: move.timeMs,
       source: move.source,
-      openingName: move.openingName
+      openingName: move.openingName,
+      engine: 'worker',
+      mode: 'service-binding',
+      diagnostics: {
+        depthReached: move.depth || 0,
+        nodes: move.nodes || 0,
+        eval: move.evaluation || 0,
+        selectedLine: move.pv || '',
+        openingBook: move.source === 'opening_book',
+        reason: move.source === 'opening_book' ? 'Opening book move' : 'Computed move'
+      },
+      workerCallLog: {
+        endpoint: '/assist/chess-move',
+        method: 'POST',
+        success: true,
+        latencyMs,
+        request: { fen: fen.substring(0, 50), difficulty, gameId },
+        response: {
+          move: move.move,
+          depthReached: move.depth,
+          evaluation: move.evaluation,
+          source: move.source,
+          engine: 'worker',
+          mode: 'service-binding'
+        }
+      }
     });
   } catch (error: any) {
+    const latencyMs = Date.now() - startTime;
     console.error('[Worker] Chess move error:', error);
+    console.error('[Worker] Error stack:', error.stack);
+    
     return Response.json({
       success: false,
-      error: error.message || 'Internal server error'
+      error: error.message || 'Chess move generation failed',
+      errorDetails: error.stack?.substring(0, 200),
+      requestId: request.headers.get('X-Request-Id') || 'unknown',
+      mode: 'service-binding',
+      workerCallLog: {
+        endpoint: '/assist/chess-move',
+        method: 'POST',
+        success: false,
+        latencyMs,
+        error: error.message || 'Chess move generation failed',
+        request: { difficulty: 'unknown', gameId: 'unknown' },
+        response: { mode: 'service-binding' }
+      }
     }, { status: 500 });
   }
 }
 
-/**
- * Main request handler
- */
 export default {
   async fetch(request: Request, env: Env): Promise<Response> {
     const url = new URL(request.url);
+
+    // Auth guard: validate internal token if configured
+    if (!validateAuth(request, env)) {
+      // Return 404 instead of 401/403 to avoid exposing worker existence
+      return Response.json({
+        success: false,
+        error: 'Not found'
+      }, { status: 404 });
+    }
 
     // Handle CORS preflight
     if (request.method === 'OPTIONS') {
@@ -227,12 +320,13 @@ export default {
         headers: {
           'Access-Control-Allow-Origin': '*',
           'Access-Control-Allow-Methods': 'POST, OPTIONS',
-          'Access-Control-Allow-Headers': 'Content-Type',
+          'Access-Control-Allow-Headers': 'Content-Type, X-Internal-Token'
         }
       });
     }
 
-    // Route requests
+    // Route requests - ONLY internal /assist/* routes (service binding)
+    // Public /api/* routes are handled by Pages Functions
     if (url.pathname === '/assist/chat' && request.method === 'POST') {
       return handleChat(request, env);
     }
@@ -249,6 +343,7 @@ export default {
     return Response.json({
       success: false,
       error: 'Not found',
+      message: 'This is an internal Worker service. Public API is at /api/*',
       availableEndpoints: [
         'POST /assist/chat',
         'POST /assist/analyze-game',

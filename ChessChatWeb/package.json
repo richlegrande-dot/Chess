@@ -30,8 +30,11 @@
     "import:knowledge": "tsx scripts/import-knowledge.ts",
     "verify:worker-path": "node scripts/verify-worker-assistant-path.mjs",
     "verify:hybrid": "node scripts/verify-hybrid-assistant.mjs",
+    "verify:hybrid-deploy": "node scripts/verify-hybrid-deploy.mjs",
+    "verify:shared-sync": "node .github/workflows/verify-shared-sync.mjs",
     "verify:integrity": "node scripts/verify-walle-integrity.mjs",
-    "verify:all": "npm run verify:worker-path && npm run verify:hybrid && npm run verify:integrity"
+    "verify:all": "npm run verify:worker-path && npm run verify:hybrid && npm run verify:hybrid-deploy && npm run verify:shared-sync && npm run verify:integrity",
+    "sync:shared": "node scripts/sync-shared-code.mjs"
   },
   "dependencies": {
     "@prisma/client": "^5.22.0",

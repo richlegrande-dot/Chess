@@ -1,0 +1,49 @@
+name: Verify Shared Code Sync
+
+on:
+  pull_request:
+    paths:
+      - 'ChessChatWeb/shared/**'
+      - 'ChessChatWeb/worker-assistant/src/shared/**'
+  push:
+    branches:
+      - main
+    paths:
+      - 'ChessChatWeb/shared/**'
+      - 'ChessChatWeb/worker-assistant/src/shared/**'
+
+jobs:
+  verify-sync:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Verify shared code synchronization
+        run: |
+          cd ChessChatWeb
+          node .github/workflows/verify-shared-sync.mjs
+
+      - name: Comment on PR (if drift detected)
+        if: failure() && github.event_name == 'pull_request'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: '❌ **Shared Code Drift Detected**\n\n' +
+                    'Shared code files between `shared/` and `worker-assistant/src/shared/` are out of sync.\n\n' +
+                    '**To fix:**\n' +
+                    '1. Review changes in both locations\n' +
+                    '2. Merge changes to `shared/` directory\n' +
+                    '3. Copy from `shared/` to `worker-assistant/src/shared/`\n' +
+                    '4. Commit the synchronized files\n\n' +
+                    'Run `node .github/workflows/verify-shared-sync.mjs` locally to verify.'
+            })

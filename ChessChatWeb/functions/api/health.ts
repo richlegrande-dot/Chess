@@ -2,11 +2,12 @@
 // Path: /api/health
 // Wall-E System - No OpenAI required
 
-import { getDbHealth, checkDbHealth } from '../lib/db';
+import { getDbHealth, checkDbHealth, db } from '../lib/db';
 import { initializeDatabase } from '../lib/dbMiddleware';
 
 interface Env {
-  DATABASE_URL: string;
+  DB?: D1Database;
+  DATABASE_URL?: string;
 }
 
 interface HealthStatus {
@@ -24,6 +25,7 @@ interface HealthStatus {
     failureCount: number;
     latencyMs: number | null;
     consecutiveFailures: number;
+    dbType: string;
   };
   circuitBreakers: {
     chessMove: {
@@ -64,29 +66,35 @@ export async function onRequestGet(context: {
   request: Request;
   env: Env;
 }): Promise<Response> {
+  const corsHeaders = {
+    'Access-Control-Allow-Origin': '*',
+    'Access-Control-Allow-Methods': 'GET, OPTIONS',
+    'Access-Control-Allow-Headers': 'Content-Type',
+    'Content-Type': 'application/json',
+  };
+
   const now = Date.now();
   const uptime = now - startTime;
   
   const url = new URL(context.request.url);
   
-  // Initialize database before checking health
+  // Initialize database (optional)
   let dbInitError: string | null = null;
   try {
-    if (context.env.DATABASE_URL) {
-      await initializeDatabase(context.env);
-    } else {
-      dbInitError = 'DATABASE_URL not found in environment';
-      console.error('[Health] DATABASE_URL environment variable is missing');
-    }
+    await initializeDatabase(context.env);
   } catch (error) {
-    dbInitError = (error as Error).message;
-    console.error('[Health] Failed to initialize database:', error);
+    dbInitError = error instanceof Error ? error.message : 'Database initialization failed';
+    console.warn('[Health] Database not available:', dbInitError);
   }
   
   // Check database health
   let dbHealth;
   try {
-    dbHealth = await checkDbHealth();
+    if (db.isAvailable()) {
+      dbHealth = await checkDbHealth();
+    } else {
+      dbHealth = getDbHealth();
+    }
   } catch (error) {
     console.error('[Health] Database health check failed:', error);
     dbHealth = getDbHealth();
@@ -161,9 +169,19 @@ export async function onRequestGet(context: {
 
   return new Response(JSON.stringify(healthStatus, null, 2), {
     status: httpStatus,
+    headers: corsHeaders,
+  });
+}
+
+// OPTIONS handler for CORS preflight
+export async function onRequestOptions(): Promise<Response> {
+  return new Response(null, {
+    status: 204,
     headers: {
-      'Content-Type': 'application/json',
-      'Cache-Control': 'no-cache, no-store, must-revalidate',
+      'Access-Control-Allow-Origin': '*',
+      'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
+      'Access-Control-Allow-Headers': 'Content-Type',
+      'Access-Control-Max-Age': '86400',
     },
   });
 }

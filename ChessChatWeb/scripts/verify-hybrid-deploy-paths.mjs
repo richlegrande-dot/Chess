@@ -197,8 +197,9 @@ info('\n📋 Worker Service Build Configuration:');
 log('   Repository: richlegrande-dot/Chess');
 log('   Branch: main');
 log(`   ${BOLD}Path: ChessChatWeb/worker-assistant${RESET} ${GREEN}⚠️ CRITICAL${RESET}`);
-log('   Build command: npm ci');
+log(`   ${BOLD}Build command: npm ci${RESET} ${GREEN}(simplified - no parent dependency)${RESET}`);
 log(`   ${BOLD}Deploy command: npx wrangler deploy --env production${RESET} ${GREEN}⚠️ REQUIRED${RESET}`);
+log('   Optional preview: npx wrangler deploy --env staging');
 
 info('\n🔗 Service Binding (Pages → Worker):');
 log('   Pages Settings → Functions → Service bindings');

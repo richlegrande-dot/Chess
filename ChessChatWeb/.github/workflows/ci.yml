@@ -117,6 +117,18 @@ jobs:
           node scripts/verify-hybrid-assistant.mjs
           echo "✓ Hybrid assistant architecture verified"
       
+      - name: Verify self-contained worker deployment
+        run: |
+          echo "🔍 Verifying worker self-containment and deployment readiness..."
+          node scripts/verify-hybrid-deploy.mjs
+          echo "✓ Worker is self-contained and ready for independent deployment"
+      
+      - name: Verify shared code sync (CRITICAL - prevents Pages/Worker drift)
+        run: |
+          echo "🔍 Verifying Pages shared/ and Worker src/shared/ are identical..."
+          node scripts/verify-shared-sync.mjs
+          echo "✓ Shared code is in sync - no drift detected"
+      
       - name: Verify Wall-E integrity (NO OpenAI ANYWHERE)
         run: |
           # CRITICAL: No OpenAI imports ANYWHERE in the system

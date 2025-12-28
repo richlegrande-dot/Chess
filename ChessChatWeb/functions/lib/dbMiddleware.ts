@@ -1,26 +1,39 @@
 /**
  * Database initialization helper for Cloudflare Pages Functions
- * Ensures database is initialized with proper environment variables
+ * Supports both D1 bindings and traditional DATABASE_URL
  */
 
 import { db } from './db';
 
 interface CloudflareEnv {
-  DATABASE_URL?: string;
+  DB?: D1Database; // D1 binding (preferred for Cloudflare)
+  DATABASE_URL?: string; // Traditional connection string (fallback)
   [key: string]: any;
 }
 
 /**
  * Initialize database with environment variables from Cloudflare context
  * Call this at the start of each Function handler
+ * 
+ * Prioritizes D1 binding (env.DB) over DATABASE_URL
  */
 export async function initializeDatabase(env: CloudflareEnv): Promise<void> {
-  if (!env.DATABASE_URL) {
-    throw new Error('DATABASE_URL environment variable is required');
+  // Priority 1: D1 binding (native Cloudflare)
+  if (env.DB) {
+    console.log('[DB] Using D1 binding');
+    await db.initializeD1(env.DB);
+    return;
   }
-
-  // Initialize the singleton db instance with the environment variable
-  await db.initialize(env.DATABASE_URL);
+  
+  // Priority 2: Traditional DATABASE_URL (for Prisma)
+  if (env.DATABASE_URL) {
+    console.log('[DB] Using DATABASE_URL');
+    await db.initialize(env.DATABASE_URL);
+    return;
+  }
+  
+  // Neither available - optional database
+  console.warn('[DB] No database configured - database features will be unavailable');
 }
 
 /**

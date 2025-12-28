@@ -12,6 +12,7 @@ interface Env {
   RATE_LIMIT_PER_IP?: string;
   RATE_LIMIT_WINDOW?: string;
   WALLE_ASSISTANT?: Fetcher; // Service binding to worker
+  INTERNAL_AUTH_TOKEN?: string; // Optional auth token for worker
 }
 
 interface ChatMessage {
@@ -101,9 +102,13 @@ export async function onRequestPost(context: {
     // Try service binding first (if available)
     if (context.env.WALLE_ASSISTANT) {
       try {
+        const workerStartTime = Date.now();
         const workerResponse = await context.env.WALLE_ASSISTANT.fetch('https://internal/assist/chat', {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          headers: {
+            'Content-Type': 'application/json',
+            ...(context.env.INTERNAL_AUTH_TOKEN ? { 'X-Internal-Token': context.env.INTERNAL_AUTH_TOKEN } : {})
+          },
           body: JSON.stringify({
             message: sanitizedMessage,
             userId: effectiveUserId,
@@ -112,11 +117,24 @@ export async function onRequestPost(context: {
           })
         });
 
+        const workerLatency = Date.now() - workerStartTime;
         const workerData = await workerResponse.json() as any;
+        
+        // Log worker call for debugging
+        const workerCallLog = {
+          endpoint: '/assist/chat',
+          method: 'POST',
+          success: workerData.success,
+          latencyMs: workerLatency,
+          error: workerData.success ? undefined : workerData.error,
+          request: { message: sanitizedMessage.substring(0, 100), userId: effectiveUserId },
+          response: workerData.success ? { responseLength: workerData.response?.length } : undefined
+        };
         
         if (workerData.success) {
           return new Response(JSON.stringify({
             ...workerData,
+            workerCallLog, // Include worker call log in response
             ...(debugMode && { mode: 'service-binding' })
           }), {
             headers: { ...corsHeaders, 'Content-Type': 'application/json' },

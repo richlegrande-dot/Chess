@@ -1,12 +1,10 @@
 /**
- * Database Service - Prisma Client Wrapper with Health Monitoring
+ * Database Service - Supports both D1 and Prisma
  * 
  * Implements:
- * - Fail-fast on missing DATABASE_URL
- * - Startup gate (connection verification)
- * - Runtime watchdog (periodic health checks)
- * - Graceful shutdown on persistent failures
- * - Prisma Accelerate support
+ * - D1 native binding (preferred for Cloudflare)
+ * - Prisma with Accelerate (fallback)
+ * - Health monitoring
  */
 
 import { PrismaClient } from '@prisma/client/edge';
@@ -19,10 +17,12 @@ export interface DbHealthStatus {
   failureCount: number;
   latencyMs: number | null;
   consecutiveFailures: number;
+  dbType: 'D1' | 'Prisma' | 'none';
 }
 
 class DatabaseService {
   private prisma: PrismaClient | null = null;
+  private d1: D1Database | null = null;
   private healthStatus: DbHealthStatus = {
     dbReady: false,
     lastPing: null,
@@ -30,6 +30,7 @@ class DatabaseService {
     failureCount: 0,
     latencyMs: null,
     consecutiveFailures: 0,
+    dbType: 'none',
   };
   
   private readonly MAX_CONSECUTIVE_FAILURES = 5;
@@ -43,6 +44,35 @@ class DatabaseService {
     // Store database URL for later initialization
     // In Cloudflare Workers, this will be passed from context.env
     this.databaseUrl = databaseUrl || null;
+  }
+
+  /**
+   * Initialize with D1 binding (native Cloudflare)
+   */
+  async initializeD1(d1: D1Database): Promise<void> {
+    if (this.isInitialized && this.d1) {
+      return; // Already initialized
+    }
+
+    try {
+      console.log('[DB] Initializing D1 database...');
+      this.d1 = d1;
+      
+      // Verify D1 connectivity with a simple query
+      await d1.prepare('SELECT 1').first();
+      
+      this.healthStatus.dbReady = true;
+      this.healthStatus.dbType = 'D1';
+      this.healthStatus.lastPing = new Date();
+      this.isInitialized = true;
+      console.log('[DB] ✓ D1 initialized successfully');
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      console.error('[DB] ✗ D1 initialization failed:', message);
+      this.healthStatus.lastError = message;
+      this.healthStatus.dbReady = false;
+      throw new Error(`D1 startup failed: ${message}`);
+    }
   }
 
   /**
@@ -84,8 +114,9 @@ class DatabaseService {
       // Note: For Cloudflare Workers, watchdog runs per-request check instead of setInterval
       // This is because Workers don't support long-running background tasks
 
-      console.log('✓ Database initialized successfully');
+      console.log('[DB] ✓ Database initialized successfully');
       this.healthStatus.dbReady = true;
+      this.healthStatus.dbType = 'Prisma';
       this.isInitialized = true;
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
@@ -217,10 +248,38 @@ class DatabaseService {
       await this.initialize();
     }
     
-    if (!this.prisma || !this.healthStatus.dbReady) {
-      throw new Error('Database is not ready. Service may be starting up or shutting down.');
+    if (!this.prisma) {
+      throw new Error('Database is not ready. Prisma client not initialized.');
     }
+
+    if (!this.healthStatus.dbReady) {
+      throw new Error('Database is not ready. Health check failed.');
+    }
+
     return this.prisma;
+  }
+
+  /**
+   * Get the D1 database instance
+   * Throws if D1 is not initialized
+   */
+  getD1(): D1Database {
+    if (!this.d1) {
+      throw new Error('D1 database is not initialized');
+    }
+    
+    if (!this.healthStatus.dbReady) {
+      throw new Error('D1 database is not ready');
+    }
+    
+    return this.d1;
+  }
+
+  /**
+   * Check if database is available
+   */
+  isAvailable(): boolean {
+    return this.healthStatus.dbReady && (this.prisma !== null || this.d1 !== null);
   }
 
   /**
@@ -271,6 +330,9 @@ export const db = new DatabaseService();
 
 // Export Prisma client getter
 export const getPrismaClient = () => db.getClient();
+
+// Export D1 getter
+export const getD1Client = () => db.getD1();
 
 // Export health check
 export const getDbHealth = () => db.getHealthStatus();

@@ -6,10 +6,14 @@
 # This Worker is deployed via Cloudflare Worker Service Builds (Git integration).
 # Build/deploy commands are configured in the Cloudflare dashboard, NOT here.
 #
-# Dashboard settings:
+# Dashboard settings (REQUIRED for Worker Service Build):
+# - Repository: richlegrande-dot/Chess
+# - Branch: main
 # - Path: ChessChatWeb/worker-assistant
-# - Build command: cd .. && npm ci && cd worker-assistant && npm ci
+# - Build command: npm ci
 # - Deploy command: npx wrangler deploy --env production
+#   (Deploy command is REQUIRED for Worker builds - empty deploy command will fail)
+# - Optional preview deploy: npx wrangler deploy --env staging
 
 name = "walle-assistant"
 main = "src/index.ts"
