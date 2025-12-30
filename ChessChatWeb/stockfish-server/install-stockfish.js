@@ -43,32 +43,55 @@ function extractAndInstall() {
   try {
     console.log('📦 Extracting Stockfish...');
     
-    // Extract tar file
-    execSync(`tar -xf ${DOWNLOAD_PATH}`, { cwd: __dirname });
-    
-    // Find the extracted binary (it's usually in a subfolder)
-    const extractedDir = fs.readdirSync(__dirname).find(f => 
-      f.startsWith('stockfish') && fs.statSync(path.join(__dirname, f)).isDirectory()
-    );
-    
-    if (extractedDir) {
-      const binaryInDir = path.join(__dirname, extractedDir, 'stockfish-ubuntu-x86-64-avx2');
-      if (fs.existsSync(binaryInDir)) {
-        fs.renameSync(binaryInDir, BINARY_PATH);
-        fs.rmSync(path.join(__dirname, extractedDir), { recursive: true });
-      }
+    // Create temp extraction directory
+    const tempDir = path.join(__dirname, 'temp-stockfish-extract');
+    if (fs.existsSync(tempDir)) {
+      fs.rmSync(tempDir, { recursive: true, force: true });
     }
+    fs.mkdirSync(tempDir, { recursive: true });
+    
+    // Extract tar file to temp directory
+    execSync(`tar -xf ${DOWNLOAD_PATH} -C ${tempDir}`, { stdio: 'inherit' });
+    
+    // Recursively find the stockfish binary
+    function findBinary(dir) {
+      const items = fs.readdirSync(dir);
+      for (const item of items) {
+        const fullPath = path.join(dir, item);
+        const stat = fs.statSync(fullPath);
+        if (stat.isDirectory()) {
+          const result = findBinary(fullPath);
+          if (result) return result;
+        } else if (item === 'stockfish' || item.includes('stockfish-ubuntu') || item.includes('stockfish_')) {
+          return fullPath;
+        }
+      }
+      return null;
+    }
+    
+    const binaryPath = findBinary(tempDir);
+    if (!binaryPath) {
+      throw new Error('Could not find stockfish binary in extracted files');
+    }
+    
+    // Copy binary to final location
+    if (fs.existsSync(BINARY_PATH)) {
+      fs.unlinkSync(BINARY_PATH);
+    }
+    fs.copyFileSync(binaryPath, BINARY_PATH);
     
     // Make executable
     fs.chmodSync(BINARY_PATH, 0o755);
     
     // Clean up
+    fs.rmSync(tempDir, { recursive: true, force: true });
     fs.unlinkSync(DOWNLOAD_PATH);
     
     console.log('✅ Stockfish installed successfully');
     console.log(`   Binary: ${BINARY_PATH}`);
   } catch (err) {
     console.error('❌ Installation failed:', err.message);
+    console.error('Stack:', err.stack);
     process.exit(1);
   }
 }
