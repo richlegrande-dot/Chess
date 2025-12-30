@@ -16,7 +16,7 @@
 
 const express = require('express');
 const { Chess } = require('chess.js');
-const stockfish = require('node-stockfish');
+const { spawn } = require('child_process');
 const crypto = require('crypto');
 
 const app = express();
@@ -137,22 +137,25 @@ class StockfishEngine {
   async spawn() {
     return new Promise((resolve, reject) => {
       try {
-        // Use node-stockfish package (includes bundled binary)
-        this.process = stockfish();
+        // Use downloaded Stockfish binary (from install-stockfish.js)
+        const stockfishPath = require('path').join(__dirname, 'stockfish');
+        this.process = spawn(stockfishPath);
         
-        if (!this.process) {
-          reject(new Error('Failed to initialize Stockfish from node-stockfish package'));
-          return;
-        }
+        this.process.on('error', (err) => {
+          reject(new Error(`Failed to spawn Stockfish: ${err.message}`));
+        });
 
-        this.process.onmessage = (line) => {
-          if (line && line.trim()) {
-            this.outputBuffer.push(line.trim());
-            if (line.includes('Stockfish') || line.includes('uciok')) {
-              this.ready = true;
+        this.process.stdout.on('data', (data) => {
+          const lines = data.toString().split('\n');
+          for (const line of lines) {
+            if (line.trim()) {
+              this.outputBuffer.push(line.trim());
+              if (line.includes('Stockfish') || line.includes('uciok')) {
+                this.ready = true;
+              }
             }
           }
-        };
+        });
 
         // Initialize UCI mode
         this.send('uci');
@@ -183,8 +186,8 @@ class StockfishEngine {
    * Send UCI command to engine
    */
   send(command) {
-    if (this.process && this.process.postMessage) {
-      this.process.postMessage(command);
+    if (this.process && this.process.stdin) {
+      this.process.stdin.write(command + '\n');
     }
   }
 
