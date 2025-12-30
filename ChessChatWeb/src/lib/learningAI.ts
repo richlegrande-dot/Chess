@@ -6,9 +6,10 @@
 
 import { Chess, Square } from 'chess.js';
 import { ChessGame } from './chess';
-import { findBestMove } from './chessAI';
+import { findBestMove, findBestMoveIterative } from './chessAI';
 import { learningDB } from './learningDatabase';
 import { getBookMove } from './openingBook';
+import { getLevelConfig } from './cpu/cpuConfig';
 
 export interface LearningMoveResult {
   move: { from: Square; to: Square; promotion?: string };
@@ -99,7 +100,26 @@ export function findBestMoveWithLearning(
   
   // Create ChessGame wrapper for findBestMove
   const chessForAI = new ChessGame(fen);
-  const aiMove = findBestMove(chessForAI, depth, maxTimeMs);
+  
+  // Use iterative deepening for levels 5-8 for better time management
+  let aiMove;
+  if (cpuLevel >= 5) {
+    const levelConfig = getLevelConfig(cpuLevel);
+    aiMove = findBestMoveIterative(
+      chessForAI,
+      levelConfig.minDepth,
+      levelConfig.hardCap,
+      maxTimeMs,
+      levelConfig.useQuiescence,
+      levelConfig.quiescenceMaxDepth,
+      levelConfig.beamWidth,
+      levelConfig.useAspiration,
+      levelConfig.aspirationWindow
+    );
+  } else {
+    // Simpler search for levels 1-4
+    aiMove = findBestMove(chessForAI, depth, maxTimeMs);
+  }
   
   if (!aiMove) {
     throw new Error('AI search failed to find a move');

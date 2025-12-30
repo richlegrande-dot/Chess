@@ -51,12 +51,29 @@ ChessChat is a web-based chess learning platform featuring Wall-E, an encouragin
 ## Tech Stack
 
 - **Frontend**: React + TypeScript + Vite
-- **Chess Engine**: chess.js + custom AI
+- **Chess Engine**: chess.js + custom AI (alpha-beta minimax)
 - **State Management**: Zustand
-- **Backend**: Cloudflare Pages Functions
-- **Database**: PostgreSQL (Prisma + Prisma Accelerate)
-- **Deployment**: Cloudflare Pages (chesschat.uk)
-- **Domain**: Custom domain with SSL/TLS
+- **Backend**: Cloudflare Worker API (single Worker architecture)
+- **Database**: PostgreSQL via Prisma Accelerate
+- **Deployment**: Cloudflare Pages + Workers
+- **Domain**: Custom domain with SSL/TLS (chesschat.uk)
+
+### Architecture
+
+**Current:** Pure Worker API (December 2024)
+```
+Browser → Worker API (/api/*) → Prisma Accelerate → PostgreSQL
+```
+
+All API endpoints are handled by a single Cloudflare Worker with direct database access.
+
+**Benefits:**
+- ✅ Simpler architecture (no service bindings)
+- ✅ Better performance (direct routing)
+- ✅ Easier debugging (single Worker to monitor)
+- ✅ Unified logging (all requests logged to database)
+
+See [archive/pages-functions/README.md](archive/pages-functions/README.md) for legacy hybrid architecture details.
 
 ## Live Deployment
 
@@ -101,16 +118,87 @@ npm run build
 
 ### Deploy to Cloudflare
 
+#### 🚀 Automated Deployment (Recommended)
+
+**Prerequisites:**
+- GitHub repository connected to Cloudflare
+- `CF_API_TOKEN` secret configured (see [docs/MANUAL_CLOUDFLARE_SETUP.md](docs/MANUAL_CLOUDFLARE_SETUP.md))
+
+**Deploy:**
 ```bash
-# First time: Configure wrangler
+# Push to production branch
+git push origin production
+
+# GitHub Actions will automatically:
+# 1. Check for legacy Pages Functions
+# 2. Build and deploy Worker API
+# 3. Run verification tests
+# 4. Report success/failure
+```
+
+Monitor deployment: https://github.com/richlegrande-dot/Chess/actions
+
+---
+
+#### 🔧 Manual Deployment
+
+**Worker API:**
+```bash
+# From worker-api directory
+cd worker-api
+wrangler deploy
+
+# Verify deployment
+npm run verify:worker:prod
+```
+
+**Pages (Frontend):**
+```bash
+# Build and deploy Pages
+npm run build
+wrangler pages deploy dist
+```
+
+**First-time setup:**
+```bash
+# Authenticate with Cloudflare
 npx wrangler login
 
-# Set environment variables in Cloudflare
-npx wrangler pages secret put OPENAI_API_KEY
-
-# Deploy
-npm run deploy
+# Set Worker secrets
+cd worker-api
+wrangler secret put DATABASE_URL
+wrangler secret put ADMIN_PASSWORD
 ```
+
+See [WORKER_DEPLOYMENT.md](WORKER_DEPLOYMENT.md) for complete setup guide.
+
+---
+
+#### ✅ Verify Deployment
+
+**Automated verification:**
+```bash
+# Test Worker API endpoints
+npm run verify:worker:prod
+
+# Expected output:
+# ✅ ALL VERIFICATION TESTS PASSED!
+# ✅ Worker API: Deployed and responding
+# ✅ Database: Connected via Prisma Accelerate
+# ✅ Chess Engine: Working (mode="worker")
+```
+
+**Manual verification:**
+```powershell
+# Health check
+Invoke-RestMethod "https://chesschat.uk/api/admin/worker-health"
+
+# Should return: { "healthy": true, "checks": { "database": { "status": "ok" } } }
+```
+
+See [docs/OPERATOR_VERIFICATION_CHECKLIST.md](docs/OPERATOR_VERIFICATION_CHECKLIST.md) for detailed verification steps.
+
+---
 
 ## Project Structure
 

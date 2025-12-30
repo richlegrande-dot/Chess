@@ -1,0 +1,209 @@
+name: Deploy Worker API
+
+on:
+  push:
+    branches:
+      - production
+      - main
+  workflow_dispatch:
+
+env:
+  NODE_VERSION: '20'
+  WORKER_API_URL: 'https://chesschat.uk'
+  WORKER_NAME: 'chesschat-worker-api'
+
+jobs:
+  # Pre-flight check: Ensure CF_API_TOKEN is set
+  check-secrets:
+    name: Check Required Secrets
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Verify CF_API_TOKEN is configured
+        run: |
+          if [ -z "${{ secrets.CF_API_TOKEN }}" ]; then
+            echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+            echo "❌ ERROR: CF_API_TOKEN secret is not configured"
+            echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+            echo ""
+            echo "This workflow requires a Cloudflare API token to deploy the Worker."
+            echo ""
+            echo "To configure it:"
+            echo ""
+            echo "1. Get your Cloudflare API Token:"
+            echo "   - Go to: https://dash.cloudflare.com/profile/api-tokens"
+            echo "   - Click 'Create Token'"
+            echo "   - Use 'Edit Cloudflare Workers' template"
+            echo "   - Scope to your account"
+            echo "   - Save the token (you'll only see it once)"
+            echo ""
+            echo "2. Add to GitHub Secrets:"
+            echo "   - Go to: https://github.com/${{ github.repository }}/settings/secrets/actions"
+            echo "   - Click 'New repository secret'"
+            echo "   - Name: CF_API_TOKEN"
+            echo "   - Value: (paste the API token from step 1)"
+            echo "   - Click 'Add secret'"
+            echo ""
+            echo "3. Re-run this workflow after adding the secret"
+            echo ""
+            echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+            exit 1
+          fi
+          echo "✅ CF_API_TOKEN is configured"
+
+  # Check for Pages Functions that should be removed
+  check-no-pages-functions:
+    name: Verify No Pages Functions
+    runs-on: ubuntu-latest
+    needs: check-secrets
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Check for legacy Pages Functions API
+        run: |
+          LEGACY_FOUND=false
+          
+          # Check for specific files that should not exist
+          if [ -f "functions/api/chess-move.ts" ]; then
+            echo "❌ ERROR: functions/api/chess-move.ts still exists"
+            echo "This endpoint is now handled by Worker API"
+            LEGACY_FOUND=true
+          fi
+          
+          if [ -f "functions/api/admin/worker-health.ts" ]; then
+            echo "❌ ERROR: functions/api/admin/worker-health.ts still exists"
+            echo "This endpoint is now handled by Worker API"
+            LEGACY_FOUND=true
+          fi
+          
+          if [ -f "functions/api/admin/worker-calls.ts" ]; then
+            echo "❌ ERROR: functions/api/admin/worker-calls.ts still exists"
+            echo "This endpoint is now handled by Worker API"
+            LEGACY_FOUND=true
+          fi
+          
+          if [ "$LEGACY_FOUND" = true ]; then
+            echo ""
+            echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+            echo "Legacy Pages Functions detected!"
+            echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+            echo ""
+            echo "The hybrid architecture (Pages Functions + Worker) has been retired."
+            echo "All /api/* endpoints are now handled by the Worker API."
+            echo ""
+            echo "Action required:"
+            echo "  1. Move functions/api/ to archive/pages-functions/"
+            echo "  2. See: archive/pages-functions/README.md for migration guide"
+            echo ""
+            exit 1
+          fi
+          
+          echo "✅ No legacy Pages Functions found"
+
+  build-and-deploy:
+    name: Build and Deploy Worker
+    runs-on: ubuntu-latest
+    needs: [check-secrets, check-no-pages-functions]
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+          cache-dependency-path: 'worker-api/package-lock.json'
+
+      - name: Install dependencies
+        working-directory: ./worker-api
+        run: npm ci
+
+      - name: Generate Prisma Client
+        working-directory: ./worker-api
+        run: |
+          echo "Generating Prisma Client for Cloudflare Workers..."
+          npm run prisma:generate
+
+      - name: TypeScript type check
+        working-directory: ./worker-api
+        run: |
+          echo "Running TypeScript type check..."
+          npx tsc --noEmit
+
+      - name: Deploy to Cloudflare Workers
+        working-directory: ./worker-api
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CF_API_TOKEN }}
+        run: |
+          echo "Deploying Worker: ${{ env.WORKER_NAME }}"
+          npx wrangler deploy
+          echo "✅ Deployment complete"
+
+  verify-deployment:
+    name: Verify Deployment
+    runs-on: ubuntu-latest
+    needs: build-and-deploy
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
+      - name: Wait for deployment to propagate
+        run: |
+          echo "Waiting for Cloudflare to propagate deployment..."
+          sleep 15
+
+      - name: Run Worker API verification
+        env:
+          WORKER_API_URL: ${{ env.WORKER_API_URL }}
+        run: |
+          echo "Running verification against: ${{ env.WORKER_API_URL }}"
+          node scripts/verify-worker-api.mjs
+
+      - name: Report deployment success
+        if: success()
+        run: |
+          echo ""
+          echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+          echo "✅ DEPLOYMENT SUCCESSFUL"
+          echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+          echo ""
+          echo "  Worker: ${{ env.WORKER_NAME }}"
+          echo "  URL: ${{ env.WORKER_API_URL }}/api/*"
+          echo "  Branch: ${{ github.ref_name }}"
+          echo "  Commit: ${{ github.sha }}"
+          echo ""
+          echo "All verification tests passed!"
+          echo ""
+
+      - name: Report deployment failure
+        if: failure()
+        run: |
+          echo ""
+          echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+          echo "❌ DEPLOYMENT VERIFICATION FAILED"
+          echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+          echo ""
+          echo "The Worker deployed but verification tests failed."
+          echo ""
+          echo "Troubleshooting:"
+          echo "  1. Check Worker logs: wrangler tail"
+          echo "  2. Verify secrets: wrangler secret list"
+          echo "  3. Check route: chesschat.uk/api/* → ${{ env.WORKER_NAME }}"
+          echo "  4. Test manually: curl ${{ env.WORKER_API_URL }}/api/admin/worker-health"
+          echo ""
+          exit 1      - name: Report failure
+        if: failure()
+        run: |
+          echo "❌ Deployment verification failed!"
+          echo "Check the logs above for details"
+          exit 1

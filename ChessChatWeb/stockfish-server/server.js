@@ -425,7 +425,8 @@ class StockfishEngine {
 
 // Create engine pool for concurrent requests
 const enginePool = [];
-const MAX_ENGINES = 4;
+// Reduced from 4 to 2 for Render free tier (512MB memory limit)
+const MAX_ENGINES = 2;
 
 /**
  * Get available engine from pool or create new one

@@ -55,29 +55,41 @@ export const WorkerCallsTab: React.FC = () => {
       setError(null);
       
       try {
-        // Get admin password from localStorage
-        const adminPassword = localStorage.getItem('adminPassword');
-        if (!adminPassword) {
-          console.warn('[WorkerCalls] No admin password found, using in-memory logs only');
-          setDataSource('memory');
-          setLoading(false);
-          return;
-        }
-
-        const response = await fetch('/api/admin/worker-calls?limit=100', {
-          headers: {
-            'Authorization': `Bearer ${adminPassword}`
-          }
-        });
+        // Call new Worker API endpoint (no auth required for read)
+        const response = await fetch('/api/admin/worker-calls?limit=100');
 
         if (response.ok) {
-          const data: WorkerCallsResponse = await response.json();
-          setPersistentLogs(data);
-          setDataSource('api');
-          console.log('[WorkerCalls] Loaded', data.totalCalls, 'logs from persistent API');
-        } else if (response.status === 401) {
-          console.warn('[WorkerCalls] Unauthorized - using in-memory logs');
-          setDataSource('memory');
+          const data = await response.json();
+          
+          if (data.success && data.logs) {
+            // Transform Worker API response to match expected format
+            const transformedData: WorkerCallsResponse = {
+              success: true,
+              totalCalls: data.count || data.logs.length,
+              successRate: calculateSuccessRate(data.logs),
+              avgLatency: calculateAvgLatency(data.logs),
+              successfulCalls: data.logs.filter((l: any) => l.success).length,
+              failedCalls: data.logs.filter((l: any) => !l.success).length,
+              calls: data.logs.map((log: any) => ({
+                timestamp: new Date(log.ts).getTime(),
+                endpoint: log.endpoint,
+                method: log.method,
+                success: log.success,
+                latencyMs: log.latencyMs,
+                error: log.error,
+                request: log.requestJson,
+                response: log.responseJson,
+              })),
+              errorPatterns: calculateErrorPatterns(data.logs),
+              lastUpdated: Date.now(),
+            };
+            
+            setPersistentLogs(transformedData);
+            setDataSource('api');
+            console.log('[WorkerCalls] Loaded', transformedData.totalCalls, 'logs from Worker API');
+          } else {
+            throw new Error('Invalid response format');
+          }
         } else {
           const errorText = await response.text();
           console.error('[WorkerCalls] API error:', response.status, errorText);
@@ -99,6 +111,31 @@ export const WorkerCallsTab: React.FC = () => {
     const interval = setInterval(fetchPersistentLogs, 30000);
     return () => clearInterval(interval);
   }, []);
+  
+  // Helper functions for data transformation
+  const calculateSuccessRate = (logs: any[]): number => {
+    if (logs.length === 0) return 0;
+    const successful = logs.filter(l => l.success).length;
+    return (successful / logs.length) * 100;
+  };
+  
+  const calculateAvgLatency = (logs: any[]): number => {
+    if (logs.length === 0) return 0;
+    const total = logs.reduce((sum, l) => sum + (l.latencyMs || 0), 0);
+    return Math.round(total / logs.length);
+  };
+  
+  const calculateErrorPatterns = (logs: any[]): Record<string, number> => {
+    return logs.filter(l => !l.success).reduce((acc, log) => {
+      const errorType = log.error?.includes('timeout') ? 'timeout' :
+                       log.error?.includes('404') ? '404-not-found' :
+                       log.error?.includes('500') ? '500-server-error' :
+                       log.error?.includes('binding') ? 'binding-issue' :
+                       'other';
+      acc[errorType] = (acc[errorType] || 0) + 1;
+      return acc;
+    }, {} as Record<string, number>);
+  };
 
   // Use persistent logs if available, otherwise fall back to in-memory
   const workerCalls = dataSource === 'api' && persistentLogs 
@@ -133,9 +170,9 @@ export const WorkerCallsTab: React.FC = () => {
   return (
     <div className="worker-calls-tab">
       <div className="tab-header">
-        <h2>🔗 Worker Service Binding Calls</h2>
+        <h2>🔗 Worker API Call Logs</h2>
         <p className="tab-description">
-          Tracks all Pages → Worker service binding calls for debugging hybrid deployment.
+          Displays all Worker API calls stored in Prisma-backed database (single Worker deployment).
         </p>
         <div className="data-source-indicator">
           {loading ? (
@@ -143,9 +180,9 @@ export const WorkerCallsTab: React.FC = () => {
           ) : error ? (
             <span className="error">⚠️ API Error: {error} (showing in-memory logs)</span>
           ) : dataSource === 'api' ? (
-            <span className="success">✓ Showing persistent logs from KV storage</span>
+            <span className="success">✓ Showing persistent logs from Prisma database</span>
           ) : (
-            <span className="warning">⚠️ Showing in-memory logs only (KV not available)</span>
+            <span className="warning">⚠️ Showing in-memory logs only (Database not available)</span>
           )}
           <button 
             className="refresh-btn"
@@ -187,16 +224,16 @@ export const WorkerCallsTab: React.FC = () => {
 
       {/* Service Binding Status */}
       <div className="binding-status-card">
-        <h3>📊 Service Binding Status</h3>
+        <h3>📊 Worker API Status</h3>
         <div className="status-indicators">
           <div className="status-item">
             <span className="label">Data Source:</span>
             <span className={`value ${dataSource === 'api' ? 'success' : 'warning'}`}>
-              {dataSource === 'api' ? '📦 Persistent KV' : '💾 In-Memory Only'}
+              {dataSource === 'api' ? '📦 Prisma Database' : '💾 In-Memory Only'}
             </span>
           </div>
           <div className="status-item">
-            <span className="label">Binding Active:</span>
+            <span className="label">Worker Active:</span>
             <span className={`value ${successfulCalls > 0 ? 'success' : 'warning'}`}>
               {successfulCalls > 0 ? '✓ Working' : '⚠️ No successful calls'}
             </span>

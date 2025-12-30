@@ -69,23 +69,32 @@ export async function getAIMove(
   userMove?: string,
   chatHistory?: any[]
 ): Promise<ChessMoveResponse> {
-  const request: ChessMoveRequest = {
+  // Map to Worker API format (cpuLevel derived from modelId)
+  const cpuLevel = modelId.includes('easy') ? 1 : 
+                   modelId.includes('medium') ? 3 : 
+                   modelId.includes('hard') ? 5 : 3;
+  
+  const difficulty = modelId.includes('easy') ? 'easy' : 
+                     modelId.includes('medium') ? 'medium' : 
+                     modelId.includes('hard') ? 'hard' : 'medium';
+
+  const workerRequest = {
     fen,
     pgn,
-    model: modelId,
+    difficulty,
+    cpuLevel,
+    timeMs: 1000,
     gameId,
-    userMove,
-    chatHistory,
   };
 
-  const response = await fetchWithRetry<ChessMoveResponse>(
+  const response = await fetchWithRetry<any>(
     `${API_BASE}/chess-move`,
     {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
       },
-      body: JSON.stringify(request),
+      body: JSON.stringify(workerRequest),
     }
   );
 
@@ -93,7 +102,15 @@ export async function getAIMove(
     throw new Error(response.error || 'Failed to get AI move');
   }
 
-  return response;
+  // Transform Worker API response to expected format
+  return {
+    move: response.move,
+    success: response.success,
+    error: response.error,
+    gameId: response.diagnostics?.gameId || gameId,
+    workerCallLog: response.workerCallLog,
+    chatHistory,
+  };
 }
 
 export async function sendChatMessage(
@@ -294,6 +311,16 @@ export const api = {
           method: 'POST',
           token,
           body: { action: 'search_knowledge', query },
+        }),
+    },
+
+    worker: {
+      health: () => apiFetch('/api/admin/worker-health'),
+      calls: (limit = 50) => apiFetch(`/api/admin/worker-calls?limit=${limit}`),
+      clearCalls: (token: string) =>
+        apiFetch('/api/admin/worker-calls/clear', {
+          method: 'POST',
+          token,
         }),
     },
   },

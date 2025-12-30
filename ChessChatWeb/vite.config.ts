@@ -40,14 +40,8 @@ export default defineConfig({
     },
     // Optimize chunk sizes
     chunkSizeWarningLimit: 600,
-    // Minify for production but KEEP console logs for debugging
-    minify: 'terser',
-    terserOptions: {
-      compress: {
-        drop_console: false, // KEEP console.logs for production debugging
-        drop_debugger: true,
-      },
-    },
+    // Use esbuild minifier instead of terser (terser was removing code incorrectly)
+    minify: 'esbuild',
   },
   worker: {
     format: 'es', // Use ES module format for workers

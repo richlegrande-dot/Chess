@@ -6,6 +6,8 @@
  */
 
 import { describe, it, expect } from 'vitest';
+import { WalleChessEngine } from '../../shared/walleChessEngine';
+import { shouldUseOpeningBook, pickOpeningMove } from '../../shared/openingBook';
 
 const CPU_MOVE_BUDGET_MS = 750;
 const BUDGET_WITH_MARGIN = CPU_MOVE_BUDGET_MS + 750; // 1500ms with network

@@ -1,0 +1,31 @@
+name = "chesschat-worker-api"
+main = "src/index.ts"
+compatibility_date = "2024-01-01"
+compatibility_flags = ["nodejs_compat"]
+
+# Routes - attach to domain (chesschat.uk/api/* → this Worker)
+routes = [
+  { pattern = "chesschat.uk/api/*", zone_name = "chesschat.uk" }
+]
+
+[build]
+command = "npm run prisma:generate"
+
+# Environment variables (non-secret)
+[vars]
+ENVIRONMENT = "production"
+VERSION = "2.0.0"
+
+# Secrets (set via wrangler secret put)
+# - DATABASE_URL (Prisma Accelerate format: prisma+postgres://accelerate.prisma-data.net/?api_key=...)
+# - ADMIN_PASSWORD
+# - INTERNAL_AUTH_TOKEN (optional, for AI Worker communication)
+
+# Service bindings (to AI Coach Worker)
+# NOTE: Service bindings for production are configured in Cloudflare dashboard
+# Pages → Settings → Functions → Service bindings
+# Variable name: AI_COACH
+# Service: walle-assistant
+# Environment: production
+
+# For local development, use .dev.vars file

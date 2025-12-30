@@ -146,9 +146,20 @@ export class WalleChessEngine {
     fen: string,
     difficulty: 'beginner' | 'intermediate' | 'advanced' | 'master' = 'intermediate',
     conversational: boolean = false,
-    enableDebug: boolean = false
+    enableDebug: boolean = false,
+    timeMs?: number,
+    targetDepth?: number
   ): SelectMoveResult {
     const startTime = performance.now ? performance.now() : Date.now();
+    
+    console.log('[WalleEngine] selectMove called with:', {
+      fen: fen.substring(0, 30),
+      difficulty,
+      conversational,
+      enableDebug,
+      timeMs,
+      targetDepth
+    });
     
     // FAST PATH: Try opening book first (first 6 plies only)
     if (shouldUseOpeningBook(fen)) {
@@ -183,8 +194,10 @@ export class WalleChessEngine {
       throw new Error('No legal moves available');
     }
 
-    const budget = CPU_MOVE_BUDGET_MS;
+    const budget = timeMs || CPU_MOVE_BUDGET_MS; // Use provided timeMs or default
     const budgetThreshold = budget * 0.90; // Stop at 90% to leave margin
+    
+    console.log('[WalleEngine] Time budget:', { provided: timeMs, budget, threshold: budgetThreshold });
 
     // STEP 1: Cheap evaluation of ALL moves (material + center + dev only)
     const cheapScores = legalMoves.map(move => ({
@@ -284,6 +297,8 @@ export class WalleChessEngine {
       result.commentary = selectedEval.commentary;
     }
 
+    console.log('[WalleEngine] About to set debug, enableDebug:', enableDebug, 'elapsed:', elapsed);
+
     if (enableDebug) {
       result.debug = {
         engineMs: elapsed,
@@ -292,6 +307,7 @@ export class WalleChessEngine {
         legalMovesCount: legalMoves.length,
         mode: 'timed-search',
       };
+      console.log('[WalleEngine] Debug object set:', result.debug);
     }
 
     return result;

@@ -51,6 +51,7 @@ interface ChessMoveRequest {
   gameId?: string;
   timeMs?: number; // Requested compute budget in milliseconds
   cpuLevel?: number; // CPU level (1-8) for diagnostics
+  depth?: number; // Target search depth
 }
 
 /**
@@ -204,8 +205,8 @@ async function handleChessMove(request: Request, env: Env): Promise<Response> {
   
   try {
     const data = await request.json() as ChessMoveRequest;
-    const { fen, difficulty = 'medium', gameId, timeMs: requestedTimeMs, cpuLevel } = data;
-    console.log('[Worker] Request data:', { fen: fen?.substring(0, 30), difficulty, gameId, requestedTimeMs, cpuLevel });
+    const { fen, difficulty = 'medium', gameId, timeMs: requestedTimeMs, cpuLevel, depth: requestedDepth } = data;
+    console.log('[Worker] Request data:', { fen: fen?.substring(0, 30), difficulty, gameId, requestedTimeMs, cpuLevel, depth: requestedDepth });
 
     if (!fen) {
       console.error('[Worker] Missing FEN in request');
@@ -237,17 +238,26 @@ async function handleChessMove(request: Request, env: Env): Promise<Response> {
     const difficultyLevel = difficultyMap[difficulty.toLowerCase()] || 'intermediate';
     
     // Calculate effective time budget
+    // CRITICAL: Cloudflare Workers have strict CPU limits (10-50ms)
+    // We must cap depth very low to avoid hitting resource limits
     const defaultTimeMs = 750; // Default worker budget
     const effectiveTimeMs = requestedTimeMs && requestedTimeMs > 0 ? requestedTimeMs : defaultTimeMs;
     const cappedTimeMs = Math.min(effectiveTimeMs, 15000); // Cap at 15s for Cloudflare CPU limits
     
+    // Cap depth to avoid CPU limit errors (Error 1102)
+    // Cloudflare Workers can only handle depth 3-4 max
+    const maxWorkerDepth = 3;
+    const effectiveDepth = requestedDepth ? Math.min(requestedDepth, maxWorkerDepth) : maxWorkerDepth;
+    
     console.log('[Worker] Time budget:', { requested: requestedTimeMs, effective: effectiveTimeMs, capped: cappedTimeMs });
+    console.log('[Worker] Depth cap:', { requested: requestedDepth, maxWorker: maxWorkerDepth, effective: effectiveDepth });
     
     // Generate move using WalleChessEngine
     let result: any;
     let abortReason: string | undefined;
     try {
-      result = WalleChessEngine.selectMove(fen, difficultyLevel, true, true, cappedTimeMs);
+      // Use capped depth to avoid hitting Cloudflare CPU limits
+      result = WalleChessEngine.selectMove(fen, difficultyLevel, true, true, cappedTimeMs, effectiveDepth);
       console.log('[Worker] Move generated:', result.move);
       
       // Check if computation was cut short
@@ -311,6 +321,14 @@ async function handleChessMove(request: Request, env: Env): Promise<Response> {
     const latencyMs = Date.now() - startTime;
     const searchTimeMs = result.debug?.engineMs || 0;
     
+    console.log('[Worker] Result debug info:', {
+      hasDebug: !!result.debug,
+      engineMs: result.debug?.engineMs,
+      mode: result.debug?.mode,
+      evaluatedMovesCount: result.debug?.evaluatedMovesCount,
+      searchTimeMs: searchTimeMs
+    });
+    
     console.log('[Worker] Returning successful response with comprehensive diagnostics');
     return Response.json({
       success: true,
@@ -326,10 +344,20 @@ async function handleChessMove(request: Request, env: Env): Promise<Response> {
         
         // Time budget tracking
         requestedTimeMs: requestedTimeMs || 0,
+        requestedDepth: requestedDepth || 0,
         effectiveTimeMs: effectiveTimeMs,
         cappedTimeMs: cappedTimeMs,
         searchTimeMs: searchTimeMs,
+        budgetUtilization: searchTimeMs > 0 ? `${Math.round((searchTimeMs / cappedTimeMs) * 100)}%` : '0%',
         abortReason: abortReason,
+        
+        // Debug validation
+        hasDebugInfo: !!result.debug,
+        debugEngineMs: result.debug?.engineMs,
+        debugMode: result.debug?.mode,
+        debugEvaluatedMoves: result.debug?.evaluatedMovesCount,
+        debugLegalMoves: result.debug?.legalMovesCount,
+        debugOpeningBook: result.debug?.usedOpeningBook,
         
         // Engine results
         depthReached: result.debug?.evaluatedMovesCount || 0,
@@ -347,7 +375,11 @@ async function handleChessMove(request: Request, env: Env): Promise<Response> {
           difficulty: difficultyLevel,
           timeMs: cappedTimeMs,
           mode: result.debug?.mode || 'unknown'
-        }
+        },
+        
+        // Add raw engine result for debugging
+        rawEngineMove: result.move,
+        rawEngineDebug: result.debug
       },
       workerCallLog: {
         endpoint: '/assist/chess-move',

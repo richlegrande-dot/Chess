@@ -728,6 +728,119 @@ let searchTimedOut = false;
  * @param aspirationWindow - Window size in centipawns (default 50)
  * @returns Best move found
  */
+export function findBestMoveIterative(
+  chess: ChessGame,
+  minDepth: number,
+  maxDepth: number,
+  maxTimeMs: number,
+  useQuiescence: boolean = false,
+  quiescenceDepth: number = 0,
+  beamWidth: number = 0,
+  useAspiration: boolean = false,
+  aspirationWindow: number = 50
+): { from: Square; to: Square } | null {
+  const startTime = Date.now();
+  let bestMove: { from: Square; to: Square } | null = null;
+  let completedDepth = 0;
+  
+  console.log(`[Iterative Deepening] Starting search: min=${minDepth}, max=${maxDepth}, time=${maxTimeMs}ms`);
+  
+  // Start at minDepth - 1 to ensure we have a move, then work up to maxDepth
+  // This skips pointless shallow searches when minDepth is high (e.g., Level 7 minDepth=3)
+  const startDepth = Math.max(1, minDepth - 1);
+  
+  for (let depth = startDepth; depth <= maxDepth; depth++) {
+    const elapsed = Date.now() - startTime;
+    const remainingTime = maxTimeMs - elapsed;
+    
+    // Stop if we don't have enough time for next depth (but always complete minDepth)
+    if (depth > minDepth && remainingTime < 100) {
+      console.log(`[Iterative Deepening] ⏱️ Insufficient time for depth ${depth}, stopping at depth ${completedDepth}`);
+      break;
+    }
+    
+    // Allocate time per depth: give each depth a fraction of remaining time
+    // This prevents one depth from consuming the entire budget
+    const depthsLeft = maxDepth - depth + 1;
+    const timeForThisDepth = Math.min(remainingTime, remainingTime / Math.max(1, depthsLeft - 1));
+    
+    // Scale down quiescence for shallow depths to prevent explosion
+    // At depth 1-2: quiescence max 2
+    // At depth 3-4: quiescence max 4
+    // At depth 5+: full quiescence depth
+    let scaledQuiescenceDepth = quiescenceDepth;
+    if (useQuiescence) {
+      if (depth <= 2) {
+        scaledQuiescenceDepth = Math.min(2, quiescenceDepth);
+      } else if (depth <= 4) {
+        scaledQuiescenceDepth = Math.min(4, quiescenceDepth);
+      }
+    }
+    
+    try {
+      const depthStartTime = Date.now();
+      const move = findBestMove(
+        chess,
+        depth,
+        timeForThisDepth,
+        useQuiescence,
+        scaledQuiescenceDepth,
+        beamWidth,
+        useAspiration,
+        aspirationWindow
+      );
+      
+      if (move) {
+        bestMove = move;
+        completedDepth = depth;
+        const depthTime = Date.now() - depthStartTime;
+        console.log(`[Iterative Deepening] ✓ Completed depth ${depth} in ${depthTime}ms`);
+        
+        // If this depth took too long, don't try next depth
+        const totalElapsed = Date.now() - startTime;
+        if (totalElapsed > maxTimeMs * 0.7) {
+          console.log(`[Iterative Deepening] Used ${totalElapsed}ms (70%+ of budget), stopping`);
+          break;
+        }
+      }
+    } catch (error) {
+      console.error(`[Iterative Deepening] Error at depth ${depth}:`, error);
+      break;
+    }
+    
+    // Check if we've used too much time
+    if (Date.now() - startTime > maxTimeMs * 0.9) {
+      console.log(`[Iterative Deepening] Approaching time limit, stopping at depth ${completedDepth}`);
+      break;
+    }
+  }
+  
+  const totalTime = Date.now() - startTime;
+  console.log(`[Iterative Deepening] Final: depth ${completedDepth}, move ${bestMove?.from}→${bestMove?.to}, time ${totalTime}ms`);
+  
+  // Safety net: if no move found after iterative deepening, pick a random legal move
+  if (!bestMove) {
+    console.warn(`[Iterative Deepening] ⚠️ No move found, selecting random legal move as safety fallback`);
+    const allMoves: { from: Square; to: Square }[] = [];
+    for (let rank = 1; rank <= 8; rank++) {
+      for (let file of ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h']) {
+        const square = `${file}${rank}` as Square;
+        const piece = chess.getPiece(square);
+        if (piece) {
+          const moves = chess.getLegalMoves(square);
+          moves.forEach(to => allMoves.push({ from: square, to }));
+        }
+      }
+    }
+    if (allMoves.length > 0) {
+      bestMove = allMoves[Math.floor(Math.random() * allMoves.length)];
+      console.log(`[Iterative Deepening] Selected random move: ${bestMove.from}→${bestMove.to}`);
+    }
+  }
+  
+  return bestMove;
+}
+
 export function findBestMove(
   chess: ChessGame,
   depth: number = 3,
