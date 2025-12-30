@@ -170,6 +170,86 @@ export class StockfishEngine {
     }
   }
 
+  /**
+   * Quick position evaluation (for Learning V3 game analysis)
+   * Uses /evaluate endpoint which respects movetimeMs
+   */
+  async evaluatePosition(fen: string, movetimeMs: number = 300, depth: number = 12): Promise<{
+    success: boolean;
+    evaluation?: number;
+    bestMove?: string;
+    pv?: string;
+    depth?: number;
+    nodes?: number;
+    engineMs?: number;
+    error?: string;
+  }> {
+    try {
+      await this.init();
+
+      if (!this.isValidFEN(fen)) {
+        return { success: false, error: 'Invalid FEN' };
+      }
+
+      const requestId = crypto.randomUUID();
+      const timeout = movetimeMs + 1000; // Buffer for network
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), timeout);
+      
+      try {
+        const fetchStart = Date.now();
+        const response = await fetch(`${this.serverUrl}/evaluate`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${this.apiKey}`,
+            'X-Request-Id': requestId
+          },
+          body: JSON.stringify({ fen, movetimeMs, depth }),
+          signal: controller.signal
+        });
+
+        const fetchMs = Date.now() - fetchStart;
+        clearTimeout(timeoutId);
+
+        if (response.status === 401) {
+          return { success: false, error: 'Invalid API key' };
+        }
+
+        if (!response.ok) {
+          return { success: false, error: `Server error: ${response.status}` };
+        }
+
+        const result = await response.json() as any;
+        if (!result.success) {
+          return { success: false, error: result.error || 'Unknown error' };
+        }
+
+        console.log(`[Stockfish][evaluate] requestId=${requestId} fetchMs=${fetchMs} engineMs=${result.engineMs} evaluation=${result.evaluation}`);
+
+        return {
+          success: true,
+          evaluation: result.evaluation,
+          bestMove: result.bestMove,
+          pv: result.pv,
+          depth: result.depth,
+          nodes: result.nodes,
+          engineMs: result.engineMs
+        };
+      } catch (error: any) {
+        clearTimeout(timeoutId);
+        if (error.name === 'AbortError') {
+          return { success: false, error: 'Evaluation timeout' };
+        }
+        return { success: false, error: error.message };
+      } finally {
+        clearTimeout(timeoutId);
+      }
+    } catch (error: any) {
+      return { success: false, error: error.message };
+    }
+  }
+
   private isValidFEN(fen: string): boolean {
     if (!fen || typeof fen !== 'string') return false;
     const parts = fen.trim().split(' ');

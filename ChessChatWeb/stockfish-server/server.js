@@ -24,6 +24,10 @@ const PORT = process.env.PORT || 3001;
 const API_KEY = process.env.STOCKFISH_API_KEY || 'development-key-change-in-production';
 const MAX_COMPUTE_TIME = parseInt(process.env.MAX_COMPUTE_TIME) || 3000;
 
+// Cold start tracking
+let lastRequestTime = 0;
+const COLD_START_THRESHOLD_MS = 60000; // 1 minute idle = cold start
+
 // Middleware
 app.use(express.json());
 
@@ -213,15 +217,23 @@ class StockfishEngine {
       // Set position
       this.send(`position fen ${fen}`);
       
-      // Configure skill level
+      // Configure for deterministic play (reduce randomization)
       this.send(`setoption name Skill Level value ${config.skillLevel}`);
+      this.send(`setoption name MultiPV value 1`);
+      this.send(`setoption name Contempt value 0`);
       
       // Start search with time limit
       const movetime = Math.min(config.movetime, MAX_COMPUTE_TIME);
       this.send(`go movetime ${movetime} depth ${config.depth}`);
 
-      // Setup timeout
+      // Setup timeout with cleanup
       const timeout = setTimeout(() => {
+        // Kill hanging engine process to prevent zombies
+        if (this.process && !this.process.killed) {
+          this.process.kill('SIGTERM');
+          this.process = null;
+          this.ready = false;
+        }
         reject(new Error(`Engine timeout after ${MAX_COMPUTE_TIME}ms`));
       }, MAX_COMPUTE_TIME + 1000);
 
@@ -249,6 +261,7 @@ class StockfishEngine {
                 ...diagnostics,
                 cpuLevel,
                 depth: config.depth,
+                skillLevel: config.skillLevel,
                 movetimeMs: movetime,
                 engineMs,
                 requestId
@@ -319,6 +332,73 @@ class StockfishEngine {
   }
 
   /**
+   * Quick evaluation with movetime control (for Learning V3)
+   */
+  async evaluatePosition(fen, movetimeMs = 300, depth = 12, requestId) {
+    const startTime = Date.now();
+    
+    return new Promise(async (resolve, reject) => {
+      if (!this.process || !this.ready) {
+        try {
+          await this.spawn();
+        } catch (error) {
+          return reject(error);
+        }
+      }
+
+      // Clear output buffer
+      this.outputBuffer = [];
+      
+      // Set position
+      this.send(`position fen ${fen}`);
+      
+      // Configure for quick eval (no skill level reduction)
+      this.send(`setoption name Skill Level value 20`);
+      this.send(`setoption name MultiPV value 1`);
+      
+      // Start search with movetime limit (prioritize movetime over depth)
+      this.send(`go movetime ${movetimeMs} depth ${depth}`);
+
+      // Setup timeout slightly longer than movetime
+      const timeout = setTimeout(() => {
+        reject(new Error(`Evaluation timeout after ${movetimeMs + 500}ms`));
+      }, movetimeMs + 500);
+
+      // Parse output for bestmove
+      const checkOutput = setInterval(() => {
+        for (let i = 0; i < this.outputBuffer.length; i++) {
+          const line = this.outputBuffer[i];
+          
+          if (line.startsWith('bestmove')) {
+            clearInterval(checkOutput);
+            clearTimeout(timeout);
+            
+            const parts = line.split(' ');
+            const bestMove = parts[1];
+            
+            // Extract diagnostics from info lines
+            const diagnostics = this.extractDiagnostics(this.outputBuffer, { depth, movetime: movetimeMs });
+            const engineMs = Date.now() - startTime;
+            
+            resolve({
+              success: true,
+              bestMove,
+              evaluation: diagnostics.evalCp !== null ? diagnostics.evalCp / 100 : null,
+              mate: diagnostics.mate,
+              pv: diagnostics.pv,
+              depth: diagnostics.actualDepth || depth,
+              nodes: diagnostics.nodes,
+              engineMs,
+              requestId
+            });
+            return;
+          }
+        }
+      }, 10);
+    });
+  }
+
+  /**
    * Extract diagnostics from UCI output
    */
   extractDiagnostics(outputBuffer, config) {
@@ -327,7 +407,8 @@ class StockfishEngine {
       nps: 0,
       evalCp: null,
       mate: null,
-      pv: ''
+      pv: '',
+      actualDepth: null
     };
 
     // Find last info line with score
@@ -341,6 +422,10 @@ class StockfishEngine {
         // Parse nps
         const npsMatch = line.match(/nps (\d+)/);
         if (npsMatch) diagnostics.nps = parseInt(npsMatch[1]);
+        
+        // Parse actual depth reached
+        const depthMatch = line.match(/depth (\d+)/);
+        if (depthMatch) diagnostics.actualDepth = parseInt(depthMatch[1]);
         
         // Parse score
         if (line.includes('score cp')) {
@@ -540,10 +625,16 @@ app.post('/compute-move', authenticateApiKey, async (req, res) => {
     // Validate CPU level
     const level = Math.max(1, Math.min(10, parseInt(cpuLevel, 10) || 5));
     
+    // Detect cold start
+    const now = Date.now();
+    const coldStartDetected = lastRequestTime === 0 || (now - lastRequestTime) > COLD_START_THRESHOLD_MS;
+    lastRequestTime = now;
+    
     console.log(JSON.stringify({
       action: 'compute_move_start',
       requestId: req.requestId,
       cpuLevel: level,
+      coldStartDetected,
       fen: fen.substring(0, 50) + '...'
     }));
     
@@ -584,7 +675,8 @@ app.post('/compute-move', authenticateApiKey, async (req, res) => {
       source: 'stockfish',
       diagnostics: {
         ...result.diagnostics,
-        totalMs: duration
+        totalMs: duration,
+        coldStartDetected
       },
       timestamp: new Date().toISOString(),
       requestId: req.requestId
@@ -700,6 +792,111 @@ app.post('/analyze', authenticateApiKey, async (req, res) => {
     res.status(500).json({
       success: false,
       error: 'Failed to analyze position',
+      errorCode: 'ENGINE_ERROR',
+      details: error.message,
+      computeTimeMs: duration,
+      requestId: req.requestId
+    });
+  } finally {
+    if (engine) {
+      releaseEngine(engine);
+    }
+  }
+});
+
+/**
+ * POST /evaluate
+ * Quick position evaluation (for Learning V3 game analysis)
+ * 
+ * Body:
+ * - fen: string (required) - FEN notation of position
+ * - movetimeMs: number (default 300) - Max time in milliseconds
+ * - depth: number (default 12) - Max depth to search
+ * 
+ * Response:
+ * - success: boolean
+ * - bestMove: string (UCI notation)
+ * - evaluation: number (in pawns, positive = white advantage)
+ * - mate: number | null (moves to mate if found)
+ * - pv: string (principal variation line)
+ * - depth: number (actual depth reached)
+ * - nodes: number (nodes searched)
+ * - engineMs: number (actual engine time)
+ */
+app.post('/evaluate', authenticateApiKey, async (req, res) => {
+  const startTime = Date.now();
+  let engine = null;
+  
+  try {
+    const { fen, movetimeMs = 300, depth = 12 } = req.body;
+    
+    // Validate input
+    if (!fen) {
+      return res.status(400).json({ 
+        success: false,
+        error: 'Missing required field: fen',
+        requestId: req.requestId
+      });
+    }
+    
+    // Validate FEN
+    try {
+      new Chess(fen);
+    } catch (err) {
+      return res.status(400).json({ 
+        success: false,
+        error: 'Invalid FEN notation', 
+        details: err.message,
+        requestId: req.requestId
+      });
+    }
+    
+    // Validate parameters
+    const validMovetime = Math.max(100, Math.min(2000, parseInt(movetimeMs, 10) || 300));
+    const validDepth = Math.max(1, Math.min(20, parseInt(depth, 10) || 12));
+    
+    console.log(JSON.stringify({
+      action: 'evaluate_start',
+      requestId: req.requestId,
+      movetimeMs: validMovetime,
+      depth: validDepth,
+      fen: fen.substring(0, 50) + '...'
+    }));
+    
+    // Get engine from pool
+    engine = await getEngine();
+    
+    // Evaluate position
+    const result = await engine.evaluatePosition(fen, validMovetime, validDepth, req.requestId);
+    
+    const duration = Date.now() - startTime;
+    
+    console.log(JSON.stringify({
+      action: 'evaluate_complete',
+      requestId: req.requestId,
+      engineMs: result.engineMs,
+      totalMs: duration,
+      evaluation: result.evaluation
+    }));
+    
+    res.json({
+      ...result,
+      computeTimeMs: duration,
+      timestamp: new Date().toISOString()
+    });
+    
+  } catch (error) {
+    console.error(JSON.stringify({
+      action: 'evaluate_error',
+      requestId: req.requestId,
+      error: error.message
+    }));
+    
+    const duration = Date.now() - startTime;
+    
+    res.status(500).json({
+      success: false,
+      error: 'Failed to evaluate position',
       errorCode: 'ENGINE_ERROR',
       details: error.message,
       computeTimeMs: duration,

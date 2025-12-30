@@ -15,6 +15,25 @@ command = "npm run prisma:generate"
 [vars]
 ENVIRONMENT = "production"
 VERSION = "2.0.0"
+# Optional: Enable keep-warm pings to prevent Render cold starts
+# ENABLE_STOCKFISH_KEEPWARM = "true"
+
+# Learning Layer V3 Feature Flags (default: SAFE)
+LEARNING_V3_ENABLED = "true"
+LEARNING_V3_READONLY = "false"
+LEARNING_V3_SHADOW_MODE = "false"
+LEARNING_V3_ASYNC_ANALYSIS = "true"
+LEARNING_V3_MAX_PLY_ANALYSIS = "2"
+LEARNING_V3_STOCKFISH_DEPTH = "14"
+LEARNING_V3_TIMEOUT_MS = "8000"
+LEARNING_V3_CANARY_ENABLED = "false"
+LEARNING_V3_CANARY_PERCENTAGE = "1"
+LEARNING_V3_DEBUG_TIMING = "true"  # Temporary: Enable extended timeout + timing logs
+
+# Cron triggers (optional keep-warm mechanism)
+# Uncomment to enable scheduled pings to Stockfish server every 10 minutes
+# [[triggers.crons]]
+# cron = "*/10 * * * *"
 
 # Secrets (set via wrangler secret put)
 # - DATABASE_URL (Prisma Accelerate format: prisma+postgres://accelerate.prisma-data.net/?api_key=...)
@@ -29,3 +48,31 @@ VERSION = "2.0.0"
 # Environment: production
 
 # For local development, use .dev.vars file
+
+# ============================================================================
+# STAGING ENVIRONMENT
+# ============================================================================
+# Deploy to staging: wrangler deploy --env staging
+# Staging uses same database as production (Prisma Accelerate)
+# Trade-off: Shared DB simplifies setup but staging writes affect production data
+# Recommendation: Use feature flags to isolate staging behavior
+
+[env.staging]
+name = "chesschat-worker-api-staging"
+routes = [
+  { pattern = "chesschat.uk/api-staging/*", zone_name = "chesschat.uk" }
+]
+
+[env.staging.vars]
+ENVIRONMENT = "staging"
+VERSION = "2.0.0-staging"
+# Learning V3: Enable for staging testing
+LEARNING_V3_ENABLED = "true"
+LEARNING_V3_READONLY = "false"
+LEARNING_V3_SHADOW_MODE = "true"  # Start in shadow mode for safety
+LEARNING_V3_ASYNC_ANALYSIS = "true"
+LEARNING_V3_MAX_PLY_ANALYSIS = "2"
+LEARNING_V3_STOCKFISH_DEPTH = "14"
+LEARNING_V3_TIMEOUT_MS = "8000"
+LEARNING_V3_CANARY_ENABLED = "false"
+LEARNING_V3_CANARY_PERCENTAGE = "0"
