@@ -359,10 +359,12 @@ class StockfishEngine {
       // Start search with movetime limit (prioritize movetime over depth)
       this.send(`go movetime ${movetimeMs} depth ${depth}`);
 
-      // Setup timeout slightly longer than movetime
+      // Setup timeout with generous buffer for engine startup and I/O
+      // Stockfish needs time to parse position, search, and output results
+      const timeoutMs = Math.max(movetimeMs * 3, movetimeMs + 2000);
       const timeout = setTimeout(() => {
-        reject(new Error(`Evaluation timeout after ${movetimeMs + 500}ms`));
-      }, movetimeMs + 500);
+        reject(new Error(`Evaluation timeout after ${timeoutMs}ms`));
+      }, timeoutMs);
 
       // Parse output for bestmove
       const checkOutput = setInterval(() => {
