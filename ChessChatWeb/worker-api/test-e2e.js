@@ -194,15 +194,22 @@ async function runTests() {
   totalTests++;
   console.log('\n🚫 Test 6: Error Handling (invalid FEN)...');
   try {
-    const result = await testChessMove('invalid-fen', 5);
+    const response = await fetch(`${WORKER_URL}/api/chess-move`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ fen: 'invalid-fen', cpuLevel: 5, mode: 'vs-cpu' })
+    });
     
-    if (!result.success && result.errorCode) {
+    const result = await response.json();
+    
+    if (response.status === 400 && !result.success && result.errorCode === 'BAD_FEN') {
       console.log('✅ PASS - Error handled correctly');
+      console.log(`   Status: ${response.status}`);
       console.log(`   Error Code: ${result.errorCode}`);
       console.log(`   Error: ${result.error}`);
       passedTests++;
     } else {
-      console.log('❌ FAIL - Should have returned error');
+      console.log(`❌ FAIL - Expected status 400 with BAD_FEN, got ${response.status}`);
       console.log(JSON.stringify(result, null, 2));
     }
   } catch (error) {
