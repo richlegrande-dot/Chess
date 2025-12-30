@@ -5,7 +5,7 @@ services:
     env: node
     region: oregon
     plan: free
-    buildCommand: npm install
+    buildCommand: sudo apt-get update && sudo apt-get install -y stockfish && npm install
     startCommand: node server.js
     envVars:
       - key: NODE_ENV

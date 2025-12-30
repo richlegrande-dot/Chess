@@ -137,10 +137,8 @@ class StockfishEngine {
   async spawn() {
     return new Promise((resolve, reject) => {
       try {
-        // Use stockfish from npm package
-        // The stockfish npm package provides stockfishjs binary
-        const stockfishPath = require.resolve('stockfish');
-        this.process = spawn('node', [stockfishPath]);
+        // Use system stockfish binary (installed via apt-get on Render)
+        this.process = spawn('stockfish');
         
         this.process.on('error', (err) => {
           reject(new Error(`Failed to spawn Stockfish: ${err.message}`));
