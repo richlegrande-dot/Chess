@@ -1,12 +1,12 @@
 services:
   - type: web
     name: chesschat-stockfish
-    runtime: node
-    env: node
+    runtime: docker
+    env: docker
     region: oregon
     plan: free
-    buildCommand: sudo apt-get update && sudo apt-get install -y stockfish && npm install
-    startCommand: node server.js
+    dockerfilePath: ./Dockerfile
+    dockerContext: .
     envVars:
       - key: NODE_ENV
         value: production
