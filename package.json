@@ -1,0 +1,14 @@
+{
+  "name": "chess-monorepo",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Chess project monorepo containing iOS and Web apps",
+  "scripts": {
+    "build": "cd ChessChatWeb && npm ci && npm run build",
+    "build:web": "cd ChessChatWeb && npm run build",
+    "postinstall": "cd ChessChatWeb && npm install"
+  },
+  "workspaces": [
+    "ChessChatWeb"
+  ]
+}

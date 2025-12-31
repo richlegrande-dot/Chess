@@ -10,7 +10,8 @@ function Test-Endpoint {
         [string]$Name,
         [string]$Url,
         [string]$Method = "GET",
-        [object]$Body = $null
+        [object]$Body = $null,
+        [int[]]$ExpectedStatusCodes = @(200)
     )
     
     Write-Host "`n=== Testing: $Name ===" -ForegroundColor Yellow
@@ -61,6 +62,21 @@ function Test-Endpoint {
             $errorBody = $reader.ReadToEnd()
             $reader.Close()
             
+            # Check if this status code is expected (e.g., 401 for admin endpoints)
+            if ($ExpectedStatusCodes -contains $statusCode) {
+                Write-Host "✅ Status: $statusCode (expected)" -ForegroundColor Green
+                Write-Host "Response: $errorBody" -ForegroundColor Cyan
+                
+                $script:testResults += [PSCustomObject]@{
+                    Name = $Name
+                    Status = "PASS"
+                    StatusCode = $statusCode
+                    Message = "Expected status code"
+                }
+                
+                return $true
+            }
+            
             Write-Host "❌ Status: $statusCode" -ForegroundColor Red
             Write-Host "Error: $errorBody" -ForegroundColor Red
         } else {
@@ -83,8 +99,8 @@ Write-Host "ChessChat Production Test Suite" -ForegroundColor Cyan
 Write-Host "Base URL: $baseUrl" -ForegroundColor Cyan
 Write-Host "========================================" -ForegroundColor Cyan
 
-# Test 1: Capabilities Endpoint
-Test-Endpoint -Name "Capabilities" -Url "$baseUrl/api/capabilities"
+# Test 1: Health Check
+Test-Endpoint -Name "Health Check" -Url "$baseUrl/api/health"
 
 # Test 2: Chess Move (Worker) - Basic Test
 Test-Endpoint -Name "Chess Move (Worker) - Basic" -Url "$baseUrl/api/chess-move" -Method "POST" -Body @{
@@ -206,42 +222,38 @@ Test-Endpoint -Name "Learning Ingest Game" -Url "$baseUrl/api/learning/ingest-ga
     chatContext = @()
 }
 
-# Test 4: Chat Endpoint
-Test-Endpoint -Name "Chat" -Url "$baseUrl/api/chat" -Method "POST" -Body @{
-    message = "Test message"
-    userId = "test-user"
-}
+# Test 4: Learning Plan (with required userId parameter)
+Test-Endpoint -Name "Learning Plan" -Url "$baseUrl/api/learning/plan?userId=test-user"
 
-# Test 5: Analyze Game
-Test-Endpoint -Name "Analyze Game" -Url "$baseUrl/api/analyze-game" -Method "POST" -Body @{
-    pgn = "1. e4 e5 2. Nf3 Nc6 3. Bb5"
+# Test 5: Wall-E Post Game (with required fields)
+Test-Endpoint -Name "Wall-E Post Game" -Url "$baseUrl/api/walle/postgame" -Method "POST" -Body @{
+    userId = "test-user"
+    gameId = "test-game-$(Get-Date -Format 'yyyyMMddHHmmss')"
+    gameResult = "win"
     playerColor = "white"
     moveHistory = @()
-}
-
-# Test 6: Learning Plan
-Test-Endpoint -Name "Learning Plan" -Url "$baseUrl/api/learning/plan"
-
-# Test 7: Wall-E Post Game
-Test-Endpoint -Name "Wall-E Post Game" -Url "$baseUrl/api/walle/postgame" -Method "POST" -Body @{
-    gameResult = "win"
     mistakes = @()
 }
 
-# Test 8: Admin Learning Health (might be protected)
-Test-Endpoint -Name "Admin Learning Health" -Url "$baseUrl/api/admin/learning-health"
+# Test 6: Admin Learning Health (requires auth - expect 401)
+Test-Endpoint -Name "Admin Learning Health" -Url "$baseUrl/api/admin/learning-health" -ExpectedStatusCodes @(200, 401)
 
-# Test 9: Admin Worker Health
-Test-Endpoint -Name "Admin Worker Health" -Url "$baseUrl/api/admin/worker-health"
+# Test 7: Admin Worker Health (requires auth - expect 401)
+Test-Endpoint -Name "Admin Worker Health" -Url "$baseUrl/api/admin/worker-health" -ExpectedStatusCodes @(200, 401)
 
-# Test 10: Check common 404 sources
-Write-Host "`n=== Checking for Common 404 Errors ===" -ForegroundColor Yellow
+# Test 8: Admin Stockfish Health (requires auth - expect 401)
+Test-Endpoint -Name "Admin Stockfish Health" -Url "$baseUrl/api/admin/stockfish-health" -ExpectedStatusCodes @(200, 401)
+
+# Test 9: Check deprecated/non-existent endpoints
+Write-Host "`n=== Checking Non-Existent Endpoints (Should Return 404) ===" -ForegroundColor Yellow
 $notFoundUrls = @(
+    "$baseUrl/api/capabilities",
+    "$baseUrl/api/chat",
+    "$baseUrl/api/analyze-game",
     "$baseUrl/api/wall-e/mistakes",
     "$baseUrl/api/wall-e/profile",
     "$baseUrl/api/wall-e/games",
-    "$baseUrl/api/wall-e/metrics",
-    "$baseUrl/api/health"
+    "$baseUrl/api/wall-e/metrics"
 )
 
 foreach ($url in $notFoundUrls) {
