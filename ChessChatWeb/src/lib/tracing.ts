@@ -1,9 +1,9 @@
 /**
  * CPU Move Pipeline Tracing System
  * Provides detailed logging with unique request IDs for debugging CPU move issues
-import { debugLog } from './logging/debugLogger';
-
  */
+
+import { debugLog } from './logging/debugLogger';
 
 // Simple UUID v4 generator (no external dependency)
 function generateUUID(): string {

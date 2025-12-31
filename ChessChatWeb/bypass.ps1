@@ -62,21 +62,22 @@ $staleProcesses = Get-NetTCPConnection -LocalPort 3000,3001 -ErrorAction Silentl
 
 if ($staleProcesses) {
     Write-Log "Found $($staleProcesses.Count) process(es) on ports 3000/3001. Cleaning up..." "WARN"
-    foreach ($pid in $staleProcesses) {
+    foreach ($targetProcess in $staleProcesses) {
         try {
-            $processInfo = Get-Process -Id $pid -ErrorAction SilentlyContinue
+            $processInfo = Get-Process -Id $targetProcess -ErrorAction SilentlyContinue
             if ($processInfo) {
-                Write-Log "Stopping $($processInfo.ProcessName) (PID: $pid)..." "WARN"
+                Write-Log "Stopping $($processInfo.ProcessName) (PID: $targetProcess)..." "WARN"
                 # Use taskkill for more reliable termination
-                $killResult = taskkill /F /PID $pid 2>&1
+                taskkill /F /PID $targetProcess 2>&1 | Out-Null
                 if ($LASTEXITCODE -eq 0) {
-                    Write-Log "Stopped process $pid" "SUCCESS"
+                    Write-Log "Stopped process $targetProcess" "SUCCESS"
                 } else {
-                    Write-Log "Could not stop process $pid - may need admin rights" "WARN"
+                    Write-Log "Could not stop process $targetProcess - may need admin rights" "WARN"
                 }
             }
         } catch {
-            Write-Log "Error stopping process $pid: $($_.Exception.Message)" "WARN"
+            $exMessage = $_.Exception.Message
+            Write-Log "Error stopping process $targetProcess : $exMessage" "WARN"
         }
     }
     
@@ -96,8 +97,9 @@ if ($staleProcesses) {
         }
         Write-Log "Attempting final cleanup with force..." "WARN"
         $activeConnections | Select-Object -ExpandProperty OwningProcess -Unique | ForEach-Object {
-            Write-Log "Force killing PID $_" "WARN"
-            taskkill /F /PID $_ 2>&1 | Out-Null
+            $targetPID = $_
+            Write-Log "Force killing PID $targetPID" "WARN"
+            taskkill /F /PID $targetPID 2>&1 | Out-Null
         }
         Start-Sleep -Seconds 4
         
