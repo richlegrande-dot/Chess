@@ -19,148 +19,53 @@ function getUserId(): string {
 
 /**
  * Sync player profile to database via API
+ * NOTE: Endpoint not deployed - data stored locally only
  */
 export async function savePlayerProfileViaAPI(profileData: any): Promise<boolean> {
-  try {
-    const userId = getUserId();
-    const response = await fetch('/api/wall-e/profile', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ userId, ...profileData }),
-    });
-
-    const result = await response.json();
-    if (result.success) {
-      console.log('✅ Player profile synced to database');
-      return true;
-    } else {
-      console.error('❌ Profile sync failed:', result.error);
-      return false;
-    }
-  } catch (error) {
-    console.error('❌ Profile sync error:', error);
-    return false;
-  }
+  // API endpoints not deployed in production - fail silently
+  // All data is stored in localStorage instead
+  return true;
 }
 
 /**
  * Sync training game to database via API
+ * NOTE: Endpoint not deployed - data stored locally only
  */
 export async function saveTrainingGameViaAPI(gameData: any): Promise<boolean> {
-  try {
-    const userId = getUserId();
-    const response = await fetch('/api/wall-e/games', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ userId, ...gameData }),
-    });
-
-    const result = await response.json();
-    if (result.success) {
-      console.log(`✅ Training game ${gameData.gameIndex} synced to database`);
-      return true;
-    } else {
-      console.error('❌ Game sync failed:', result.error);
-      return false;
-    }
-  } catch (error) {
-    console.error('❌ Game sync error:', error);
-    return false;
-  }
+  // API endpoints not deployed in production - fail silently
+  // All data is stored in localStorage instead
+  return true;
 }
 
 /**
  * Sync mistake signature to database via API
+ * NOTE: Endpoint not deployed - data stored locally only
  */
 export async function saveMistakeSignatureViaAPI(mistakeData: any): Promise<boolean> {
-  try {
-    const userId = getUserId();
-    const response = await fetch('/api/wall-e/mistakes', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ userId, ...mistakeData }),
-    });
-
-    const result = await response.json();
-    if (result.success) {
-      console.log(`✅ Mistake signature "${mistakeData.title}" synced to database`);
-      return true;
-    } else {
-      console.error('❌ Mistake sync failed:', result.error);
-      return false;
-    }
-  } catch (error) {
-    console.error('❌ Mistake sync error:', error);
-    return false;
-  }
+  // API endpoints not deployed in production - fail silently
+  // All data is stored in localStorage instead
+  return true;
 }
 
 /**
  * Sync learning metric to database via API
+ * NOTE: Endpoint not deployed - data stored locally only
  */
 export async function saveLearningMetricViaAPI(metricData: any): Promise<boolean> {
-  try {
-    const userId = getUserId();
-    const response = await fetch('/api/wall-e/metrics', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ userId, ...metricData }),
-    });
-
-    const result = await response.json();
-    if (result.success) {
-      console.log('✅ Learning metric synced to database');
-      return true;
-    } else {
-      console.error('❌ Metric sync failed:', result.error);
-      return false;
-    }
-  } catch (error) {
-    console.error('❌ Metric sync error:', error);
-    return false;
-  }
+  // API endpoints not deployed in production - fail silently
+  // All data is stored in localStorage instead
+  return true;
 }
 
 /**
  * Bulk sync all Wall-E data from localStorage to database
+ * NOTE: Endpoint not deployed - data stored locally only
  */
 export async function performFullSyncViaAPI(): Promise<boolean> {
-  try {
-    const userId = getUserId();
-
-    // Gather all localStorage data
-    const playerProfile = localStorage.getItem('wall-e-player-profile');
-    const trainingGames = localStorage.getItem('wall-e-training-games');
-    const mistakeSignatures = localStorage.getItem('wall-e-mistake-signatures');
-    const learningMetrics = localStorage.getItem('wall-e-learning-metrics');
-
-    const payload = {
-      userId,
-      playerProfile: playerProfile ? JSON.parse(playerProfile) : null,
-      trainingGames: trainingGames ? JSON.parse(trainingGames) : null,
-      mistakeSignatures: mistakeSignatures ? JSON.parse(mistakeSignatures) : null,
-      learningMetrics: learningMetrics ? JSON.parse(learningMetrics) : null,
-    };
-
-    const response = await fetch('/api/wall-e/sync', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload),
-    });
-
-    const result = await response.json();
-    if (result.success) {
-      console.log('✅ Full sync complete:', result.results);
-      localStorage.setItem('wall-e-last-sync', new Date().toISOString());
-      return true;
-    } else {
-      console.error('❌ Full sync failed:', result.error);
-      return false;
-    }
-  } catch (error) {
-    console.error('❌ Full sync error:', error);
-    return false;
-  }
+  // API endpoints not deployed in production - fail silently
+  // All data is stored in localStorage instead
+  localStorage.setItem('wall-e-last-sync', new Date().toISOString());
+  return true;
 }
 
 /**
@@ -187,76 +92,40 @@ export async function autoSyncOnStartViaAPI(): Promise<void> {
 
 /**
  * Fetch player profile from database
+ * NOTE: Endpoint not deployed - returns null (data in localStorage only)
  */
 export async function loadPlayerProfileViaAPI(): Promise<any | null> {
-  try {
-    const userId = getUserId();
-    const response = await fetch(`/api/wall-e/profile?userId=${userId}`);
-    const result = await response.json();
-
-    if (result.success && result.profile) {
-      return result.profile;
-    }
-    return null;
-  } catch (error) {
-    console.error('❌ Profile load error:', error);
-    return null;
-  }
+  // API endpoints not deployed in production - return null
+  // All data is stored in localStorage instead
+  return null;
 }
 
 /**
  * Fetch training games from database
+ * NOTE: Endpoint not deployed - returns empty array (data in localStorage only)
  */
 export async function loadTrainingGamesViaAPI(): Promise<any[]> {
-  try {
-    const userId = getUserId();
-    const response = await fetch(`/api/wall-e/games?userId=${userId}`);
-    const result = await response.json();
-
-    if (result.success && result.games) {
-      return result.games;
-    }
-    return [];
-  } catch (error) {
-    console.error('❌ Games load error:', error);
-    return [];
-  }
+  // API endpoints not deployed in production - return empty array
+  // All data is stored in localStorage instead
+  return [];
 }
 
 /**
  * Fetch mistake signatures from database
+ * NOTE: Endpoint not deployed - returns empty array (data in localStorage only)
  */
 export async function loadMistakeSignaturesViaAPI(): Promise<any[]> {
-  try {
-    const userId = getUserId();
-    const response = await fetch(`/api/wall-e/mistakes?userId=${userId}`);
-    const result = await response.json();
-
-    if (result.success && result.mistakes) {
-      return result.mistakes;
-    }
-    return [];
-  } catch (error) {
-    console.error('❌ Mistakes load error:', error);
-    return [];
-  }
+  // API endpoints not deployed in production - return empty array
+  // All data is stored in localStorage instead
+  return [];
 }
 
 /**
  * Fetch learning metrics from database
+ * NOTE: Endpoint not deployed - returns empty array (data in localStorage only)
  */
 export async function loadLearningMetricsViaAPI(): Promise<any[]> {
-  try {
-    const userId = getUserId();
-    const response = await fetch(`/api/wall-e/metrics?userId=${userId}`);
-    const result = await response.json();
-
-    if (result.success && result.metrics) {
-      return result.metrics;
-    }
-    return [];
-  } catch (error) {
-    console.error('❌ Metrics load error:', error);
-    return [];
-  }
+  // API endpoints not deployed in production - return empty array
+  // All data is stored in localStorage instead
+  return [];
 }
