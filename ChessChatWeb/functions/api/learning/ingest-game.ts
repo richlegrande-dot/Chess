@@ -1,6 +1,6 @@
 /**
  * Learning V3 Game Ingestion API endpoint - Stub implementation
- * Returns a degraded mode response since Stockfish analysis isn't deployed
+ * Returns honest response about capabilities since server-side learning is not deployed
  */
 
 export async function onRequestPost(context: {
@@ -13,16 +13,19 @@ export async function onRequestPost(context: {
     
     console.log('[Learning V3] Game ingestion request:', { userId, gameId, moveCount: pgn?.split('.').length });
     
-    // Return degraded mode response (Stockfish not available)
+    // Return truthful response about server capabilities
     return new Response(
       JSON.stringify({
         success: true,
-        partial: true,
-        analysisMode: 'degraded',
-        stockfishWarm: false,
-        message: 'Game recorded locally. Advanced server-side analysis is queued but not yet available.',
+        analysisMode: 'local_only',
+        message: 'Game received. Server-side learning is not enabled yet; your local learning remains active.',
         requestId: `req_${Date.now()}`,
-        nextStep: 'Your game patterns are being tracked in your browser storage.',
+        serverCapabilities: {
+          serverLearningEnabled: false,
+          serverAnalysisEnabled: false,
+          localLearningEnabled: true
+        },
+        recommendation: 'Continue playing! Your browser is tracking patterns and providing coaching.',
         conceptsUpdated: 0,
       }),
       {

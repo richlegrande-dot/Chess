@@ -13,6 +13,7 @@ import { getLevelConfig, getTimeBudget, getTotalTimeout } from '../lib/cpu/cpuCo
 import { mapCpuLevelToDifficulty } from '../lib/difficultyMapping';
 import { cpuTelemetry } from '../lib/cpu/cpuTelemetry';
 import type { CPUMoveTelemetry } from '../types/cpuTelemetry';
+import { debugLog } from '../lib/logging/debugLogger';
 import '../styles/CoachingMode.css';
 import '../styles/CoachingBoardEnhanced.css';
 
@@ -117,12 +118,12 @@ export const CoachingMode: React.FC = () => {
   const makeCPUMove = useCallback(() => {
     // Prevent duplicate CPU move requests
     if (cpuMoveInFlight.current) {
-      console.warn('[CPU Move] ⚠️ Request already in flight, skipping duplicate');
+      debugLog.warn('[CPU Move] ⚠️ Request already in flight, skipping duplicate');
       persistentLogger.error('CPU move blocked - already in flight', { inFlight: cpuMoveInFlight.current });
       return;
     }
 
-    console.log('[CPU Move] 🚀 Starting CPU move...');
+    debugLog.log('[CPU Move] 🚀 Starting CPU move...');
     cpuMoveInFlight.current = true;
     persistentLogger.info('CPU move triggered', { inFlight: true });
     
@@ -186,7 +187,7 @@ export const CoachingMode: React.FC = () => {
     const thinkingTime = 300 + Math.random() * 400; // 0.3-0.7 seconds
     const perfStart = performance.now();
     
-    console.log(`[CPU Move] Scheduling setTimeout callback in ${Math.round(thinkingTime)}ms...`);
+    debugLog.log(`[CPU Move] Scheduling setTimeout callback in ${Math.round(thinkingTime)}ms...`);
     persistentLogger.info('CPU move - setTimeout scheduled', { 
       delayMs: Math.round(thinkingTime),
       cpuLevel: capturedCpuLevel 
@@ -196,14 +197,14 @@ export const CoachingMode: React.FC = () => {
       timerFired = true;
       clearTimeout(watchdogTimeout);
       
-      console.log('[CPU Move] ✅ setTimeout callback EXECUTING');
+      debugLog.log('[CPU Move] ✅ setTimeout callback EXECUTING');
       persistentLogger.info('CPU move - callback executing', { 
         elapsed: Math.round(performance.now() - perfStart) 
       });
       
       try {
         const afterDelay = performance.now();
-        console.log('[CPU Move] Timer fired after', Math.round(afterDelay - perfStart), 'ms, getting state...');
+        debugLog.log('[CPU Move] Timer fired after', Math.round(afterDelay - perfStart), 'ms, getting state...');
         
         persistentLogger.info('CPU move - entering setState', { elapsed: Math.round(afterDelay - perfStart) });
         
@@ -239,7 +240,7 @@ export const CoachingMode: React.FC = () => {
         }
       const { chess, cpuColor, gameMode, gameResult, moveHistory, cpuLevel } = stateSnapshot;
 
-      console.log('[CPU Move] State captured:', { gameMode, cpuColor, turn: chess.getTurn(), gameResult });
+      debugLog.log('[CPU Move] State captured:', { gameMode, cpuColor, turn: chess.getTurn(), gameResult });
       persistentLogger.info('CPU move - state captured', { 
         gameMode, 
         cpuColor, 
@@ -252,7 +253,7 @@ export const CoachingMode: React.FC = () => {
       if (gameMode !== 'vs-cpu' || chess.getTurn() !== cpuColor || gameResult) {
         clearTimeout(cpuMoveTimeout.current!);
         cpuMoveInFlight.current = false;
-        console.log('[CPU Move] Skipping - conditions not met');
+        debugLog.log('[CPU Move] Skipping - conditions not met');
         setState(prev => ({ ...prev, isThinking: false }));
         return;
       }
@@ -263,7 +264,7 @@ export const CoachingMode: React.FC = () => {
       const moveNum = Math.ceil(plyCount / 2) + 1;
 
       const aiStart = performance.now();
-      console.log('[CPU Move] Starting move selection at', Math.round(aiStart - perfStart), 'ms from start...');
+      debugLog.log('[CPU Move] Starting move selection at', Math.round(aiStart - perfStart), 'ms from start...');
       moveTracer.logCPURequest(requestId, fen, pgn, moveNum);
       
       persistentLogger.info('CPU move - starting AI calculation', { 
@@ -296,7 +297,7 @@ export const CoachingMode: React.FC = () => {
         return;
       }
 
-      console.log('[CPU Move] Found', allMoves.length, 'legal moves');
+      debugLog.log('[CPU Move] Found', allMoves.length, 'legal moves');
       // Reduced logging during AI calculation to prevent event loop blocking
       // persistentLogger.info('CPU move - found legal moves', { count: allMoves.length });
 
@@ -304,7 +305,7 @@ export const CoachingMode: React.FC = () => {
       const { analyzePositionCriticality } = await import('../lib/positionCriticality');
       
       const criticality = analyzePositionCriticality(chess);
-      console.log(`[CPU Move] Position criticality: ${criticality.score}/100 (${criticality.isCritical ? 'CRITICAL' : 'normal'})`, criticality.reasons);
+      debugLog.log(`[CPU Move] Position criticality: ${criticality.score}/100 (${criticality.isCritical ? 'CRITICAL' : 'normal'})`, criticality.reasons);
       
       // Use Minimax with Alpha-Beta Pruning for intelligent move selection
       // For levels 7-8, use learning-enhanced AI
@@ -343,20 +344,20 @@ export const CoachingMode: React.FC = () => {
         // Use global time budget (same for all levels)
         const allocatedTime = timeBudget;
         
-        console.log(`[CPU Move] Level ${cpuLevel}: depth ${searchDepth} (min: ${levelConfig.minDepth}, target: ${levelConfig.targetDepth}, cap: ${levelConfig.hardCap}), time ${allocatedTime}ms`);
-        console.log(`[CPU Move] Config: beam=${levelConfig.beamWidth}, quiescence=${levelConfig.useQuiescence}, aspiration=${levelConfig.useAspiration}, tactical=${levelConfig.tacticalScan}`);
+        debugLog.log(`[CPU Move] Level ${cpuLevel}: depth ${searchDepth} (min: ${levelConfig.minDepth}, target: ${levelConfig.targetDepth}, cap: ${levelConfig.hardCap}), time ${allocatedTime}ms`);
+        debugLog.log(`[CPU Move] Config: beam=${levelConfig.beamWidth}, quiescence=${levelConfig.useQuiescence}, aspiration=${levelConfig.useAspiration}, tactical=${levelConfig.tacticalScan}`);
         
         // CONSTRAINT A: Always attempt Prisma Worker API for levels that support it
         // Worker will be tried first; fallback to local computation only on actual failure
         const useWorker = cpuLevel >= 3 && cpuLevel <= 8; // Levels 3-8 use worker
-        console.log(`[CPU Move] 🔧 CODE VERSION: 2025-12-30-v3-learning-layer | Level ${cpuLevel} | useWorker: ${useWorker}`);
+        debugLog.log(`[CPU Move] 🔧 CODE VERSION: 2025-12-30-v3-learning-layer | Level ${cpuLevel} | useWorker: ${useWorker}`);
         const currentMoveHistory = moveHistory.map((m: any) => m.move || m);
         
         // NOTE: Local CPU learning has been deprecated in favor of server-side Learning Layer V3
         // Learning now happens via POST /api/learning/ingest-game and influences coaching, not moves
         
         if (useWorker) {
-          console.log('[CPU Move] Using API for server-side computation');
+          debugLog.log('[CPU Move] Using API for server-side computation');
           
           // Infinite retry for levels 7-8 (use Force Move button to trigger fallback)
           // Limited retry (3 attempts) for levels 3-6
@@ -371,12 +372,12 @@ export const CoachingMode: React.FC = () => {
             try {
               if (retryCount > 0) {
                 const retryLabel = maxRetries === Infinity ? `#${retryCount}` : `${retryCount}/${maxRetries}`;
-                console.log(`[CPU Move] 🔄 Retry attempt ${retryLabel} for Level ${cpuLevel}`);
+                debugLog.log(`[CPU Move] 🔄 Retry attempt ${retryLabel} for Level ${cpuLevel}`);
               }
               
               // Call the /api/chess-move API endpoint
               apiStartTime = Date.now();
-              console.log(`[CPU Move] 🌐 Calling Worker API: Level ${cpuLevel}, Depth ${searchDepth}, Time ${allocatedTime}ms${retryCount > 0 ? ` (Retry ${retryCount})` : ''}`);
+              debugLog.log(`[CPU Move] 🌐 Calling Worker API: Level ${cpuLevel}, Depth ${searchDepth}, Time ${allocatedTime}ms${retryCount > 0 ? ` (Retry ${retryCount})` : ''}`);
               
               const apiResponse = await fetch('/api/chess-move', {
                 method: 'POST',
@@ -395,7 +396,7 @@ export const CoachingMode: React.FC = () => {
               });
               
               const apiElapsedMs = Date.now() - apiStartTime;
-              console.log(`[CPU Move] 📡 API Response: Status ${apiResponse.status}, Time ${apiElapsedMs}ms${retryCount > 0 ? ` (Retry ${retryCount})` : ''}`);
+              debugLog.log(`[CPU Move] 📡 API Response: Status ${apiResponse.status}, Time ${apiElapsedMs}ms${retryCount > 0 ? ` (Retry ${retryCount})` : ''}`);
               
               if (!apiResponse.ok) {
                 const errorText = await apiResponse.text();
@@ -407,8 +408,8 @@ export const CoachingMode: React.FC = () => {
               
               const apiData = await apiResponse.json();
               
-              console.log('[CPU Move] 🔍 Raw API Response:', JSON.stringify(apiData, null, 2));
-              console.log('[CPU Move] 🔍 Current FEN:', chess.getFEN());
+              debugLog.log('[CPU Move] 🔍 Raw API Response:', JSON.stringify(apiData, null, 2));
+              debugLog.log('[CPU Move] 🔍 Current FEN:', chess.getFEN());
               
               if (!apiData.success) {
                 throw new Error(apiData.error || 'API returned unsuccessful response');
@@ -418,13 +419,13 @@ export const CoachingMode: React.FC = () => {
               // Worker API returns SAN notation (e.g., "a3"), need to convert to from/to squares
               let parsedMove = null;
               if (apiData.move) {
-              console.log('[CPU Move] 🔍 Parsing SAN move:', apiData.move);
+              debugLog.log('[CPU Move] 🔍 Parsing SAN move:', apiData.move);
               try {
                 // Create a temporary chess instance to parse the SAN move
                 const tempChess = new Chess(chess.getFEN());
                 const moves = tempChess.moves({ verbose: true });
-                console.log('[CPU Move] 🔍 Available moves count:', moves.length);
-                console.log('[CPU Move] 🔍 First 10 SAN moves:', moves.slice(0, 10).map(m => m.san));
+                debugLog.log('[CPU Move] 🔍 Available moves count:', moves.length);
+                debugLog.log('[CPU Move] 🔍 First 10 SAN moves:', moves.slice(0, 10).map(m => m.san));
                 
                 const matchedMove = moves.find(m => m.san === apiData.move || m.san === apiData.move + '+' || m.san === apiData.move + '#');
                 
@@ -433,7 +434,7 @@ export const CoachingMode: React.FC = () => {
                     from: matchedMove.from,
                     to: matchedMove.to
                   };
-                  console.log('[CPU Move] ✅ Successfully parsed:', apiData.move, '→', parsedMove);
+                  debugLog.log('[CPU Move] ✅ Successfully parsed:', apiData.move, '→', parsedMove);
                 } else {
                   console.error('[CPU Move] ❌ Failed to parse SAN move:', apiData.move);
                   console.error('[CPU Move] Available moves:', moves.map(m => m.san));
@@ -473,7 +474,7 @@ export const CoachingMode: React.FC = () => {
               totalTimeMs: Date.now() - perfStart,
             });
             cpuTelemetry.logMove(telemetry);
-            console.log('[CPU Telemetry] ✅ Worker success logged:', {
+            debugLog.log('[CPU Telemetry] ✅ Worker success logged:', {
               moveNumber: telemetry.moveNumber,
               apiAttempted: telemetry.apiAttempted,
               apiSucceeded: telemetry.apiSucceeded,
@@ -482,7 +483,7 @@ export const CoachingMode: React.FC = () => {
             });
             
             // �🔍 DIAGNOSTIC: Log full API response structure
-            console.log('[DIAGNOSTIC] API Response:', {
+            debugLog.log('[DIAGNOSTIC] API Response:', {
               hasMove: !!apiData.move,
               move: apiData.move,
               hasWorkerCallLog: !!apiData.workerCallLog,
@@ -495,14 +496,14 @@ export const CoachingMode: React.FC = () => {
             
             // Store worker call log for admin portal
             if (typeof window !== 'undefined' && (window as any).gameStore) {
-              console.log('[DIAGNOSTIC] gameStore is available, attempting to log worker call');
+              debugLog.log('[DIAGNOSTIC] gameStore is available, attempting to log worker call');
               
               try {
                 const store = (window as any).gameStore;
                 
                 // Log gameStore state before logging
                 const currentWorkerCalls = store.getState().debugInfo.workerCalls || [];
-                console.log('[DIAGNOSTIC] Current worker calls count:', currentWorkerCalls.length);
+                debugLog.log('[DIAGNOSTIC] Current worker calls count:', currentWorkerCalls.length);
                 
                 if (apiData.workerCallLog) {
                   // Worker was called - log the actual call
@@ -516,13 +517,13 @@ export const CoachingMode: React.FC = () => {
                     response: apiData.workerCallLog.response,
                   };
                   
-                  console.log('[DIAGNOSTIC] Calling logWorkerCall() with:', logData);
+                  debugLog.log('[DIAGNOSTIC] Calling logWorkerCall() with:', logData);
                   store.getState().logWorkerCall(logData);
                   
                   // Verify it was stored
                   const updatedWorkerCalls = store.getState().debugInfo.workerCalls || [];
-                  console.log('[DIAGNOSTIC] After logging, worker calls count:', updatedWorkerCalls.length);
-                  console.log('[CPU Move] ✅ Worker call logged:', apiData.workerCallLog);
+                  debugLog.log('[DIAGNOSTIC] After logging, worker calls count:', updatedWorkerCalls.length);
+                  debugLog.log('[CPU Move] ✅ Worker call logged:', apiData.workerCallLog);
                 } else {
                   // Fallback was used - log it as a failed worker call
                   const fallbackLog = {
@@ -535,13 +536,13 @@ export const CoachingMode: React.FC = () => {
                     response: { move: apiData.move, mode: apiData.mode || 'local-fallback' },
                   };
                   
-                  console.log('[DIAGNOSTIC] No workerCallLog in response, logging fallback:', fallbackLog);
+                  debugLog.log('[DIAGNOSTIC] No workerCallLog in response, logging fallback:', fallbackLog);
                   store.getState().logWorkerCall(fallbackLog);
                   
                   // Verify it was stored
                   const updatedWorkerCalls = store.getState().debugInfo.workerCalls || [];
-                  console.log('[DIAGNOSTIC] After logging fallback, worker calls count:', updatedWorkerCalls.length);
-                  console.log('[CPU Move] ⚠️ Fallback logged (no worker call)');
+                  debugLog.log('[DIAGNOSTIC] After logging fallback, worker calls count:', updatedWorkerCalls.length);
+                  debugLog.log('[CPU Move] ⚠️ Fallback logged (no worker call)');
                 }
               } catch (err) {
                 console.error('[CPU Move] ❌ Failed to log worker call:', err);
@@ -591,18 +592,18 @@ export const CoachingMode: React.FC = () => {
                   },
                 });
               } catch (err) {
-                console.warn('[CPU Move] Could not update game store debug info:', err);
+                debugLog.warn('[CPU Move] Could not update game store debug info:', err);
               }
             }
             
             if (selectedMove) {
-              console.log(`[CPU Move] API result: depth ${workerResult.metadata.depthReached}, time ${Math.round(workerElapsed)}ms, source: ${workerResult.metadata.source}`);
+              debugLog.log(`[CPU Move] API result: depth ${workerResult.metadata.depthReached}, time ${Math.round(workerElapsed)}ms, source: ${workerResult.metadata.source}`);
               
               // Log time budget diagnostics (if available)
               if (apiData.diagnostics) {
                 const diag = apiData.diagnostics;
-                console.log(`[CPU Move] ⏱️ Time Budget: requested=${diag.requestedTimeMs || 'N/A'}ms, capped=${diag.cappedTimeMs || 'N/A'}ms, used=${diag.searchTimeMs || diag.stockfishMs || 'N/A'}ms, utilization=${diag.budgetUtilization || 'N/A'}, abort=${diag.abortReason || 'N/A'}`);
-                console.log(`[CPU Move] 🐛 Stockfish Data:`, {
+                debugLog.log(`[CPU Move] ⏱️ Time Budget: requested=${diag.requestedTimeMs || 'N/A'}ms, capped=${diag.cappedTimeMs || 'N/A'}ms, used=${diag.searchTimeMs || diag.stockfishMs || 'N/A'}ms, utilization=${diag.budgetUtilization || 'N/A'}, abort=${diag.abortReason || 'N/A'}`);
+                debugLog.log(`[CPU Move] 🐛 Stockfish Data:`, {
                   cpuLevel: diag.cpuLevel,
                   depth: diag.depth,
                   nodes: diag.nodes,
@@ -643,7 +644,7 @@ export const CoachingMode: React.FC = () => {
               });
             
               if (workerResult.metadata.tacticalSafety) {
-                console.log(`[CPU Move] Tactical safety: rejected ${workerResult.metadata.tacticalSafety.rejectedMoves} moves`);
+                debugLog.log(`[CPU Move] Tactical safety: rejected ${workerResult.metadata.tacticalSafety.rejectedMoves} moves`);
               }
               
               persistentLogger.info('CPU move - API search completed', {
@@ -682,7 +683,7 @@ export const CoachingMode: React.FC = () => {
             
             // Check if force move was requested
             if (forceMovePending) {
-              console.warn('[CPU Move] ⚠️ Force move requested - stopping retries and using fallback');
+              debugLog.warn('[CPU Move] ⚠️ Force move requested - stopping retries and using fallback');
               persistentLogger.error('API computation cancelled by user (force move)', { error: errorDetails, retries: retryCount - 1 });
               break; // Exit loop to use fallback
             }
@@ -692,17 +693,17 @@ export const CoachingMode: React.FC = () => {
               const retryMsg = maxRetries === Infinity 
                 ? `[CPU Move] 🔄 Waiting before retry #${retryCount} (use Force Move button to skip to fallback)` 
                 : `[CPU Move] 🔄 Retrying... (${retryCount}/${maxRetries} retries used)`;
-              console.log(retryMsg);
+              debugLog.log(retryMsg);
               
               // For infinite retries (levels 7-8), add delay before next attempt
               if (maxRetries === Infinity) {
                 const retryDelayMs = 2000; // 2 second delay between retries
-                console.log(`[CPU Move] ⏱️ Waiting ${retryDelayMs}ms before next attempt (or click Force Move)`);
+                debugLog.log(`[CPU Move] ⏱️ Waiting ${retryDelayMs}ms before next attempt (or click Force Move)`);
                 await new Promise(resolve => setTimeout(resolve, retryDelayMs));
                 
                 // Check if force move was clicked during the delay
                 if (forceMovePending) {
-                  console.warn('[CPU Move] ⚠️ Force move clicked during wait - exiting retry loop');
+                  debugLog.warn('[CPU Move] ⚠️ Force move clicked during wait - exiting retry loop');
                   break;
                 }
               }
@@ -711,8 +712,8 @@ export const CoachingMode: React.FC = () => {
             }
             
             // Retries exhausted (only happens for non-7/8 levels)
-            console.warn(`[CPU Move] ⚠️ All retries exhausted (${maxRetries}), falling back to main thread`);
-            console.warn('[CPU Move] ⚠️ Fallback will be used for THIS MOVE ONLY - Worker will be retried next turn');
+            debugLog.warn(`[CPU Move] ⚠️ All retries exhausted (${maxRetries}), falling back to main thread`);
+            debugLog.warn('[CPU Move] ⚠️ Fallback will be used for THIS MOVE ONLY - Worker will be retried next turn');
             persistentLogger.error('API computation failed after retries', { error: errorDetails, retries: retryCount - 1 });
             
             // Track timeout/failure stats
@@ -737,7 +738,7 @@ export const CoachingMode: React.FC = () => {
                   { cpuLevel, fen: chess.getFEN(), levelConfig, errorDetails }
                 );
               } catch (err) {
-                console.warn('[CPU Move] Could not log worker error to store:', err);
+                debugLog.warn('[CPU Move] Could not log worker error to store:', err);
               }
             }
             
@@ -752,7 +753,7 @@ export const CoachingMode: React.FC = () => {
             
             /* ORIGINAL FALLBACK CODE - TEMPORARILY DISABLED
             // Fallback to learning AI (SINGLE MOVE ONLY when forced for levels 7-8, or after retries exhausted for other levels)
-            console.log(`[CPU Move] 🔀 Using minimax fallback${forceMovePending ? ' (forced by user)' : ' (retries exhausted)'}`);
+            debugLog.log(`[CPU Move] 🔀 Using minimax fallback${forceMovePending ? ' (forced by user)' : ' (retries exhausted)'}`);
             const fallbackStartTime = Date.now();
             const workerFailureTime = fallbackStartTime - apiStartTime; // Time spent on failed Worker attempts
             const result = findBestMoveWithLearning(chess, searchDepth, cpuLevel, currentMoveHistory);
@@ -779,7 +780,7 @@ export const CoachingMode: React.FC = () => {
                   totalTimeMs: Date.now() - perfStart,
                 });
                 cpuTelemetry.logMove(telemetry);
-                console.log('[CPU Telemetry] ⚠️ Fallback used (single move):', {
+                debugLog.log('[CPU Telemetry] ⚠️ Fallback used (single move):', {
                   moveNumber: telemetry.moveNumber,
                   apiAttempted: telemetry.apiAttempted,
                   apiSucceeded: telemetry.apiSucceeded,
@@ -829,7 +830,7 @@ export const CoachingMode: React.FC = () => {
           }
         } else {
           // Use learning AI on main thread for levels 1-2, 7-8 (Worker disabled)
-          console.log('[CPU Move] Using local computation (Worker not attempted for this level)');
+          debugLog.log('[CPU Move] Using local computation (Worker not attempted for this level)');
           const localStartTime = Date.now();
           const result = findBestMoveWithLearning(chess, searchDepth, cpuLevel, currentMoveHistory);
           selectedMove = result.move as { from: Square; to: Square };
@@ -848,7 +849,7 @@ export const CoachingMode: React.FC = () => {
               totalTimeMs: Date.now() - localStartTime,
             });
             cpuTelemetry.logMove(telemetry);
-            console.log('[CPU Telemetry] 🏠 Local computation logged:', {
+            debugLog.log('[CPU Telemetry] 🏠 Local computation logged:', {
               moveNumber: telemetry.moveNumber,
               apiAttempted: telemetry.apiAttempted,
               source: telemetry.source,
@@ -893,7 +894,7 @@ export const CoachingMode: React.FC = () => {
       }
       
       const aiEnd = performance.now();
-      console.log('[CPU Move] Selected:', selectedMove.from, '→', selectedMove.to, 'time:', Math.round(aiEnd - perfStart), 'ms');
+      debugLog.log('[CPU Move] Selected:', selectedMove.from, '→', selectedMove.to, 'time:', Math.round(aiEnd - perfStart), 'ms');
 
       // Now apply the move in setState
       setState(prevState => {
@@ -909,9 +910,9 @@ export const CoachingMode: React.FC = () => {
         
         if (currentFEN !== calculatedFEN) {
           // Board state changed - move is no longer valid for current position
-          console.warn('[CPU Move] ⚠️ Board state changed during calculation. Canceling move.');
-          console.log('[CPU Move] Expected FEN:', calculatedFEN);
-          console.log('[CPU Move] Current FEN:', currentFEN);
+          debugLog.warn('[CPU Move] ⚠️ Board state changed during calculation. Canceling move.');
+          debugLog.log('[CPU Move] Expected FEN:', calculatedFEN);
+          debugLog.log('[CPU Move] Current FEN:', currentFEN);
           clearTimeout(cpuMoveTimeout.current!);
           cpuMoveInFlight.current = false;
           persistentLogger.warn('CPU move canceled - board state changed', { 
@@ -937,7 +938,7 @@ export const CoachingMode: React.FC = () => {
           const moveNum = Math.ceil(prevState.moveHistory.length / 2) + 1;
           moveTracer.logError(requestId, `Invalid move: ${selectedMove.from}→${selectedMove.to}`, fen, pgn, moveNum);
           console.error('[CPU Move] Invalid move selected!');
-          console.log('[CPU Move] Available legal moves:', prevState.chess.moves({ verbose: true }).map((m: any) => `${m.from}→${m.to}`));
+          debugLog.log('[CPU Move] Available legal moves:', prevState.chess.moves({ verbose: true }).map((m: any) => `${m.from}→${m.to}`));
           persistentLogger.error('CPU selected invalid move', { from: selectedMove.from, to: selectedMove.to, fen, moveNum });
           return { ...prevState, isThinking: false, cpuError: 'CPU selected invalid move. Please retry.' };
         }
@@ -953,7 +954,7 @@ export const CoachingMode: React.FC = () => {
         const newMoveHistory = [...prevState.moveHistory, {
           moveNum,
           player: (prevState.cpuColor === 'w' ? 'White' : 'Black') as 'White' | 'Black',
-          move: promotion ? `${selectedMove.from}-${selectedMove.to}=Q` : `${selectedMove.from}-${selectedMove.to}`,
+          move: move.san || (promotion ? `${selectedMove.from}-${selectedMove.to}=Q` : `${selectedMove.from}-${selectedMove.to}`),
           fen: finalFen,
           source: { type: moveSource, details: cpuLevel >= 7 ? { learning: true } : undefined },
           captured: move.captured, // Store captured piece type
@@ -982,7 +983,7 @@ export const CoachingMode: React.FC = () => {
           
           setTimeout(() => {
             recordGameForLearning(outcome, cpuColor, prevState.cpuLevel, moveHistorySAN, finalFen);
-            console.log('[LearningAI] Recorded game outcome:', outcome);
+            debugLog.log('[LearningAI] Recorded game outcome:', outcome);
           }, 0);
         }
 
@@ -992,12 +993,12 @@ export const CoachingMode: React.FC = () => {
         
         // Reset force move flag for next turn
         if (forceMovePending) {
-          console.log('[CPU Move] 🔄 Resetting forceMovePending flag after move completion');
+          debugLog.log('[CPU Move] 🔄 Resetting forceMovePending flag after move completion');
           setForceMovePending(false);
         }
 
-        console.log('[CPU Move] ✅ Move completed successfully, turn:', result ? 'game over' : newChess.getTurn());
-        console.log('[CPU Move] cpuMoveInFlight reset to:', cpuMoveInFlight.current);
+        debugLog.log('[CPU Move] ✅ Move completed successfully, turn:', result ? 'game over' : newChess.getTurn());
+        debugLog.log('[CPU Move] cpuMoveInFlight reset to:', cpuMoveInFlight.current);
         
         // Log completion after state update to avoid blocking
         setTimeout(() => {
@@ -1035,7 +1036,7 @@ export const CoachingMode: React.FC = () => {
         
         // Reset force move flag on error too
         if (forceMovePending) {
-          console.log('[CPU Move] 🔄 Resetting forceMovePending flag after error');
+          debugLog.log('[CPU Move] 🔄 Resetting forceMovePending flag after error');
           setForceMovePending(false);
         }
         
@@ -1049,7 +1050,7 @@ export const CoachingMode: React.FC = () => {
   }, [setState, moveTracer, persistentLogger, findBestMoveWithLearning, recordGameForLearning, setIsLearnedPosition, setLastMove]);
 
   const addDebugLog = useCallback((msg: string) => {
-    console.log(msg);
+    debugLog.log(msg);
     // Defer debug log updates to avoid blocking game logic
     requestAnimationFrame(() => {
       setDebugLogs(prev => [...prev.slice(-99), `${new Date().toLocaleTimeString()}: ${msg}`]);
@@ -1065,7 +1066,7 @@ export const CoachingMode: React.FC = () => {
       const currentTurn = chess.getTurn();
       
       const logMsg = `[Click] ${square} piece=${piece} turn=${currentTurn} cpuColor=${prevState.cpuColor}`;
-      console.log(logMsg);
+      debugLog.log(logMsg);
       // Don't call setState inside setState - log after return
       setTimeout(() => addDebugLog(logMsg), 0);
       
@@ -1094,7 +1095,7 @@ export const CoachingMode: React.FC = () => {
       // In CPU mode, only allow moves for human player
       if (prevState.gameMode === 'vs-cpu' && currentTurn === prevState.cpuColor) {
         const blockMsg = '[Click] BLOCKED: CPU\'s turn';
-        console.log(blockMsg);
+        debugLog.log(blockMsg);
         addDebugLog(blockMsg);
         return prevState;
       }
@@ -1136,7 +1137,7 @@ export const CoachingMode: React.FC = () => {
         if (isCurrentPlayerPiece) {
           const moves = chess.getLegalMoves(square);
           const switchMsg = `[Click] Switching selection: ${selectedSquare} → ${square}`;
-          console.log(switchMsg);
+          debugLog.log(switchMsg);
           addDebugLog(switchMsg);
           return {
             ...prevState,
@@ -1149,7 +1150,7 @@ export const CoachingMode: React.FC = () => {
       // If piece selected, try to move
       if (selectedSquare) {
         const attemptMsg = `[Click] Attempting move: ${selectedSquare} → ${square}`;
-        console.log(attemptMsg);
+        debugLog.log(attemptMsg);
         addDebugLog(attemptMsg);
         
         // UI ERROR TRACKING: Final validation before move attempt
@@ -1191,7 +1192,7 @@ export const CoachingMode: React.FC = () => {
           const moveNum = Math.ceil(prevState.moveHistory.length / 2) + 1;
           
           const successMsg = `[Click] ✅ SUCCESS! ${selectedSquare}→${square} moveNum=${moveNum} newTurn=${newChess.getTurn()} historyLen=${prevState.moveHistory.length}→${prevState.moveHistory.length + 1}`;
-          console.log(successMsg);
+          debugLog.log(successMsg);
           addDebugLog(successMsg);
           
           // Log player move (deferred to avoid blocking)
@@ -1203,7 +1204,7 @@ export const CoachingMode: React.FC = () => {
           const newMoveHistory = [...prevState.moveHistory, {
             moveNum,
             player: (currentTurn === 'w' ? 'White' : 'Black') as 'White' | 'Black',
-            move: `${selectedSquare}-${square}`,
+            move: move.san || `${selectedSquare}-${square}`,
             fen,
             captured: move.captured, // Store captured piece type
           }];
@@ -1233,15 +1234,15 @@ export const CoachingMode: React.FC = () => {
               
               setTimeout(() => {
                 recordGameForLearning(outcome, cpuColor, prevState.cpuLevel, moveHistorySAN, fen);
-                console.log('[LearningAI] Recorded game outcome:', outcome);
+                debugLog.log('[LearningAI] Recorded game outcome:', outcome);
               }, 0);
             }
           }
           
           const newBoardVersion = prevState.boardVersion + 1;
           
-          console.log('[Click] Returning new state, boardVersion:', newBoardVersion, 'moveHistory length:', newMoveHistory.length);
-          console.log('[Click] State details:', {
+          debugLog.log('[Click] Returning new state, boardVersion:', newBoardVersion, 'moveHistory length:', newMoveHistory.length);
+          debugLog.log('[Click] State details:', {
             gameMode: prevState.gameMode,
             result,
             newTurn: newChess.getTurn(),
@@ -1253,10 +1254,10 @@ export const CoachingMode: React.FC = () => {
           
           // Trigger CPU move if it's vs-cpu mode and now it's CPU's turn
           const shouldTriggerCPU = prevState.gameMode === 'vs-cpu' && !result && newChess.getTurn() === prevState.cpuColor;
-          console.log('[Click] Should trigger CPU?', shouldTriggerCPU);
+          debugLog.log('[Click] Should trigger CPU?', shouldTriggerCPU);
           
           if (shouldTriggerCPU) {
-            console.log('[Click] ✅ Player move complete, triggering CPU move in 100ms...');
+            debugLog.log('[Click] ✅ Player move complete, triggering CPU move in 100ms...');
             const moveNum = Math.ceil(newMoveHistory.length / 2) + 1;
             const inFlightStatus = cpuMoveInFlight.current;
             setTimeout(() => {
@@ -1267,12 +1268,12 @@ export const CoachingMode: React.FC = () => {
             }, 0);
             // Use setTimeout to ensure state update completes first
             setTimeout(() => {
-              console.log('[Click] ⏰ Timer fired, calling makeCPUMove now, cpuMoveInFlight:', cpuMoveInFlight.current);
+              debugLog.log('[Click] ⏰ Timer fired, calling makeCPUMove now, cpuMoveInFlight:', cpuMoveInFlight.current);
               persistentLogger.info('CPU trigger timer fired', { inFlight: cpuMoveInFlight.current });
               makeCPUMove();
             }, 100);
           } else {
-            console.log('[Click] ❌ NOT triggering CPU move');
+            debugLog.log('[Click] ❌ NOT triggering CPU move');
           }
           
           // Return completely new state object with NEW chess instance - PRESERVE ALL STATE
@@ -1288,7 +1289,7 @@ export const CoachingMode: React.FC = () => {
             cpuError: null,
           };
         } else {
-          console.log('[Click] ❌ Invalid move attempt');
+          debugLog.log('[Click] ❌ Invalid move attempt');
         }
       }
 
@@ -1315,7 +1316,7 @@ export const CoachingMode: React.FC = () => {
         const moveNum = Math.ceil(prevState.moveHistory.length / 2) + 1;
         
         const successMsg = `[Promotion] ✅ ${from}→${to}=${piece.toUpperCase()} moveNum=${moveNum}`;
-        console.log(successMsg);
+        debugLog.log(successMsg);
         addDebugLog(successMsg);
         
         moveTracer.logPlayerMove(requestId, from, to, fen, pgn, moveNum);
@@ -1326,7 +1327,7 @@ export const CoachingMode: React.FC = () => {
         const newMoveHistory = [...prevState.moveHistory, {
           moveNum,
           player: (chess.getTurn() === 'w' ? 'White' : 'Black') as 'White' | 'Black',
-          move: `${from}-${to}=${piece.toUpperCase()}`,
+          move: move.san || `${from}-${to}=${piece.toUpperCase()}`,
           fen,
           captured: move.captured // Store captured piece type
         }];
@@ -1381,7 +1382,7 @@ export const CoachingMode: React.FC = () => {
         showPlayerProfile: false,
       };
       
-      console.log('[New Game] Starting with cpuLevel:', prevState.cpuLevel, 'cpuColor:', prevState.cpuColor);
+      debugLog.log('[New Game] Starting with cpuLevel:', prevState.cpuLevel, 'cpuColor:', prevState.cpuColor);
       
       // Start new logging session immediately with correct state
       setTimeout(() => {
@@ -1397,12 +1398,12 @@ export const CoachingMode: React.FC = () => {
     setShowPromotionModal(false);
     setPromotionMove(null);
     
-    console.log('[New Game] Started fresh game');
+    debugLog.log('[New Game] Started fresh game');
   };
   
   // Single consolidated CPU move trigger
   useEffect(() => {
-    console.log('[CPU Trigger] useEffect fired', {
+    debugLog.log('[CPU Trigger] useEffect fired', {
       gameMode: state.gameMode,
       cpuTurn: state.chess.getTurn(),
       cpuColor: state.cpuColor,
@@ -1414,31 +1415,31 @@ export const CoachingMode: React.FC = () => {
 
     // Only trigger if it's CPU's turn in CPU mode
     if (state.gameMode !== 'vs-cpu') {
-      console.log('[CPU Trigger] Not CPU mode');
+      debugLog.log('[CPU Trigger] Not CPU mode');
       return;
     }
     if (state.chess.getTurn() !== state.cpuColor) {
-      console.log('[CPU Trigger] Not CPU turn');
+      debugLog.log('[CPU Trigger] Not CPU turn');
       return;
     }
     if (state.gameResult) {
-      console.log('[CPU Trigger] Game ended');
+      debugLog.log('[CPU Trigger] Game ended');
       return;
     }
     if (state.isThinking) {
-      console.log('[CPU Trigger] Already thinking');
+      debugLog.log('[CPU Trigger] Already thinking');
       return;
     }
     if (cpuMoveInFlight.current) {
-      console.log('[CPU Trigger] Move in flight');
+      debugLog.log('[CPU Trigger] Move in flight');
       return;
     }
 
-    console.log('[CPU Trigger] ✅ All conditions met, scheduling CPU move...');
+    debugLog.log('[CPU Trigger] ✅ All conditions met, scheduling CPU move...');
     const timer = setTimeout(() => makeCPUMove(), 300);
     
     return () => {
-      console.log('[CPU Trigger] Cleanup timer');
+      debugLog.log('[CPU Trigger] Cleanup timer');
       clearTimeout(timer);
     };
   }, [state.boardVersion, state.gameMode, state.cpuColor, state.gameResult, state.isThinking, makeCPUMove]);
@@ -1454,8 +1455,8 @@ export const CoachingMode: React.FC = () => {
 
   // DEBUG: Log when moveHistory actually changes in state
   useEffect(() => {
-    console.log('[State Changed] moveHistory length:', state.moveHistory.length, 'boardVersion:', state.boardVersion);
-    console.log('[State Changed] Latest moves:', state.moveHistory.slice(-3));
+    debugLog.log('[State Changed] moveHistory length:', state.moveHistory.length, 'boardVersion:', state.boardVersion);
+    debugLog.log('[State Changed] Latest moves:', state.moveHistory.slice(-3));
   }, [state.moveHistory.length, state.boardVersion]);
 
   const renderSquare = (square: Square) => {
@@ -1564,9 +1565,9 @@ export const CoachingMode: React.FC = () => {
               value={state.cpuLevel}
               onChange={(e) => {
                 const newLevel = parseInt(e.target.value);
-                console.log('[Difficulty Change] Setting cpuLevel to:', newLevel);
+                debugLog.log('[Difficulty Change] Setting cpuLevel to:', newLevel);
                 setState(prev => {
-                  console.log('[Difficulty Change] Previous cpuLevel:', prev.cpuLevel, '→ New:', newLevel);
+                  debugLog.log('[Difficulty Change] Previous cpuLevel:', prev.cpuLevel, '→ New:', newLevel);
                   return { ...prev, cpuLevel: newLevel };
                 });
               }}
@@ -1621,7 +1622,7 @@ export const CoachingMode: React.FC = () => {
           {state.gameMode === 'vs-cpu' && (
             <button 
               onClick={() => {
-                console.log('[CPU Move] 🛑 Force move requested by user');
+                debugLog.log('[CPU Move] 🛑 Force move requested by user');
                 setForceMovePending(true);
               }}
               className="control-btn"
@@ -1651,9 +1652,9 @@ export const CoachingMode: React.FC = () => {
               value={state.cpuLevel}
               onChange={(e) => {
                 const newLevel = parseInt(e.target.value);
-                console.log('[Difficulty Change] Setting cpuLevel to:', newLevel);
+                debugLog.log('[Difficulty Change] Setting cpuLevel to:', newLevel);
                 setState(prev => {
-                  console.log('[Difficulty Change] Previous cpuLevel:', prev.cpuLevel, '→ New:', newLevel);
+                  debugLog.log('[Difficulty Change] Previous cpuLevel:', prev.cpuLevel, '→ New:', newLevel);
                   return { ...prev, cpuLevel: newLevel };
                 });
               }}
@@ -1881,7 +1882,7 @@ export const CoachingMode: React.FC = () => {
                     // Copy to clipboard
                     const diagnosticText = JSON.stringify(diagnosticData, null, 2);
                     navigator.clipboard.writeText(diagnosticText).then(() => {
-                      console.log('🔧 FULL DIAGNOSTIC DATA:', diagnosticData);
+                      debugLog.log('🔧 FULL DIAGNOSTIC DATA:', diagnosticData);
                       alert('✅ Diagnostic data copied to clipboard!\n\n' + 
                         'Data includes:\n' +
                         '• Current game state\n' +
@@ -1896,7 +1897,7 @@ export const CoachingMode: React.FC = () => {
                       localStorage.setItem('debug', 'true');
                     }).catch(() => {
                       alert('Data logged to console. Check Developer Tools → Console tab.');
-                      console.log('🔧 FULL DIAGNOSTIC DATA:', diagnosticData);
+                      debugLog.log('🔧 FULL DIAGNOSTIC DATA:', diagnosticData);
                       localStorage.setItem('debug', 'true');
                     });
                   }}
@@ -1986,7 +1987,7 @@ export const CoachingMode: React.FC = () => {
                             state.chess.getTurn() === state.cpuColor && 
                             !state.isThinking &&
                             !cpuMoveInFlight.current) {
-                          console.log('[Force CPU Move] Manually triggering CPU move');
+                          debugLog.log('[Force CPU Move] Manually triggering CPU move');
                           makeCPUMove();
                         } else {
                           alert('Cannot force CPU move:\n' + 

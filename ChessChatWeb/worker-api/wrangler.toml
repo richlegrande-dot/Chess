@@ -30,6 +30,13 @@ LEARNING_V3_CANARY_ENABLED = "false"
 LEARNING_V3_CANARY_PERCENTAGE = "1"
 LEARNING_V3_DEBUG_TIMING = "true"  # Temporary: Enable extended timeout + timing logs
 
+# Learning V3.1 Enhancement Flags (ENABLED)
+LEARNING_V3_SMART_SAMPLING = "true"        # Enable intelligent position sampling
+LEARNING_V3_CACHE_ENABLED = "true"         # Enable Stockfish result caching
+LEARNING_V3_MAX_POSITIONS_PER_GAME = "4"   # Max positions to analyze per game
+LEARNING_V3_MAX_DB_WRITES = "50"           # Guardrail: Max DB writes per ingestion
+LEARNING_V3_MAX_STOCKFISH_CALLS = "6"      # Guardrail: Max Stockfish API calls per ingestion
+
 # Cron triggers (optional keep-warm mechanism)
 # Uncomment to enable scheduled pings to Stockfish server every 10 minutes
 # [[triggers.crons]]

@@ -13,11 +13,16 @@ export async function onRequestPost(context: {
     
     const moveCount = moveHistory?.length || 0;
     
-    // Return a helpful stub analysis
+    // Return truthful response about capabilities
     return new Response(
       JSON.stringify({
         success: true,
-        analysis: `Game analysis complete! You played ${moveCount} moves as ${playerColor}. Your local coaching system has identified patterns and provided detailed feedback. Advanced server-side analysis is currently unavailable, but your progress is being tracked locally.`,
+        analysis: `Game analysis complete! You played ${moveCount} moves as ${playerColor}. Your local coaching system has identified patterns and provided detailed feedback.`,
+        serverCapabilities: {
+          deepAnalysisEnabled: false,
+          localAnalysisEnabled: true
+        },
+        recommendation: 'Check the post-game coaching panel for detailed insights from your local analysis engine.'
       }),
       {
         status: 200,

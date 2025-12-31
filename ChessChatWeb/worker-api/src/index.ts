@@ -590,6 +590,145 @@ async function handleChessMove(request: Request, env: Env): Promise<Response> {
   }
 }
 
+// ============================================================================
+// HEALTH CHECK HANDLER
+// ============================================================================
+
+async function handleHealthCheck(
+  request: Request,
+  env: Env,
+  prisma: PrismaClient
+): Promise<Response> {
+  try {
+    // Test database connection
+    let dbReady = false;
+    let dbError: string | null = null;
+    
+    try {
+      await prisma.$queryRaw`SELECT 1`;
+      dbReady = true;
+    } catch (error) {
+      dbError = error instanceof Error ? error.message : 'Database connection failed';
+    }
+
+    const status = dbReady ? 'healthy' : 'degraded';
+
+    return new Response(
+      JSON.stringify({
+        status,
+        timestamp: new Date().toISOString(),
+        version: env.VERSION || '2.0.0',
+        environment: env.ENVIRONMENT || 'production',
+        database: {
+          dbReady,
+          error: dbError,
+        },
+        learning: {
+          v3Enabled: env.LEARNING_V3_ENABLED === 'true',
+          v31SmartSampling: env.LEARNING_V3_SMART_SAMPLING === 'true',
+          v31CacheEnabled: env.LEARNING_V3_CACHE_ENABLED === 'true',
+        },
+      }),
+      { status: 200, headers: getCacheHeaders() }
+    );
+  } catch (error) {
+    return new Response(
+      JSON.stringify({
+        status: 'unhealthy',
+        error: error instanceof Error ? error.message : 'Health check failed',
+      }),
+      { status: 503, headers: getCacheHeaders() }
+    );
+  }
+}
+
+// ============================================================================
+// ADMIN AUTHENTICATION HANDLERS
+// ============================================================================
+
+async function handleAdminUnlock(
+  request: Request,
+  env: Env,
+  prisma: PrismaClient
+): Promise<Response> {
+  try {
+    const body = await request.json() as { password: string };
+    const { password } = body;
+
+    // Verify password
+    if (!env.ADMIN_PASSWORD || password !== env.ADMIN_PASSWORD) {
+      return new Response(
+        JSON.stringify({
+          success: false,
+          error: 'Invalid password',
+        }),
+        { status: 401, headers: getCacheHeaders() }
+      );
+    }
+
+    // Generate session token
+    const token = crypto.randomUUID();
+    const expiresAt = new Date(Date.now() + 8 * 60 * 60 * 1000); // 8 hours
+
+    // Store session in database
+    await prisma.adminSession.create({
+      data: {
+        id: crypto.randomUUID(),
+        token,
+        expiresAt,
+      },
+    });
+
+    return new Response(
+      JSON.stringify({
+        success: true,
+        token,
+        expiresAt: expiresAt.toISOString(),
+      }),
+      { status: 200, headers: getCacheHeaders() }
+    );
+  } catch (error) {
+    return new Response(
+      JSON.stringify({
+        success: false,
+        error: error instanceof Error ? error.message : 'Authentication failed',
+      }),
+      { status: 500, headers: getCacheHeaders() }
+    );
+  }
+}
+
+async function handleAdminLogout(
+  request: Request,
+  env: Env,
+  prisma: PrismaClient
+): Promise<Response> {
+  try {
+    const authHeader = request.headers.get('Authorization');
+    const token = authHeader?.replace('Bearer ', '');
+
+    if (token) {
+      // Delete session from database
+      await prisma.adminSession.deleteMany({
+        where: { token },
+      });
+    }
+
+    return new Response(
+      JSON.stringify({ success: true }),
+      { status: 200, headers: getCacheHeaders() }
+    );
+  } catch (error) {
+    return new Response(
+      JSON.stringify({
+        success: false,
+        error: error instanceof Error ? error.message : 'Logout failed',
+      }),
+      { status: 500, headers: getCacheHeaders() }
+    );
+  }
+}
+
 async function handleWorkerHealth(request: Request, env: Env): Promise<Response> {
   // Require admin authentication
   const authHeader = request.headers.get('Authorization');
@@ -844,8 +983,18 @@ export default {
     // Get Prisma client for this request
     const prisma = getPrismaClient(env);
 
+    // Health check endpoint
+    if (path === '/api/health' && request.method === 'GET') {
+      response = await handleHealthCheck(request, env, prisma);
+    }
+    // Admin Auth Endpoints
+    else if (path === '/api/admin/auth/unlock' && request.method === 'POST') {
+      response = await handleAdminUnlock(request, env, prisma);
+    } else if (path === '/api/admin/auth/logout' && request.method === 'POST') {
+      response = await handleAdminLogout(request, env, prisma);
+    }
     // Learning Layer V3 Endpoints
-    if (path === '/api/learning/ingest-game' && request.method === 'POST') {
+    else if (path === '/api/learning/ingest-game' && request.method === 'POST') {
       response = await handleLearningIngest(request, env, prisma);
     } else if (path === '/api/learning/plan' && request.method === 'GET') {
       response = await handleLearningPlan(request, env, prisma);
@@ -873,6 +1022,9 @@ export default {
           success: false,
           error: 'Not found',
           availableEndpoints: [
+            'GET /api/health',
+            'POST /api/admin/auth/unlock',
+            'POST /api/admin/auth/logout',
             'POST /api/chess-move',
             'POST /api/learning/ingest-game',
             'GET /api/learning/plan',

@@ -10,6 +10,7 @@ import type {
   WorkerErrorType 
 } from '../../types/cpuTelemetry';
 import { validateNoStickyFallback, classifyWorkerError } from '../../types/cpuTelemetry';
+import { debugLog } from '../logging/debugLogger';
 
 class CPUTelemetryLogger {
   private stats: CPUMoveStats = {
@@ -28,7 +29,7 @@ class CPUTelemetryLogger {
    * Validates no sticky fallback
    */
   logMove(telemetry: CPUMoveTelemetry): void {
-    console.log('[CPU Telemetry] Move logged:', {
+    debugLog.log('[CPU Telemetry] Move logged:', {
       moveNumber: telemetry.moveNumber,
       cpuLevel: telemetry.cpuLevel,
       apiAttempted: telemetry.apiAttempted,
@@ -72,7 +73,7 @@ class CPUTelemetryLogger {
     try {
       validateNoStickyFallback(this.stats);
     } catch (error) {
-      console.error('[CPU Telemetry] ❌ STICKY FALLBACK VIOLATION:', error);
+      debugLog.error('[CPU Telemetry] ❌ STICKY FALLBACK VIOLATION:', error);
       // Log to persistent storage if available
       if (typeof window !== 'undefined' && (window as any).gameStore) {
         const store = (window as any).gameStore;
@@ -89,7 +90,7 @@ class CPUTelemetryLogger {
       const successRate = (this.stats.workerSuccesses / this.stats.workerAttempts) * 100;
       const fallbackRate = (this.stats.fallbackUses / this.stats.totalMoves) * 100;
       
-      console.log('[CPU Telemetry] Session stats:', {
+      debugLog.log('[CPU Telemetry] Session stats:', {
         totalMoves: this.stats.totalMoves,
         workerSuccessRate: successRate.toFixed(1) + '%',
         fallbackRate: fallbackRate.toFixed(1) + '%',
@@ -246,7 +247,7 @@ class CPUTelemetryLogger {
       avgFallbackTimeMs: 0,
       recentMoves: [],
     };
-    console.log('[CPU Telemetry] Stats reset');
+    debugLog.log('[CPU Telemetry] Stats reset');
   }
 }
 

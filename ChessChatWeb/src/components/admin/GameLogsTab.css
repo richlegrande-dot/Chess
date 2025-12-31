@@ -136,6 +136,10 @@
   font-weight: bold;
   color: #fff;
   margin-bottom: 5px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 100%;
 }
 
 .stat-label {

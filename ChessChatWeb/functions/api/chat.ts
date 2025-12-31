@@ -1,6 +1,6 @@
 /**
  * Chat API endpoint - Stub implementation
- * Returns a generic message since AI chat isn't deployed
+ * Returns truthful message about chat functionality not being available
  */
 
 export async function onRequestPost(context: {
@@ -10,11 +10,15 @@ export async function onRequestPost(context: {
   try {
     const body = await context.request.json() as any;
     
-    // Return a helpful stub response
+    // Return truthful response about capabilities
     return new Response(
       JSON.stringify({
         success: true,
         response: "Chat functionality is currently unavailable. Your local coaching system is still analyzing your games and providing insights!",
+        serverCapabilities: {
+          chatEnabled: false,
+          localCoachingEnabled: true
+        }
       }),
       {
         status: 200,

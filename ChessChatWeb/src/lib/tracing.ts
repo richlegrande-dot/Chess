@@ -1,6 +1,8 @@
 /**
  * CPU Move Pipeline Tracing System
  * Provides detailed logging with unique request IDs for debugging CPU move issues
+import { debugLog } from './logging/debugLogger';
+
  */
 
 // Simple UUID v4 generator (no external dependency)
@@ -52,7 +54,7 @@ class MoveTracer {
     const id = trace.moveRequestId.slice(0, 8);
     const move = `Move #${trace.moveNumber}`;
     
-    console.log(
+    debugLog.log(
       `%c${prefix} ${id} ${move}%c ${trace.message}`,
       'color: #4CAF50; font-weight: bold',
       'color: inherit',
@@ -120,7 +122,7 @@ class MoveTracer {
   }
 
   logTimeout(requestId: string, fen: string, pgn: string, moveNumber: number, timeoutMs: number): void {
-    console.warn(`[TIMEOUT] ${requestId.slice(0, 8)} Move #${moveNumber}: CPU did not respond within ${timeoutMs}ms`);
+    debugLog.warn(`[TIMEOUT] ${requestId.slice(0, 8)} Move #${moveNumber}: CPU did not respond within ${timeoutMs}ms`);
     this.log({
       moveRequestId: requestId,
       fen,
@@ -165,3 +167,4 @@ class MoveTracer {
 
 // Singleton instance
 export const moveTracer = new MoveTracer();
+

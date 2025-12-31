@@ -14,6 +14,12 @@ export interface LearningV3Config {
   timeoutMs: number;
   canaryEnabled: boolean;
   canaryPercentage: number;
+  // V3.1 enhancements
+  smartSampling: boolean;
+  cacheEnabled: boolean;
+  maxPositionsPerGame: number;
+  maxDbWrites: number;
+  maxStockfishCalls: number;
 }
 
 export interface Env {
@@ -38,6 +44,13 @@ export interface Env {
   LEARNING_V3_TIMEOUT_MS?: string;        // default: "8000"
   LEARNING_V3_CANARY_ENABLED?: string;    // default: "false"
   LEARNING_V3_CANARY_PERCENTAGE?: string; // default: "1"
+  
+  // Learning V3.1 Enhancement Flags
+  LEARNING_V3_SMART_SAMPLING?: string;       // default: "false"
+  LEARNING_V3_CACHE_ENABLED?: string;        // default: "true"
+  LEARNING_V3_MAX_POSITIONS_PER_GAME?: string; // default: "4"
+  LEARNING_V3_MAX_DB_WRITES?: string;        // default: "50"
+  LEARNING_V3_MAX_STOCKFISH_CALLS?: string;  // default: "6"
 }
 
 /**
@@ -54,6 +67,12 @@ export function getLearningV3Config(env: Env): LearningV3Config {
     timeoutMs: parseInt(env.LEARNING_V3_TIMEOUT_MS || '8000', 10),
     canaryEnabled: env.LEARNING_V3_CANARY_ENABLED === 'true',
     canaryPercentage: parseInt(env.LEARNING_V3_CANARY_PERCENTAGE || '1', 10),
+    // V3.1 enhancements
+    smartSampling: env.LEARNING_V3_SMART_SAMPLING === 'true',
+    cacheEnabled: env.LEARNING_V3_CACHE_ENABLED !== 'false', // default true
+    maxPositionsPerGame: parseInt(env.LEARNING_V3_MAX_POSITIONS_PER_GAME || '4', 10),
+    maxDbWrites: parseInt(env.LEARNING_V3_MAX_DB_WRITES || '50', 10),
+    maxStockfishCalls: parseInt(env.LEARNING_V3_MAX_STOCKFISH_CALLS || '6', 10),
   };
 }
 

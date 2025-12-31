@@ -23,6 +23,7 @@ export interface ChessConversationMessage {
   moveContext?: string;
 }
 import type { Square } from 'chess.js';
+import { debugLog } from '../lib/logging/debugLogger';
 
 // Debug info for troubleshooting
 export interface DebugInfo {
@@ -393,7 +394,7 @@ export const useGameStore = create<GameStore>()(
                 cpuLogger.info(`CPU move received: ${response.move} (${latencyMs}ms)`);
                 
                 // 🔍 DIAGNOSTIC: Log response structure
-                console.log('[DIAGNOSTIC] GameStore API Response:', {
+                debugLog.log('[DIAGNOSTIC] GameStore API Response:', {
                   hasMove: !!response.move,
                   hasWorkerCallLog: !!response.workerCallLog,
                   workerCallLog: response.workerCallLog,
@@ -403,16 +404,16 @@ export const useGameStore = create<GameStore>()(
 
                 // Log worker call if present in response
                 if (response.workerCallLog) {
-                  console.log('[DIAGNOSTIC] GameStore calling logWorkerCall with:', response.workerCallLog);
+                  debugLog.log('[DIAGNOSTIC] GameStore calling logWorkerCall with:', response.workerCallLog);
                   const beforeCount = get().debugInfo.workerCalls?.length || 0;
                   
                   get().logWorkerCall(response.workerCallLog);
                   
                   const afterCount = get().debugInfo.workerCalls?.length || 0;
-                  console.log('[DIAGNOSTIC] GameStore worker calls count: before=', beforeCount, 'after=', afterCount);
+                  debugLog.log('[DIAGNOSTIC] GameStore worker calls count: before=', beforeCount, 'after=', afterCount);
                   console.log('[GameStore] ✅ Worker call logged');
                 } else {
-                  console.warn('[DIAGNOSTIC] ⚠️ No workerCallLog in response');
+                  debugLog.warn('[DIAGNOSTIC] ⚠️ No workerCallLog in response');
                 }
 
                 // Track API response in debug info
@@ -854,8 +855,8 @@ export const useGameStore = create<GameStore>()(
 
       // Log worker service binding calls
       logWorkerCall: (call) => {
-        console.log('[DIAGNOSTIC] 🎯 logWorkerCall() CALLED with:', call);
-        console.log('[DIAGNOSTIC] Current state before logging:', {
+        debugLog.log('[DIAGNOSTIC] 🎯 logWorkerCall() CALLED with:', call);
+        debugLog.log('[DIAGNOSTIC] Current state before logging:', {
           workerCallsCount: get().debugInfo.workerCalls?.length || 0,
           workerCalls: get().debugInfo.workerCalls
         });
@@ -872,13 +873,13 @@ export const useGameStore = create<GameStore>()(
             response: call.response,
           };
           
-          console.log('[DIAGNOSTIC] Creating new call object:', newCall);
+          debugLog.log('[DIAGNOSTIC] Creating new call object:', newCall);
           
           // Keep last 50 calls
           const previousCalls = state.debugInfo.workerCalls || [];
           const workerCalls = [...previousCalls, newCall].slice(-50);
           
-          console.log('[DIAGNOSTIC] Worker calls array:', {
+          debugLog.log('[DIAGNOSTIC] Worker calls array:', {
             previousCount: previousCalls.length,
             newCount: workerCalls.length,
             newCall: newCall
@@ -897,7 +898,7 @@ export const useGameStore = create<GameStore>()(
             },
           };
           
-          console.log('[DIAGNOSTIC] ✅ Returning new state with', workerCalls.length, 'worker calls');
+          debugLog.log('[DIAGNOSTIC] ✅ Returning new state with', workerCalls.length, 'worker calls');
           
           return newState;
         });
@@ -920,3 +921,4 @@ if (typeof window !== 'undefined') {
     useGameStore.getState().enableAutoHealing();
   }, 1000);
 }
+

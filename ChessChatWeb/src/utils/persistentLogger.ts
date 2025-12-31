@@ -5,6 +5,8 @@
  * Logs are stored per game session and reset when a new game starts.
  */
 
+import { debugLog } from '../lib/logging/debugLogger';
+
 export interface LogEntry {
   timestamp: number;
   level: 'info' | 'warn' | 'error' | 'debug';
@@ -45,7 +47,7 @@ class PersistentLogger {
     };
 
     this.saveToStorageNow();
-    console.log(`[PersistentLogger] Started new session: ${sessionId}`);
+    debugLog.log(`[PersistentLogger] Started new session: ${sessionId}`);
     
     return sessionId;
   }
@@ -78,11 +80,13 @@ class PersistentLogger {
     this.isDirty = true;
     this.deferredSave();
 
-    // Also log to console for debugging (but don't log data in production)
-    const consoleMethod = level === 'error' ? console.error : 
-                         level === 'warn' ? console.warn : 
-                         console.log;
-    consoleMethod(`[GameLog:${level}]`, message, data ? '(with data)' : '');
+    // Also log to console for debugging (only in debug mode)
+    if (debugLog.isEnabled()) {
+      const consoleMethod = level === 'error' ? console.error : 
+                           level === 'warn' ? console.warn : 
+                           console.log;
+      consoleMethod(`[GameLog:${level}]`, message, data ? '(with data)' : '');
+    }
   }
 
   /**

@@ -368,3 +368,67 @@ model LearningEvent {
   @@index([userId, ts])
   @@map("learning_events")
 }
+
+// ============= NEW: STOCKFISH ANALYSIS CACHE =============
+
+// Cache Stockfish analysis results to reduce computation costs
+model AnalysisCache {
+  id          String   @id @default(uuid())
+  cacheKey    String   @unique  // hash(fen + depth + movetime)
+  fen         String
+  depth       Int
+  movetime    Int?
+  
+  // Analysis results
+  evalCp      Int?
+  mate        Int?
+  bestMove    String?
+  pv          String?  // Principal variation (space-separated moves)
+  nodes       BigInt?
+  
+  // Cache metadata
+  hitCount    Int      @default(0)
+  createdAt   DateTime @default(now())
+  lastUsedAt  DateTime @default(now())
+  expiresAt   DateTime // TTL for cache expiration
+  
+  @@index([cacheKey])
+  @@index([fen])
+  @@index([expiresAt])
+  @@map("analysis_cache")
+}
+
+// ============= NEW: INGESTION INSTRUMENTATION =============
+
+// Detailed metrics for each game ingestion request
+model IngestionEvent {
+  id                    String   @id @default(uuid())
+  ts                    DateTime @default(now())
+  userId                String
+  gameId                String
+  
+  // Performance metrics
+  durationMs            Int
+  candidatesSelected    Int      // Number of positions selected for analysis
+  stockfishCallsMade    Int      // Actual Stockfish API calls
+  cacheHitRate          Float    // 0.0 to 1.0
+  
+  // Analysis tier
+  tierSelected          String   // "A" | "B" | "C"
+  maxDepth              Int
+  
+  // Results
+  conceptsUpdated       Int
+  positionsAnalyzed     Int
+  eventResult           String   // "success" | "partial" | "timeout" | "error"
+  errorMessage          String?
+  
+  // Feature flags at time of ingestion
+  smartSamplingEnabled  Boolean  @default(false)
+  cacheEnabled          Boolean  @default(true)
+  
+  @@index([ts(sort: Desc)])
+  @@index([userId, ts])
+  @@index([eventResult])
+  @@map("ingestion_events")
+}

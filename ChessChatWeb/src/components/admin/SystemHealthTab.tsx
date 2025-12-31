@@ -55,6 +55,10 @@ export const SystemHealthTab: React.FC = () => {
     );
   }
 
+  if (!health) {
+    return <div className="loading">No health data available...</div>;
+  }
+
   return (
     <div className="system-health-tab">
       <div className="health-header">
@@ -73,7 +77,7 @@ export const SystemHealthTab: React.FC = () => {
       </div>
 
       {/* Overall Status */}
-      <div className={`health-card status-${health.status}`}>
+      <div className={`health-card status-${health.status || 'unknown'}`}>
         <h3>Overall Status</h3>
         <div className="status-badge">
           {health.status === 'healthy' && '✓ Healthy'}
@@ -83,7 +87,8 @@ export const SystemHealthTab: React.FC = () => {
         <p className="timestamp">
           Last checked: {new Date(health.timestamp).toLocaleString()}
         </p>
-        <p className="uptime">Uptime: {Math.floor(health.uptime / 1000)}s</p>
+        <p className="version">Version: {health.version || 'Unknown'}</p>
+        <p className="environment">Environment: {health.environment || 'Unknown'}</p>
       </div>
 
       {/* Database Health */}
@@ -94,79 +99,43 @@ export const SystemHealthTab: React.FC = () => {
             <div className="detail-row">
               <span>Status:</span>
               <span className={health.database.dbReady ? 'text-success' : 'text-error'}>
-                {health.database.dbReady ? '✓ Ready' : '✗ Not Ready'}
+                {health.database.dbReady ? '✓ Connected' : '✗ Disconnected'}
               </span>
             </div>
-            <div className="detail-row">
-              <span>Last Ping:</span>
-              <span>
-                {health.database.lastPing
-                  ? new Date(health.database.lastPing).toLocaleString()
-                  : 'Never'}
-              </span>
-            </div>
-            <div className="detail-row">
-              <span>Latency:</span>
-              <span>{health.database.latencyMs}ms</span>
-            </div>
-            <div className="detail-row">
-              <span>Failure Count:</span>
-              <span className={health.database.failureCount > 0 ? 'text-warning' : ''}>
-                {health.database.failureCount}
-              </span>
-            </div>
-            <div className="detail-row">
-              <span>Consecutive Failures:</span>
-              <span
-                className={
-                  health.database.consecutiveFailures > 3
-                    ? 'text-error'
-                    : health.database.consecutiveFailures > 0
-                    ? 'text-warning'
-                    : ''
-                }
-              >
-                {health.database.consecutiveFailures}
-              </span>
-            </div>
-            {health.database.lastError && (
+            {health.database.error && (
               <div className="detail-row">
-                <span>Last Error:</span>
-                <span className="text-error">{health.database.lastError}</span>
+                <span>Error:</span>
+                <span className="text-error">{health.database.error}</span>
               </div>
             )}
           </div>
         </div>
       )}
 
-      {/* Service Checks */}
-      <div className="health-card">
-        <h3>Service Checks</h3>
-        <div className="health-details">
-          <div className="detail-row">
-            <span>API Key:</span>
-            <span className={health.checks.apiKey ? 'text-success' : 'text-warning'}>
-              {health.checks.apiKey ? '✓ Configured' : '⚠ Not configured (optional)'}
-            </span>
+      {/* Learning System */}
+      {health.learning && (
+        <div className="health-card">
+          <h3>Learning System</h3>
+          <div className="health-details">
+            <div className="detail-row">
+              <span>V3 Enabled:</span>
+              <span className={health.learning.v3Enabled ? 'text-success' : 'text-warning'}>
+                {health.learning.v3Enabled ? '✓ Active' : '○ Disabled'}
+              </span>
+            </div>
+            <div className="detail-row">
+              <span>Smart Sampling (V3.1):</span>
+              <span className={health.learning.v31SmartSampling ? 'text-success' : 'text-warning'}>
+                {health.learning.v31SmartSampling ? '✓ Active' : '○ Disabled'}
+              </span>
+            </div>
+            <div className="detail-row">
+              <span>Cache Enabled (V3.1):</span>
+              <span className={health.learning.v31CacheEnabled ? 'text-success' : 'text-warning'}>
+                {health.learning.v31CacheEnabled ? '✓ Active' : '○ Disabled'}
+              </span>
+            </div>
           </div>
-          <div className="detail-row">
-            <span>Database:</span>
-            <span className={health.checks.database ? 'text-success' : 'text-error'}>
-              {health.checks.database ? '✓ Connected' : '✗ Disconnected'}
-            </span>
-          </div>
-        </div>
-      </div>
-
-      {/* Recommendations */}
-      {health.recommendations && health.recommendations.length > 0 && (
-        <div className="health-card recommendations">
-          <h3>⚠️ Recommendations</h3>
-          <ul>
-            {health.recommendations.map((rec: string, i: number) => (
-              <li key={i}>{rec}</li>
-            ))}
-          </ul>
         </div>
       )}
     </div>
