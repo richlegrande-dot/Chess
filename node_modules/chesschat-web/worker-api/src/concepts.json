@@ -1,0 +1,237 @@
+{
+  "version": "1.0.0",
+  "concepts": [
+    {
+      "id": "hanging_pieces",
+      "name": "Preventing Hanging Pieces",
+      "category": "tactical",
+      "difficulty": 1,
+      "prerequisites": [],
+      "description": "Ensuring all pieces remain protected and not left en prise"
+    },
+    {
+      "id": "tactical_awareness",
+      "name": "Tactical Awareness",
+      "category": "tactical",
+      "difficulty": 2,
+      "prerequisites": ["hanging_pieces"],
+      "description": "Spotting immediate tactical threats and opportunities"
+    },
+    {
+      "id": "back_rank_mate",
+      "name": "Back Rank Mate Recognition",
+      "category": "tactical",
+      "difficulty": 2,
+      "prerequisites": ["hanging_pieces"],
+      "description": "Recognizing and preventing back rank mate threats"
+    },
+    {
+      "id": "tactical_forks",
+      "name": "Fork Tactics",
+      "category": "tactical",
+      "difficulty": 2,
+      "prerequisites": ["hanging_pieces"],
+      "description": "Creating and avoiding fork opportunities (double attacks)"
+    },
+    {
+      "id": "pins_skewers",
+      "name": "Pins and Skewers",
+      "category": "tactical",
+      "difficulty": 3,
+      "prerequisites": ["tactical_awareness"],
+      "description": "Using and defending against pins and skewers"
+    },
+    {
+      "id": "discovered_attacks",
+      "name": "Discovered Attacks",
+      "category": "tactical",
+      "difficulty": 3,
+      "prerequisites": ["tactical_awareness"],
+      "description": "Recognizing and exploiting discovered attack opportunities"
+    },
+    {
+      "id": "removal_defender",
+      "name": "Removing the Defender",
+      "category": "tactical",
+      "difficulty": 3,
+      "prerequisites": ["tactical_awareness"],
+      "description": "Eliminating pieces that protect key squares or pieces"
+    },
+    {
+      "id": "opening_principles",
+      "name": "Opening Principles",
+      "category": "opening",
+      "difficulty": 1,
+      "prerequisites": [],
+      "description": "Control center, develop pieces efficiently, castle early"
+    },
+    {
+      "id": "king_safety_opening",
+      "name": "King Safety in Opening",
+      "category": "opening",
+      "difficulty": 2,
+      "prerequisites": ["opening_principles"],
+      "description": "Castling at the right time and avoiding king exposure"
+    },
+    {
+      "id": "center_control",
+      "name": "Center Control",
+      "category": "opening",
+      "difficulty": 2,
+      "prerequisites": ["opening_principles"],
+      "description": "Establishing and maintaining control of central squares"
+    },
+    {
+      "id": "opening_traps",
+      "name": "Opening Traps",
+      "category": "opening",
+      "difficulty": 3,
+      "prerequisites": ["tactical_awareness", "opening_principles"],
+      "description": "Recognizing and avoiding common opening traps"
+    },
+    {
+      "id": "development_speed",
+      "name": "Development Speed",
+      "category": "opening",
+      "difficulty": 2,
+      "prerequisites": ["opening_principles"],
+      "description": "Developing pieces quickly and efficiently"
+    },
+    {
+      "id": "pawn_structure",
+      "name": "Pawn Structure",
+      "category": "positional",
+      "difficulty": 3,
+      "prerequisites": ["opening_principles"],
+      "description": "Understanding pawn chains, islands, and structural weaknesses"
+    },
+    {
+      "id": "piece_activity",
+      "name": "Piece Activity",
+      "category": "positional",
+      "difficulty": 3,
+      "prerequisites": ["opening_principles"],
+      "description": "Maximizing piece mobility, coordination, and effectiveness"
+    },
+    {
+      "id": "space_advantage",
+      "name": "Space Advantage",
+      "category": "positional",
+      "difficulty": 4,
+      "prerequisites": ["pawn_structure", "piece_activity"],
+      "description": "Gaining and exploiting space advantage"
+    },
+    {
+      "id": "weak_squares",
+      "name": "Weak Squares",
+      "category": "positional",
+      "difficulty": 4,
+      "prerequisites": ["pawn_structure"],
+      "description": "Identifying and exploiting weak squares (outposts)"
+    },
+    {
+      "id": "king_safety_middlegame",
+      "name": "King Safety in Middlegame",
+      "category": "positional",
+      "difficulty": 3,
+      "prerequisites": ["king_safety_opening"],
+      "description": "Maintaining king safety during middlegame attacks"
+    },
+    {
+      "id": "piece_exchanges",
+      "name": "Piece Exchanges",
+      "category": "positional",
+      "difficulty": 3,
+      "prerequisites": ["piece_activity"],
+      "description": "Deciding when to trade pieces favorably"
+    },
+    {
+      "id": "basic_checkmates",
+      "name": "Basic Checkmates",
+      "category": "endgame",
+      "difficulty": 1,
+      "prerequisites": [],
+      "description": "K+Q vs K, K+R vs K, K+2R vs K checkmate patterns"
+    },
+    {
+      "id": "pawn_endgames",
+      "name": "Pawn Endgames",
+      "category": "endgame",
+      "difficulty": 3,
+      "prerequisites": ["basic_checkmates"],
+      "description": "Opposition, key squares, pawn races, and breakthrough"
+    },
+    {
+      "id": "rook_endgames",
+      "name": "Rook Endgames",
+      "category": "endgame",
+      "difficulty": 4,
+      "prerequisites": ["pawn_endgames"],
+      "description": "Lucena, Philidor positions, rook vs pawn endings"
+    },
+    {
+      "id": "king_activity_endgame",
+      "name": "King Activity in Endgame",
+      "category": "endgame",
+      "difficulty": 3,
+      "prerequisites": ["basic_checkmates"],
+      "description": "Activating the king in the endgame"
+    },
+    {
+      "id": "passed_pawns",
+      "name": "Passed Pawns",
+      "category": "endgame",
+      "difficulty": 3,
+      "prerequisites": ["pawn_endgames"],
+      "description": "Creating and pushing passed pawns"
+    },
+    {
+      "id": "planning",
+      "name": "Strategic Planning",
+      "category": "strategic",
+      "difficulty": 4,
+      "prerequisites": ["piece_activity", "pawn_structure"],
+      "description": "Formulating and executing long-term strategic plans"
+    },
+    {
+      "id": "prophylaxis",
+      "name": "Prophylactic Thinking",
+      "category": "strategic",
+      "difficulty": 5,
+      "prerequisites": ["planning"],
+      "description": "Preventing opponent's plans before executing yours"
+    },
+    {
+      "id": "initiative",
+      "name": "Initiative and Tempo",
+      "category": "strategic",
+      "difficulty": 4,
+      "prerequisites": ["planning"],
+      "description": "Maintaining the initiative and gaining tempo"
+    },
+    {
+      "id": "compensation",
+      "name": "Material vs Compensation",
+      "category": "strategic",
+      "difficulty": 4,
+      "prerequisites": ["piece_activity", "planning"],
+      "description": "Evaluating when positional factors compensate for material"
+    },
+    {
+      "id": "time_management",
+      "name": "Time Management",
+      "category": "practical",
+      "difficulty": 2,
+      "prerequisites": [],
+      "description": "Managing clock time effectively"
+    },
+    {
+      "id": "blunder_checking",
+      "name": "Blunder Checking",
+      "category": "practical",
+      "difficulty": 2,
+      "prerequisites": ["hanging_pieces"],
+      "description": "Doing a final blunder check before moving"
+    }
+  ]
+}

@@ -1,0 +1,283 @@
+/* CoachEngine Test Styles */
+
+.coach-engine-test {
+  padding: 20px;
+  max-width: 1000px;
+  margin: 0 auto;
+}
+
+.test-header {
+  margin-bottom: 30px;
+  text-align: center;
+}
+
+.test-header h2 {
+  color: #2c3e50;
+  margin-bottom: 10px;
+}
+
+.test-header p {
+  color: #7f8c8d;
+  font-size: 14px;
+}
+
+.tabs {
+  display: flex;
+  gap: 10px;
+  margin-bottom: 30px;
+  border-bottom: 2px solid #ecf0f1;
+}
+
+.tabs button {
+  padding: 12px 24px;
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  font-size: 14px;
+  font-weight: 500;
+  color: #7f8c8d;
+  border-bottom: 3px solid transparent;
+  transition: all 0.2s;
+}
+
+.tabs button:hover {
+  color: #2c3e50;
+  background: #f8f9fa;
+}
+
+.tabs button.active {
+  color: #3498db;
+  border-bottom-color: #3498db;
+}
+
+.test-content {
+  background: white;
+  border: 1px solid #e0e0e0;
+  border-radius: 8px;
+  padding: 30px;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+}
+
+.form-section h3 {
+  color: #2c3e50;
+  margin-bottom: 10px;
+}
+
+.help-text {
+  color: #7f8c8d;
+  font-size: 14px;
+  margin-bottom: 25px;
+}
+
+.form-group {
+  margin-bottom: 20px;
+}
+
+.form-group label {
+  display: block;
+  font-weight: 500;
+  color: #34495e;
+  margin-bottom: 8px;
+  font-size: 14px;
+}
+
+.form-group input,
+.form-group select {
+  width: 100%;
+  padding: 10px 12px;
+  border: 1px solid #ddd;
+  border-radius: 6px;
+  font-size: 14px;
+  font-family: inherit;
+  transition: border-color 0.2s;
+}
+
+.form-group input:focus,
+.form-group select:focus {
+  outline: none;
+  border-color: #3498db;
+}
+
+.form-section > button {
+  padding: 12px 32px;
+  background: #3498db;
+  color: white;
+  border: none;
+  border-radius: 6px;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+
+.form-section > button:hover:not(:disabled) {
+  background: #2980b9;
+}
+
+.form-section > button:disabled {
+  background: #95a5a6;
+  cursor: not-allowed;
+}
+
+.error-message {
+  padding: 15px;
+  background: #fee;
+  border: 1px solid #fcc;
+  border-radius: 6px;
+  color: #c00;
+  margin-top: 20px;
+  font-size: 14px;
+}
+
+.result-section {
+  margin-top: 30px;
+  padding-top: 30px;
+  border-top: 2px solid #ecf0f1;
+}
+
+.result-section h3 {
+  color: #2c3e50;
+  margin-bottom: 20px;
+}
+
+.advice-result,
+.coaching-result,
+.search-results {
+  background: #f8f9fa;
+  border: 1px solid #e0e0e0;
+  border-radius: 6px;
+  padding: 20px;
+}
+
+.advice-result h4,
+.coaching-result h4,
+.search-results h4 {
+  color: #2c3e50;
+  margin-bottom: 15px;
+  font-size: 16px;
+}
+
+.advice-text,
+.coaching-text {
+  background: white;
+  border: 1px solid #e0e0e0;
+  border-radius: 4px;
+  padding: 15px;
+  font-family: 'Segoe UI', system-ui, sans-serif;
+  font-size: 14px;
+  line-height: 1.7;
+  white-space: pre-wrap;
+  color: #2c3e50;
+  max-height: 600px;
+  overflow-y: auto;
+}
+
+.confidence {
+  margin-top: 15px;
+  padding: 10px;
+  background: #e8f5e9;
+  border-radius: 4px;
+  color: #2e7d32;
+  font-weight: 500;
+  font-size: 14px;
+}
+
+.sources {
+  margin-top: 15px;
+  padding: 15px;
+  background: white;
+  border: 1px solid #e0e0e0;
+  border-radius: 4px;
+}
+
+.sources strong {
+  color: #34495e;
+  display: block;
+  margin-bottom: 10px;
+}
+
+.sources ul {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+
+.sources li {
+  padding: 8px 0;
+  color: #3498db;
+  font-size: 14px;
+  border-bottom: 1px solid #f0f0f0;
+}
+
+.sources li:last-child {
+  border-bottom: none;
+}
+
+.search-result-item {
+  background: white;
+  border: 1px solid #e0e0e0;
+  border-radius: 4px;
+  padding: 15px;
+  margin-bottom: 15px;
+}
+
+.search-result-item:last-child {
+  margin-bottom: 0;
+}
+
+.chunk-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 10px;
+  padding-bottom: 10px;
+  border-bottom: 1px solid #f0f0f0;
+}
+
+.chunk-header strong {
+  color: #2c3e50;
+  font-size: 14px;
+}
+
+.tags {
+  font-size: 12px;
+  color: #7f8c8d;
+  font-style: italic;
+}
+
+.chunk-preview {
+  color: #34495e;
+  font-size: 14px;
+  line-height: 1.6;
+  margin: 10px 0;
+}
+
+details {
+  margin-top: 10px;
+}
+
+details summary {
+  cursor: pointer;
+  color: #3498db;
+  font-size: 13px;
+  font-weight: 500;
+  padding: 5px 0;
+}
+
+details summary:hover {
+  color: #2980b9;
+}
+
+.chunk-full {
+  margin-top: 10px;
+  padding: 15px;
+  background: #f8f9fa;
+  border: 1px solid #e0e0e0;
+  border-radius: 4px;
+  font-size: 13px;
+  line-height: 1.7;
+  white-space: pre-wrap;
+  color: #2c3e50;
+  max-height: 400px;
+  overflow-y: auto;
+}

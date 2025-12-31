@@ -1,0 +1,97 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>GameStore Test</title>
+</head>
+<body>
+    <h1>GameStore Availability Test</h1>
+    <div id="results"></div>
+    
+    <script type="module">
+        // Wait for app to load
+        setTimeout(() => {
+            const results = document.getElementById('results');
+            const tests = [];
+            
+            // Test 1: Window object exists
+            tests.push({
+                name: 'window object exists',
+                pass: typeof window !== 'undefined',
+                value: typeof window
+            });
+            
+            // Test 2: gameStore exists on window
+            tests.push({
+                name: 'window.gameStore exists',
+                pass: typeof window.gameStore !== 'undefined',
+                value: typeof window.gameStore
+            });
+            
+            // Test 3: gameStore is a function (Zustand store)
+            tests.push({
+                name: 'window.gameStore is function',
+                pass: typeof window.gameStore === 'function',
+                value: typeof window.gameStore
+            });
+            
+            // Test 4: gameStore.getState() works
+            let getStateWorks = false;
+            let stateValue = null;
+            try {
+                if (window.gameStore) {
+                    stateValue = window.gameStore.getState();
+                    getStateWorks = true;
+                }
+            } catch (e) {
+                stateValue = e.message;
+            }
+            tests.push({
+                name: 'window.gameStore.getState() works',
+                pass: getStateWorks,
+                value: getStateWorks ? 'success' : stateValue
+            });
+            
+            // Test 5: Check if debugInfo exists
+            let debugInfoExists = false;
+            try {
+                if (window.gameStore) {
+                    const state = window.gameStore.getState();
+                    debugInfoExists = state && typeof state.debugInfo !== 'undefined';
+                }
+            } catch (e) {}
+            tests.push({
+                name: 'debugInfo in state',
+                pass: debugInfoExists,
+                value: debugInfoExists ? 'present' : 'missing'
+            });
+            
+            // Render results
+            let html = '<div style="font-family: monospace;">';
+            tests.forEach(test => {
+                const icon = test.pass ? '✅' : '❌';
+                html += `<div style="padding: 8px; border-bottom: 1px solid #ccc;">
+                    ${icon} <strong>${test.name}:</strong> ${test.value}
+                </div>`;
+            });
+            html += '</div>';
+            
+            results.innerHTML = html;
+            
+            // Log to console too
+            console.log('=== GameStore Test Results ===');
+            tests.forEach(test => {
+                console.log(`${test.pass ? '✅' : '❌'} ${test.name}: ${test.value}`);
+            });
+            
+            // If all pass, log success
+            if (tests.every(t => t.pass)) {
+                console.log('🎉 All tests passed! gameStore is properly exposed.');
+            } else {
+                console.error('❌ Some tests failed. gameStore may not be properly exposed.');
+            }
+        }, 2000); // Wait 2 seconds for app to initialize
+    </script>
+</body>
+</html>

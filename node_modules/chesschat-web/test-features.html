@@ -1,0 +1,580 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ChessChat Feature Testing Guide</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: #333;
+        }
+        .container {
+            background: white;
+            border-radius: 12px;
+            padding: 30px;
+            box-shadow: 0 10px 40px rgba(0,0,0,0.2);
+        }
+        h1 {
+            color: #667eea;
+            border-bottom: 3px solid #667eea;
+            padding-bottom: 10px;
+        }
+        h2 {
+            color: #764ba2;
+            margin-top: 30px;
+        }
+        .test-section {
+            background: #f8f9fa;
+            border-left: 4px solid #667eea;
+            padding: 15px;
+            margin: 20px 0;
+            border-radius: 4px;
+        }
+        .test-step {
+            background: white;
+            padding: 12px;
+            margin: 10px 0;
+            border-radius: 6px;
+            border: 1px solid #dee2e6;
+        }
+        .step-number {
+            display: inline-block;
+            background: #667eea;
+            color: white;
+            width: 24px;
+            height: 24px;
+            border-radius: 50%;
+            text-align: center;
+            line-height: 24px;
+            font-weight: bold;
+            margin-right: 10px;
+        }
+        .expected {
+            background: #d4edda;
+            border-left: 3px solid #28a745;
+            padding: 10px;
+            margin-top: 10px;
+            font-size: 14px;
+        }
+        .warning {
+            background: #fff3cd;
+            border-left: 3px solid #ffc107;
+            padding: 10px;
+            margin-top: 10px;
+            font-size: 14px;
+        }
+        .error {
+            background: #f8d7da;
+            border-left: 3px solid #dc3545;
+            padding: 10px;
+            margin-top: 10px;
+            font-size: 14px;
+        }
+        .links {
+            display: flex;
+            gap: 15px;
+            margin: 20px 0;
+        }
+        .link-button {
+            display: inline-block;
+            padding: 12px 24px;
+            background: #667eea;
+            color: white;
+            text-decoration: none;
+            border-radius: 6px;
+            font-weight: bold;
+            transition: all 0.3s;
+        }
+        .link-button:hover {
+            background: #764ba2;
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+        }
+        .link-button.secondary {
+            background: #6c757d;
+        }
+        code {
+            background: #f1f3f5;
+            padding: 2px 6px;
+            border-radius: 3px;
+            font-family: 'Consolas', 'Monaco', monospace;
+            font-size: 13px;
+        }
+        .checklist {
+            list-style: none;
+            padding: 0;
+        }
+        .checklist li {
+            padding: 8px 0;
+            border-bottom: 1px solid #e9ecef;
+        }
+        .checklist li:before {
+            content: "☐ ";
+            font-size: 18px;
+            margin-right: 8px;
+        }
+        .metric-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 15px 0;
+        }
+        .metric-table th {
+            background: #667eea;
+            color: white;
+            padding: 10px;
+            text-align: left;
+        }
+        .metric-table td {
+            padding: 10px;
+            border: 1px solid #dee2e6;
+        }
+        .metric-table tr:nth-child(even) {
+            background: #f8f9fa;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🧪 ChessChat Feature Testing Guide</h1>
+        <p><strong>Build Date:</strong> December 25, 2025</p>
+        <p><strong>Deployment:</strong> <code>4a4aa909</code></p>
+
+        <div class="links">
+            <a href="https://4a4aa909.chesschat-web.pages.dev" class="link-button" target="_blank">
+                🚀 Open Test Deployment
+            </a>
+            <a href="https://chesschat.uk" class="link-button secondary" target="_blank">
+                🌐 Open Production (DNS pending)
+            </a>
+        </div>
+
+        <h2>🎯 Testing Objectives</h2>
+        <div class="test-section">
+            <h3>Feature 1: Worker Timeout Fix (Reduced minDepth)</h3>
+            <p>Verify that CPU no longer times out and moves complete within 2.5 seconds.</p>
+            
+            <h3>Feature 2: Worker Performance Monitoring</h3>
+            <p>Verify that debug panel tracks and displays worker performance metrics accurately.</p>
+        </div>
+
+        <h2>🧪 Test Suite 1: Worker Timeout Fix</h2>
+        <div class="test-section">
+            <h3>Objective: Verify CPU responds quickly without timeouts</h3>
+            
+            <div class="test-step">
+                <span class="step-number">1</span>
+                <strong>Open the game</strong>
+                <p>Navigate to the deployment URL and start a new game.</p>
+            </div>
+
+            <div class="test-step">
+                <span class="step-number">2</span>
+                <strong>Test Level 4 (Previously timing out)</strong>
+                <p>Start a game vs CPU Level 4 (White or Black doesn't matter).</p>
+                <div class="expected">
+                    ✅ <strong>Expected:</strong> CPU moves in 1-2 seconds consistently<br>
+                    ✅ No "Worker timeout after 2750ms" errors in console<br>
+                    ✅ No fallback to main thread (check session log)
+                </div>
+                <div class="error">
+                    ❌ <strong>If fails:</strong> CPU takes 6+ seconds → timeout still occurring
+                </div>
+            </div>
+
+            <div class="test-step">
+                <span class="step-number">3</span>
+                <strong>Test Level 1 (Fast baseline)</strong>
+                <p>Start a new game vs CPU Level 1.</p>
+                <div class="expected">
+                    ✅ <strong>Expected:</strong> CPU moves in <1 second<br>
+                    ✅ Very fast response, no delays
+                </div>
+            </div>
+
+            <div class="test-step">
+                <span class="step-number">4</span>
+                <strong>Test Level 7 (Challenging level)</strong>
+                <p>Start a new game vs CPU Level 7.</p>
+                <div class="expected">
+                    ✅ <strong>Expected:</strong> CPU moves in 2-2.5 seconds<br>
+                    ✅ May use full timeout but should complete successfully<br>
+                    ✅ No fallback to main thread
+                </div>
+            </div>
+
+            <div class="test-step">
+                <span class="step-number">5</span>
+                <strong>Check browser console (F12)</strong>
+                <p>Open Developer Tools → Console tab</p>
+                <div class="expected">
+                    ✅ <strong>Look for:</strong><br>
+                    • "[Worker] Starting search: minDepth=X, maxDepth=Y"<br>
+                    • "[CPU Move] Worker result: depth X, time Yms"<br>
+                    • NO "Worker timeout" messages<br>
+                    • NO "Worker computation failed" errors
+                </div>
+            </div>
+
+            <h3>📊 Performance Benchmarks</h3>
+            <table class="metric-table">
+                <thead>
+                    <tr>
+                        <th>Level</th>
+                        <th>Old minDepth</th>
+                        <th>New minDepth</th>
+                        <th>Expected Time</th>
+                        <th>Status</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td>Level 1</td>
+                        <td>1</td>
+                        <td>1</td>
+                        <td>&lt;1s</td>
+                        <td>✅ Fast</td>
+                    </tr>
+                    <tr>
+                        <td>Level 2</td>
+                        <td>2</td>
+                        <td>1</td>
+                        <td>~1s</td>
+                        <td>✅ Improved</td>
+                    </tr>
+                    <tr>
+                        <td>Level 3</td>
+                        <td>2</td>
+                        <td>1</td>
+                        <td>1-1.5s</td>
+                        <td>✅ Improved</td>
+                    </tr>
+                    <tr>
+                        <td>Level 4</td>
+                        <td>3 ❌</td>
+                        <td>2 ✅</td>
+                        <td>1.5-2s</td>
+                        <td>✅ Fixed</td>
+                    </tr>
+                    <tr>
+                        <td>Level 5</td>
+                        <td>3 ❌</td>
+                        <td>2 ✅</td>
+                        <td>1.8-2.2s</td>
+                        <td>✅ Fixed</td>
+                    </tr>
+                    <tr>
+                        <td>Level 6</td>
+                        <td>4 ❌</td>
+                        <td>3 ✅</td>
+                        <td>2-2.3s</td>
+                        <td>✅ Fixed</td>
+                    </tr>
+                    <tr>
+                        <td>Level 7</td>
+                        <td>4 ❌</td>
+                        <td>3 ✅</td>
+                        <td>2.2-2.5s</td>
+                        <td>✅ Fixed</td>
+                    </tr>
+                    <tr>
+                        <td>Level 8</td>
+                        <td>5 ❌</td>
+                        <td>4 ✅</td>
+                        <td>2.3-2.5s</td>
+                        <td>⚠️ Monitor</td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+
+        <h2>🧪 Test Suite 2: Debug Panel Monitoring</h2>
+        <div class="test-section">
+            <h3>Objective: Verify performance monitoring UI works correctly</h3>
+            
+            <div class="test-step">
+                <span class="step-number">1</span>
+                <strong>Open Debug Panel</strong>
+                <p>In game, scroll down and click <code>Show Analytics Panel</code> button.</p>
+                <div class="expected">
+                    ✅ Panel opens with multiple sections<br>
+                    ✅ "Advanced Debug Panel" header visible
+                </div>
+            </div>
+
+            <div class="test-step">
+                <span class="step-number">2</span>
+                <strong>Locate Worker Performance Monitor</strong>
+                <p>Scroll to the <code>⚙️ Worker Performance Monitor</code> section.</p>
+                <div class="expected">
+                    ✅ Section displays with grid layout<br>
+                    ✅ Shows: Total Attempts, Success Rate, Worker Timeouts, Fallback Usage, Avg Times, Last Timeout
+                </div>
+            </div>
+
+            <div class="test-step">
+                <span class="step-number">3</span>
+                <strong>Play Several Moves</strong>
+                <p>Make 5-10 moves against CPU (any level). Keep debug panel open.</p>
+                <div class="expected">
+                    ✅ <strong>Total Attempts</strong> increments after each CPU move<br>
+                    ✅ <strong>Success Rate</strong> shows percentage (should be ~100%)<br>
+                    ✅ Success rate color: 🟢 Green if ≥95%<br>
+                    ✅ <strong>Worker Timeouts</strong> shows "✓ None" or count<br>
+                    ✅ <strong>Avg Success Time</strong> updates with each move<br>
+                    ✅ Time color: 🟢 Green if &lt;2000ms, 🟡 Yellow if 2000-2500ms
+                </div>
+            </div>
+
+            <div class="test-step">
+                <span class="step-number">4</span>
+                <strong>Check Recent Move Performance Table</strong>
+                <p>Scroll to <code>📊 Recent Move Performance</code> section.</p>
+                <div class="expected">
+                    ✅ Table shows last 10 CPU moves<br>
+                    ✅ Columns: Time, Lvl, Status, Time (ms), Depth, Source<br>
+                    ✅ Rows have green background (worker success)<br>
+                    ✅ Times are color-coded: Green (&lt;2000ms), Yellow (2000-2500ms), Red (&gt;2500ms)<br>
+                    ✅ Status column shows ✓ for success<br>
+                    ✅ Source shows "search" for worker moves
+                </div>
+            </div>
+
+            <div class="test-step">
+                <span class="step-number">5</span>
+                <strong>Verify No Warnings (Healthy State)</strong>
+                <p>Below the metrics, check for warning boxes.</p>
+                <div class="expected">
+                    ✅ <strong>No yellow warning boxes</strong> should appear if:<br>
+                    • Timeout count = 0<br>
+                    • Avg success time &lt; 2300ms<br>
+                    • Success rate ≥ 70%<br>
+                    <br>
+                    ✅ If all healthy, only stats grid visible
+                </div>
+            </div>
+
+            <div class="test-step">
+                <span class="step-number">6</span>
+                <strong>Test Diagnostic Export</strong>
+                <p>Click the green <code>🐛 Export Diagnostics</code> button at top of debug panel.</p>
+                <div class="expected">
+                    ✅ Alert appears: "✅ Diagnostic data copied to clipboard!"<br>
+                    ✅ Paste clipboard (Ctrl+V) into text editor<br>
+                    ✅ JSON data includes <code>performance.workerStats</code> section<br>
+                    ✅ workerStats shows: totalAttempts, successCount, timeoutCount, avgSuccessTime, recentMoves
+                </div>
+            </div>
+
+            <div class="test-step">
+                <span class="step-number">7</span>
+                <strong>Verify Last Move Details</strong>
+                <p>Scroll to <code>🔍 Last Move Details</code> section.</p>
+                <div class="expected">
+                    ✅ Shows details of most recent CPU move<br>
+                    ✅ Source: "search" or similar<br>
+                    ✅ Depth Reached: Number (should match minDepth or higher)<br>
+                    ✅ Time (ms): Milliseconds taken<br>
+                    ✅ Slices: Number of time slices<br>
+                    ✅ Complete: "✓ Yes" (green) if search completed
+                </div>
+            </div>
+        </div>
+
+        <h2>🧪 Test Suite 3: Warning System (Advanced)</h2>
+        <div class="test-section">
+            <h3>Objective: Verify warnings trigger correctly (if issues exist)</h3>
+            <div class="warning">
+                ⚠️ <strong>Note:</strong> If timeout fix is working, warnings should NOT appear. This section tests that warnings WOULD appear if issues existed.
+            </div>
+            
+            <div class="test-step">
+                <span class="step-number">1</span>
+                <strong>Timeout Warning Test</strong>
+                <p>If any worker timeouts occurred, verify warning appears.</p>
+                <div class="expected">
+                    ✅ Yellow box with "⚠️ Timeout Alert"<br>
+                    ✅ Shows count of timeouts<br>
+                    ✅ If ≥3 timeouts, suggests reducing difficulty
+                </div>
+            </div>
+
+            <div class="test-step">
+                <span class="step-number">2</span>
+                <strong>Performance Warning Test</strong>
+                <p>If avg success time > 2300ms, verify warning appears.</p>
+                <div class="expected">
+                    ✅ Yellow box with "⚠️ Performance Warning"<br>
+                    ✅ Shows avg time and threshold<br>
+                    ✅ Warns of "risk of future timeouts"
+                </div>
+            </div>
+
+            <div class="test-step">
+                <span class="step-number">3</span>
+                <strong>Critical Alert Test</strong>
+                <p>If success rate < 70%, verify critical alert appears.</p>
+                <div class="expected">
+                    ✅ Red box with "🚨 Critical"<br>
+                    ✅ States success rate below 70%<br>
+                    ✅ Suggests checking console for errors
+                </div>
+            </div>
+        </div>
+
+        <h2>✅ Test Completion Checklist</h2>
+        <div class="test-section">
+            <ul class="checklist">
+                <li>Level 1 CPU moves in &lt;1 second</li>
+                <li>Level 4 CPU moves in 1.5-2 seconds (no timeout)</li>
+                <li>Level 7 CPU moves in 2-2.5 seconds (no timeout)</li>
+                <li>No "Worker timeout" errors in console</li>
+                <li>Debug panel opens successfully</li>
+                <li>Worker Performance Monitor section visible</li>
+                <li>Metrics update after each CPU move</li>
+                <li>Success rate shows 100% (or close)</li>
+                <li>Recent Move Performance table populates</li>
+                <li>Table shows green rows (worker success)</li>
+                <li>Times are color-coded correctly</li>
+                <li>Diagnostic export works and includes workerStats</li>
+                <li>Last Move Details section shows current data</li>
+                <li>No warning boxes appear (healthy state)</li>
+                <li>Console shows worker success logs</li>
+            </ul>
+        </div>
+
+        <h2>🐛 Troubleshooting</h2>
+        <div class="test-section">
+            <h3>If CPU still times out:</h3>
+            <ul>
+                <li>Check browser console for "Worker timeout after 2750ms"</li>
+                <li>Verify bundle hash in page source: <code>index-CEHJJa_h.js</code></li>
+                <li>Try hard refresh: Ctrl+Shift+R (clears cache)</li>
+                <li>Check deployment URL is correct: <code>4a4aa909.chesschat-web.pages.dev</code></li>
+                <li>Export diagnostics and check if minDepth values are correct</li>
+            </ul>
+
+            <h3>If debug panel doesn't show stats:</h3>
+            <ul>
+                <li>Verify you've made at least 1 CPU move (stats start at 0)</li>
+                <li>Check console for React errors</li>
+                <li>Refresh page and try again</li>
+                <li>Make sure debug panel is scrolled to Worker Performance Monitor section</li>
+            </ul>
+
+            <h3>If warnings appear when they shouldn't:</h3>
+            <ul>
+                <li>Timeout warning means worker is actually timing out → minDepth may still be too high</li>
+                <li>Performance warning means avg time is close to limit → still working but borderline</li>
+                <li>Check table to see which levels are slow</li>
+                <li>Export diagnostics for detailed analysis</li>
+            </ul>
+        </div>
+
+        <h2>📊 Expected Results Summary</h2>
+        <div class="test-section">
+            <h3>✅ Success Criteria:</h3>
+            <table class="metric-table">
+                <thead>
+                    <tr>
+                        <th>Metric</th>
+                        <th>Target</th>
+                        <th>Status Indicator</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td>Worker Success Rate</td>
+                        <td>≥95%</td>
+                        <td>🟢 Green in UI</td>
+                    </tr>
+                    <tr>
+                        <td>Timeout Count</td>
+                        <td>0</td>
+                        <td>"✓ None" displayed</td>
+                    </tr>
+                    <tr>
+                        <td>Avg Success Time (Lvl 1-4)</td>
+                        <td>&lt;2000ms</td>
+                        <td>🟢 Green number</td>
+                    </tr>
+                    <tr>
+                        <td>Avg Success Time (Lvl 5-7)</td>
+                        <td>&lt;2300ms</td>
+                        <td>🟢 Green or 🟡 Yellow OK</td>
+                    </tr>
+                    <tr>
+                        <td>Fallback Usage</td>
+                        <td>0 times</td>
+                        <td>"✓ Not needed"</td>
+                    </tr>
+                    <tr>
+                        <td>Warning Boxes</td>
+                        <td>None</td>
+                        <td>No yellow/red boxes</td>
+                    </tr>
+                    <tr>
+                        <td>Console Errors</td>
+                        <td>None</td>
+                        <td>No red errors in F12</td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+
+        <h2>📝 Test Report Template</h2>
+        <div class="test-section">
+            <p>After testing, you can report results using this template:</p>
+            <pre style="background: #f8f9fa; padding: 15px; border-radius: 4px; overflow-x: auto;">
+<strong>Test Results - December 25, 2025</strong>
+
+<strong>Deployment:</strong> 4a4aa909.chesschat-web.pages.dev
+<strong>Browser:</strong> [Your Browser & Version]
+
+<strong>Test Suite 1: Worker Timeout Fix</strong>
+✅/❌ Level 1: [Time in seconds]
+✅/❌ Level 4: [Time in seconds]
+✅/❌ Level 7: [Time in seconds]
+✅/❌ No timeout errors in console
+
+<strong>Test Suite 2: Debug Panel Monitoring</strong>
+✅/❌ Panel opens successfully
+✅/❌ Worker Performance Monitor visible
+✅/❌ Metrics update correctly
+✅/❌ Success Rate: [Percentage]
+✅/❌ Avg Success Time: [Milliseconds]
+✅/❌ Recent Move Performance table works
+✅/❌ Diagnostic export includes workerStats
+
+<strong>Test Suite 3: Warning System</strong>
+✅/❌ No warnings in healthy state
+✅/❌ Timeout count shows 0
+
+<strong>Overall Status:</strong> ✅ PASS / ❌ FAIL
+<strong>Notes:</strong> [Any observations]
+            </pre>
+        </div>
+
+        <div style="margin-top: 40px; padding: 20px; background: #d4edda; border-radius: 8px; border: 2px solid #28a745;">
+            <h3 style="margin-top: 0; color: #155724;">🎉 Ready to Test!</h3>
+            <p style="margin-bottom: 0;">Click the button below to start testing:</p>
+            <div style="margin-top: 15px;">
+                <a href="https://4a4aa909.chesschat-web.pages.dev" class="link-button" target="_blank">
+                    🚀 Launch Test Environment
+                </a>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Auto-open deployment URL when page loads
+        console.log('🧪 Test environment ready!');
+        console.log('📋 Testing checklist loaded');
+        console.log('🎯 Target deployment: https://4a4aa909.chesschat-web.pages.dev');
+    </script>
+</body>
+</html>

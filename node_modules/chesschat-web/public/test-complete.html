@@ -1,0 +1,270 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>GameStore Fix - Test Results</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: #0f172a;
+            color: #e2e8f0;
+            padding: 2rem;
+            margin: 0;
+        }
+        .container {
+            max-width: 900px;
+            margin: 0 auto;
+        }
+        h1 {
+            color: #10b981;
+            border-bottom: 2px solid #10b981;
+            padding-bottom: 1rem;
+        }
+        .test-section {
+            background: #1e293b;
+            border-radius: 8px;
+            padding: 1.5rem;
+            margin: 1rem 0;
+            border-left: 4px solid #3b82f6;
+        }
+        .test-result {
+            display: flex;
+            align-items: center;
+            padding: 0.5rem;
+            margin: 0.5rem 0;
+            background: #0f172a;
+            border-radius: 4px;
+        }
+        .pass { color: #10b981; }
+        .fail { color: #ef4444; }
+        .icon { font-size: 1.5rem; margin-right: 1rem; }
+        .summary {
+            background: #10b981;
+            color: white;
+            padding: 1.5rem;
+            border-radius: 8px;
+            text-align: center;
+            font-size: 1.2rem;
+            margin: 2rem 0;
+        }
+        .summary.fail {
+            background: #ef4444;
+        }
+        button {
+            background: #10b981;
+            color: white;
+            border: none;
+            padding: 1rem 2rem;
+            border-radius: 8px;
+            font-size: 1rem;
+            cursor: pointer;
+            margin: 0.5rem;
+        }
+        button:hover {
+            background: #059669;
+        }
+        .info-box {
+            background: #1e293b;
+            border: 1px solid #3b82f6;
+            border-radius: 8px;
+            padding: 1rem;
+            margin: 1rem 0;
+        }
+        .code {
+            background: #0f172a;
+            padding: 0.5rem;
+            border-radius: 4px;
+            font-family: 'Courier New', monospace;
+            overflow-x: auto;
+        }
+        #status { margin: 2rem 0; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🧪 GameStore Fix - Comprehensive Test</h1>
+        
+        <div class="info-box">
+            <strong>Test Objective:</strong> Verify that gameStore is properly exposed to window and all logging functions work correctly.
+        </div>
+
+        <div id="status">
+            <p>⏳ Initializing test suite...</p>
+        </div>
+
+        <div id="results"></div>
+
+        <div style="text-align: center; margin-top: 2rem;">
+            <button onclick="runTests()">🔄 Run Tests Again</button>
+            <button onclick="window.location.href='http://localhost:3001/'">🏠 Go to App</button>
+            <button onclick="testCoachingMode()">🎮 Test Coaching Mode</button>
+        </div>
+
+        <div class="info-box" style="margin-top: 2rem;">
+            <h3>Manual Verification Steps</h3>
+            <ol>
+                <li>Open browser DevTools Console (F12)</li>
+                <li>Type: <code class="code">window.gameStore</code></li>
+                <li>Should see: <code class="code">[Function]</code></li>
+                <li>Type: <code class="code">window.gameStore.getState()</code></li>
+                <li>Should see: Object with game state</li>
+            </ol>
+        </div>
+    </div>
+
+    <script>
+        function runTests() {
+            console.clear();
+            console.log('%c╔═══════════════════════════════════════════════════╗', 'color: #10b981; font-weight: bold');
+            console.log('%c║   GameStore Fix - Automated Test Suite           ║', 'color: #10b981; font-weight: bold');
+            console.log('%c╚═══════════════════════════════════════════════════╝', 'color: #10b981; font-weight: bold');
+            console.log('');
+
+            const tests = [];
+            let allPassed = true;
+
+            const test = (name, fn) => {
+                try {
+                    const result = fn();
+                    tests.push({ name, pass: result, value: result ? 'PASS' : 'FAIL' });
+                    console.log(`${result ? '✅' : '❌'} ${name}`);
+                    if (!result) allPassed = false;
+                    return result;
+                } catch (e) {
+                    tests.push({ name, pass: false, value: e.message });
+                    console.log(`❌ ${name} - Error: ${e.message}`);
+                    allPassed = false;
+                    return false;
+                }
+            };
+
+            // Run tests
+            console.log('%c📋 Phase 1: Window Object Tests', 'color: #3b82f6; font-weight: bold');
+            test('window object exists', () => typeof window !== 'undefined');
+            test('window is object type', () => typeof window === 'object');
+
+            console.log('%c\n📋 Phase 2: GameStore Availability Tests', 'color: #3b82f6; font-weight: bold');
+            test('window.gameStore exists', () => typeof window.gameStore !== 'undefined');
+            test('window.gameStore is function', () => typeof window.gameStore === 'function');
+            test('gameStore is Zustand store', () => {
+                return window.gameStore && 
+                       typeof window.gameStore === 'function' && 
+                       typeof window.gameStore.getState === 'function';
+            });
+
+            console.log('%c\n📋 Phase 3: GameStore State Tests', 'color: #3b82f6; font-weight: bold');
+            let state = null;
+            test('gameStore.getState() callable', () => {
+                state = window.gameStore.getState();
+                return state !== null && typeof state === 'object';
+            });
+
+            test('state has debugInfo', () => state && typeof state.debugInfo !== 'undefined');
+            test('debugInfo is object', () => state && typeof state.debugInfo === 'object');
+            test('debugInfo has workerCalls', () => state && Array.isArray(state.debugInfo?.workerCalls));
+            test('debugInfo has lastApiCall', () => state && typeof state.debugInfo?.lastApiCall !== 'undefined');
+
+            console.log('%c\n📋 Phase 4: Logging Functions Tests', 'color: #3b82f6; font-weight: bold');
+            test('logWorkerCall exists', () => state && typeof state.logWorkerCall === 'function');
+            test('logApiCall exists', () => state && typeof state.logApiCall === 'function');
+
+            console.log('%c\n📋 Phase 5: Store Subscribe Test', 'color: #3b82f6; font-weight: bold');
+            test('gameStore.subscribe exists', () => typeof window.gameStore.subscribe === 'function');
+            test('gameStore.subscribe callable', () => {
+                const unsubscribe = window.gameStore.subscribe(() => {});
+                unsubscribe();
+                return typeof unsubscribe === 'function';
+            });
+
+            // Display results in UI
+            const resultsDiv = document.getElementById('results');
+            const statusDiv = document.getElementById('status');
+            
+            const passed = tests.filter(t => t.pass).length;
+            const total = tests.length;
+            
+            let html = '';
+            
+            if (allPassed) {
+                statusDiv.innerHTML = `
+                    <div class="summary">
+                        <h2>🎉 ALL TESTS PASSED!</h2>
+                        <p>${passed}/${total} tests successful</p>
+                    </div>
+                `;
+                
+                console.log('%c\n🎉 ✅ ALL TESTS PASSED!', 'color: #10b981; font-size: 1.5rem; font-weight: bold');
+                console.log('%c\nGameStore Fix Status: ✅ SUCCESS', 'color: #10b981; font-weight: bold');
+                console.log('└─ gameStore properly exposed to window');
+                console.log('└─ All required functions available');
+                console.log('└─ State structure verified');
+                console.log('└─ Logging system functional');
+                
+                if (state) {
+                    console.log('\n📊 Current State Info:');
+                    console.log(`  Worker Calls Logged: ${state?.debugInfo?.workerCalls?.length || 0}`);
+                    console.log(`  Game ID: ${state?.gameId || 'none'}`);
+                    console.log(`  Is Thinking: ${state?.isThinking || false}`);
+                }
+            } else {
+                statusDiv.innerHTML = `
+                    <div class="summary fail">
+                        <h2>❌ TESTS FAILED</h2>
+                        <p>${passed}/${total} tests passed</p>
+                    </div>
+                `;
+                
+                console.log('%c\n❌ SOME TESTS FAILED', 'color: #ef4444; font-size: 1.5rem; font-weight: bold');
+            }
+            
+            // Group tests by phase
+            html += '<div class="test-section"><h3>Test Results</h3>';
+            tests.forEach(t => {
+                html += `
+                    <div class="test-result">
+                        <span class="icon ${t.pass ? 'pass' : 'fail'}">${t.pass ? '✅' : '❌'}</span>
+                        <span>${t.name}</span>
+                    </div>
+                `;
+            });
+            html += '</div>';
+            
+            if (state && allPassed) {
+                html += `
+                    <div class="info-box">
+                        <h3>📊 Current State</h3>
+                        <div class="code">
+                            Worker Calls: ${state?.debugInfo?.workerCalls?.length || 0}<br>
+                            Game ID: ${state?.gameId || 'none'}<br>
+                            Is Thinking: ${state?.isThinking || false}<br>
+                            Game State: ${state?.gameState || 'unknown'}
+                        </div>
+                    </div>
+                `;
+            }
+            
+            resultsDiv.innerHTML = html;
+            
+            return allPassed;
+        }
+
+        function testCoachingMode() {
+            if (window.gameStore) {
+                console.log('%c🎮 Testing Coaching Mode Integration...', 'color: #10b981; font-weight: bold');
+                window.location.href = 'http://localhost:3001/';
+                setTimeout(() => {
+                    console.log('After loading, click "📚 Coaching Mode" button and check console for errors');
+                }, 1000);
+            } else {
+                alert('❌ gameStore not available. Fix the issue first.');
+            }
+        }
+
+        // Auto-run tests on load
+        window.addEventListener('load', () => {
+            setTimeout(runTests, 1000);
+        });
+    </script>
+</body>
+</html>

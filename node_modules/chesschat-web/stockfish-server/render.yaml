@@ -1,0 +1,19 @@
+services:
+  - type: web
+    name: chesschat-stockfish
+    runtime: node
+    env: node
+    region: oregon
+    plan: free
+    buildCommand: npm install
+    startCommand: node server.js
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: 3001
+      - key: STOCKFISH_API_KEY
+        generateValue: true
+        sync: false
+    healthCheckPath: /health
+    autoDeploy: true

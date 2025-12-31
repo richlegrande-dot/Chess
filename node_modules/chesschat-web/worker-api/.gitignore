@@ -1,0 +1,7 @@
+# Worker API
+node_modules/
+.dev.vars
+.wrangler/
+dist/
+generated/
+*.log

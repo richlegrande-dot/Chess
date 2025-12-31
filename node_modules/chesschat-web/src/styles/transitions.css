@@ -1,0 +1,117 @@
+/* Global View Transitions */
+
+/* Fade transition for view changes */
+.view-transition-fade-enter {
+  animation: fadeIn 0.3s ease-out;
+}
+
+.view-transition-fade-exit {
+  animation: fadeOut 0.2s ease-out;
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes fadeOut {
+  from {
+    opacity: 1;
+  }
+  to {
+    opacity: 0;
+  }
+}
+
+/* Slide transition for navigation */
+.view-transition-slide-left-enter {
+  animation: slideInFromRight 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.view-transition-slide-left-exit {
+  animation: slideOutToLeft 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.view-transition-slide-right-enter {
+  animation: slideInFromLeft 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.view-transition-slide-right-exit {
+  animation: slideOutToRight 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+@keyframes slideInFromRight {
+  from {
+    transform: translateX(100%);
+    opacity: 0;
+  }
+  to {
+    transform: translateX(0);
+    opacity: 1;
+  }
+}
+
+@keyframes slideOutToLeft {
+  from {
+    transform: translateX(0);
+    opacity: 1;
+  }
+  to {
+    transform: translateX(-30%);
+    opacity: 0;
+  }
+}
+
+@keyframes slideInFromLeft {
+  from {
+    transform: translateX(-100%);
+    opacity: 0;
+  }
+  to {
+    transform: translateX(0);
+    opacity: 1;
+  }
+}
+
+@keyframes slideOutToRight {
+  from {
+    transform: translateX(0);
+    opacity: 1;
+  }
+  to {
+    transform: translateX(30%);
+    opacity: 0;
+  }
+}
+
+/* Reduced motion support */
+@media (prefers-reduced-motion: reduce) {
+  .view-transition-fade-enter,
+  .view-transition-fade-exit,
+  .view-transition-slide-left-enter,
+  .view-transition-slide-left-exit,
+  .view-transition-slide-right-enter,
+  .view-transition-slide-right-exit {
+    animation: none !important;
+  }
+}
+
+/* App container for transitions */
+.app-view-container {
+  position: relative;
+  width: 100%;
+  min-height: 100vh;
+}
+
+.app-view {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  width: 100%;
+  min-height: 100vh;
+}

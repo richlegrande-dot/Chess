@@ -1,0 +1,310 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ChessChat Quick Test</title>
+  <style>
+    body {
+      font-family: 'Courier New', monospace;
+      background: #1e1e1e;
+      color: #d4d4d4;
+      padding: 20px;
+      max-width: 900px;
+      margin: 0 auto;
+    }
+    h1 {
+      color: #4ec9b0;
+      border-bottom: 2px solid #4ec9b0;
+      padding-bottom: 10px;
+    }
+    .test-result {
+      background: #252526;
+      border-left: 4px solid #007acc;
+      padding: 15px;
+      margin: 15px 0;
+      border-radius: 4px;
+    }
+    .test-result.success {
+      border-left-color: #4ec9b0;
+    }
+    .test-result.error {
+      border-left-color: #f48771;
+    }
+    .test-name {
+      font-weight: bold;
+      font-size: 1.1em;
+      margin-bottom: 8px;
+    }
+    .test-details {
+      color: #9cdcfe;
+      margin: 5px 0;
+    }
+    button {
+      background: #0e639c;
+      color: white;
+      border: none;
+      padding: 12px 24px;
+      font-size: 16px;
+      cursor: pointer;
+      border-radius: 4px;
+      margin: 10px 5px;
+    }
+    button:hover {
+      background: #1177bb;
+    }
+    button:disabled {
+      background: #666;
+      cursor: not-allowed;
+    }
+    .summary {
+      background: #2d2d30;
+      padding: 20px;
+      border-radius: 4px;
+      margin-top: 20px;
+    }
+    .pass { color: #4ec9b0; }
+    .fail { color: #f48771; }
+    .info { color: #9cdcfe; }
+    pre {
+      background: #1e1e1e;
+      padding: 10px;
+      border-radius: 4px;
+      overflow-x: auto;
+      font-size: 12px;
+    }
+  </style>
+</head>
+<body>
+  <h1>🧪 ChessChat Server & CPU Quick Test</h1>
+  
+  <div>
+    <button onclick="runAllTests()" id="runBtn">▶ Run All Tests</button>
+    <button onclick="testServer()" id="serverBtn">Test 1: Server</button>
+    <button onclick="testCPUMove()" id="cpuBtn">Test 2: CPU Move</button>
+    <button onclick="testDifficulties()" id="diffBtn">Test 3: Difficulties</button>
+    <button onclick="clearResults()">Clear Results</button>
+  </div>
+
+  <div id="results"></div>
+  <div id="summary" class="summary" style="display: none;"></div>
+
+  <script>
+    const results = [];
+    const resultsDiv = document.getElementById('results');
+    const summaryDiv = document.getElementById('summary');
+
+    function addResult(name, success, details, data = null) {
+      const result = { name, success, details, data, timestamp: new Date() };
+      results.push(result);
+      
+      const div = document.createElement('div');
+      div.className = `test-result ${success ? 'success' : 'error'}`;
+      
+      const icon = success ? '✅' : '❌';
+      const statusClass = success ? 'pass' : 'fail';
+      
+      let html = `
+        <div class="test-name">${icon} ${name}</div>
+        <div class="test-details ${statusClass}">${details}</div>
+      `;
+      
+      if (data) {
+        html += `<pre>${JSON.stringify(data, null, 2)}</pre>`;
+      }
+      
+      div.innerHTML = html;
+      resultsDiv.appendChild(div);
+      
+      // Scroll to bottom
+      div.scrollIntoView({ behavior: 'smooth' });
+    }
+
+    function showSummary() {
+      const passed = results.filter(r => r.success).length;
+      const total = results.length;
+      const failed = total - passed;
+      
+      summaryDiv.style.display = 'block';
+      summaryDiv.innerHTML = `
+        <h2>Test Summary</h2>
+        <div class="info">Total Tests: ${total}</div>
+        <div class="pass">Passed: ${passed}</div>
+        <div class="fail">Failed: ${failed}</div>
+        <div class="info">Success Rate: ${((passed/total)*100).toFixed(1)}%</div>
+      `;
+      
+      summaryDiv.scrollIntoView({ behavior: 'smooth' });
+    }
+
+    function clearResults() {
+      results.length = 0;
+      resultsDiv.innerHTML = '';
+      summaryDiv.style.display = 'none';
+    }
+
+    async function testServer() {
+      console.log('Test 1: Server Health Check');
+      try {
+        const response = await fetch('/');
+        if (response.ok) {
+          addResult(
+            'Test 1: Server Health',
+            true,
+            `Server is responding (Status: ${response.status})`
+          );
+          return true;
+        } else {
+          addResult(
+            'Test 1: Server Health',
+            false,
+            `Server returned status ${response.status}`
+          );
+          return false;
+        }
+      } catch (error) {
+        addResult(
+          'Test 1: Server Health',
+          false,
+          `Server error: ${error.message}`
+        );
+        return false;
+      }
+    }
+
+    async function testCPUMove() {
+      console.log('Test 2: CPU Move Generation');
+      
+      const testData = {
+        fen: 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1',
+        pgn: '',
+        difficulty: 'beginner',
+        gameId: `test_${Date.now()}`
+      };
+      
+      const startTime = Date.now();
+      
+      try {
+        const response = await fetch('/api/chess-move', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify(testData)
+        });
+
+        const data = await response.json();
+        const elapsed = Date.now() - startTime;
+
+        if (data.success && data.move) {
+          addResult(
+            'Test 2: CPU Move',
+            true,
+            `Move: ${data.move} | Time: ${elapsed}ms | Engine: ${data.engine || 'Unknown'}`,
+            data
+          );
+          return true;
+        } else {
+          addResult(
+            'Test 2: CPU Move',
+            false,
+            `Failed to generate move (${elapsed}ms)`,
+            data
+          );
+          return false;
+        }
+      } catch (error) {
+        const elapsed = Date.now() - startTime;
+        addResult(
+          'Test 2: CPU Move',
+          false,
+          `Error after ${elapsed}ms: ${error.message}`
+        );
+        return false;
+      }
+    }
+
+    async function testDifficulties() {
+      console.log('Test 3: Difficulty Levels');
+      const difficulties = ['beginner', 'intermediate', 'advanced', 'master'];
+      let passed = 0;
+      
+      for (const diff of difficulties) {
+        const testData = {
+          fen: 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1',
+          pgn: '',
+          difficulty: diff,
+          gameId: `test_${diff}_${Date.now()}`
+        };
+        
+        const startTime = Date.now();
+        
+        try {
+          const response = await fetch('/api/chess-move', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json'
+            },
+            body: JSON.stringify(testData)
+          });
+
+          const data = await response.json();
+          const elapsed = Date.now() - startTime;
+
+          if (data.success && data.move) {
+            addResult(
+              `Test 3.${difficulties.indexOf(diff) + 1}: ${diff}`,
+              true,
+              `Move: ${data.move} | Time: ${elapsed}ms`
+            );
+            passed++;
+          } else {
+            addResult(
+              `Test 3.${difficulties.indexOf(diff) + 1}: ${diff}`,
+              false,
+              `Failed (${elapsed}ms)`,
+              data
+            );
+          }
+        } catch (error) {
+          const elapsed = Date.now() - startTime;
+          addResult(
+            `Test 3.${difficulties.indexOf(diff) + 1}: ${diff}`,
+            false,
+            `Error after ${elapsed}ms: ${error.message}`
+          );
+        }
+        
+        // Small delay between requests
+        await new Promise(resolve => setTimeout(resolve, 300));
+      }
+      
+      return passed === difficulties.length;
+    }
+
+    async function runAllTests() {
+      clearResults();
+      document.getElementById('runBtn').disabled = true;
+      
+      addResult('Test Suite', true, 'Starting automated tests...', { timestamp: new Date().toISOString() });
+      
+      await testServer();
+      await new Promise(resolve => setTimeout(resolve, 500));
+      
+      await testCPUMove();
+      await new Promise(resolve => setTimeout(resolve, 500));
+      
+      await testDifficulties();
+      
+      showSummary();
+      document.getElementById('runBtn').disabled = false;
+    }
+
+    // Auto-run on load
+    window.addEventListener('load', () => {
+      console.log('ChessChat Quick Test loaded');
+      console.log('Click "Run All Tests" to start testing');
+    });
+  </script>
+</body>
+</html>

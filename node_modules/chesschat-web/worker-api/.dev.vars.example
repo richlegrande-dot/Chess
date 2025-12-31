@@ -1,0 +1,19 @@
+# Local development environment variables for Cloudflare Worker
+# This file is used by wrangler dev and should NOT be committed to git
+
+# Database connection string
+# Choose one based on your setup:
+
+# Option 1: Prisma Accelerate (recommended - HTTP-based, works everywhere)
+# DATABASE_URL="prisma+postgres://accelerate.prisma-data.net/?api_key=YOUR_ACCELERATE_API_KEY"
+
+# Option 2: Neon Serverless (HTTP-based, no node_compat needed)
+# DATABASE_URL="postgresql://user:password@ep-xxx.region.neon.tech/dbname?sslmode=require"
+
+# Option 3: Traditional PostgreSQL (requires node_compat = true in wrangler.toml)
+# DATABASE_URL="postgresql://user:password@host:5432/database"
+
+DATABASE_URL="your-database-connection-string-here"
+
+# Admin password for protected endpoints
+ADMIN_PASSWORD="your-admin-password-here"

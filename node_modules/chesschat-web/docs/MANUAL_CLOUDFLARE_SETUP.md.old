@@ -1,0 +1,210 @@
+# Manual Cloudflare Setup for Worker API
+
+This document covers the **unavoidable manual steps** required to deploy the Worker API. Everything else is automated via GitHub Actions or Wrangler CLI.
+
+## Prerequisites
+
+- Cloudflare account with Workers enabled
+- Domain configured in Cloudflare (chesschat.uk)
+- Git repository with GitHub Actions enabled
+
+## Required Manual Steps
+
+### 1. Create Prisma Database Connection
+
+Choose ONE of these options:
+
+#### Option A: Prisma Accelerate (Recommended)
+
+1. Go to https://console.prisma.io
+2. Sign up or log in
+3. Click "Create Project"
+4. Select "Accelerate" and choose a database region
+5. Follow prompts to get your Accelerate connection string
+   - Format: `prisma+postgres://accelerate.prisma-data.net/?api_key=eyJhbGc...`
+6. Save this connection string (you'll need it in step 2)
+
+**Advantages**:
+- Works perfectly with Cloudflare Workers (HTTP-based)
+- No need for `node_compat` (smaller bundle)
+- Built-in connection pooling and caching
+
+#### Option B: Neon Serverless PostgreSQL
+
+1. Go to https://neon.tech
+2. Sign up and create a new project
+3. Create a database
+4. Get the connection string from the dashboard
+   - Format: `postgresql://user:pass@ep-xxx.region.neon.tech/dbname?sslmode=require`
+
+**Advantages**:
+- Generous free tier
+- HTTP-based (no `node_compat` needed if using Neon adapter)
+- Fast provisioning
+
+#### Option C: Traditional PostgreSQL
+
+1. Use your existing PostgreSQL database
+2. Ensure it's accessible from the internet
+3. Get the connection string
+   - Format: `postgresql://user:password@host:5432/database`
+
+**Note**: Requires `node_compat = true` in `wrangler.toml` (larger bundle size)
+
+### 2. Set Worker Secrets via Wrangler
+
+These secrets MUST be set manually and are not stored in git:
+
+```bash
+cd worker-api
+
+# Set database connection string
+wrangler secret put DATABASE_URL
+# Paste your connection string when prompted
+
+# Set admin password
+wrangler secret put ADMIN_PASSWORD
+# Enter a secure password when prompted
+```
+
+**Important**: You must be authenticated with Cloudflare. Run `wrangler login` if prompted.
+
+### 3. Configure Worker Route in Cloudflare Dashboard
+
+#### Option A: Using wrangler.toml (Automated)
+
+The `wrangler.toml` includes route configuration:
+```toml
+routes = [
+  { pattern = "chesschat.uk/api/*", zone_name = "chesschat.uk" }
+]
+```
+
+This should be automatically applied when you deploy. **Verify** in Cloudflare dashboard after first deployment.
+
+#### Option B: Manual Configuration (If needed)
+
+1. Go to Cloudflare Dashboard
+2. Select your domain (chesschat.uk)
+3. Navigate to **Workers Routes** (under Workers & Pages)
+4. Click "Add route"
+5. Enter:
+   - **Route**: `chesschat.uk/api/*`
+   - **Worker**: Select `chesschat-worker-api`
+6. Click "Save"
+
+### 4. Ensure Pages is NOT Handling /api/* (Important!)
+
+To avoid conflicts between Pages Functions and Worker:
+
+1. In Cloudflare Dashboard, go to **Pages**
+2. Select your ChessChatWeb project
+3. Go to **Settings** → **Functions**
+4. Verify no Functions are defined for `/api/*` routes
+5. If Pages is handling these routes, Worker routes take precedence, but it's cleaner to remove Pages Functions
+
+**OR** delete the `functions/` directory from your Pages deployment if it exists.
+
+### 5. Set GitHub Secrets for CI/CD
+
+For automated deployment via GitHub Actions:
+
+1. Go to your GitHub repository
+2. Navigate to **Settings** → **Secrets and variables** → **Actions**
+3. Click "New repository secret"
+4. Add the following secrets:
+
+   - **Name**: `CF_API_TOKEN`
+     **Value**: Your Cloudflare API Token
+     
+     To create:
+     - Go to https://dash.cloudflare.com/profile/api-tokens
+     - Click "Create Token"
+     - Use "Edit Cloudflare Workers" template
+     - OR create custom token with these permissions:
+       - Account > Workers Scripts > Edit
+       - Zone > Workers Routes > Edit
+     - Copy the token and paste as secret
+
+## Verification
+
+After completing manual setup:
+
+1. **Run verification locally**:
+   ```bash
+   cd ChessChatWeb
+   WORKER_API_URL=https://chesschat.uk node scripts/verify-worker-api.mjs
+   ```
+
+2. **Check health endpoint**:
+   ```bash
+   curl https://chesschat.uk/api/admin/worker-health
+   ```
+
+   Expected response:
+   ```json
+   {
+     "healthy": true,
+     "checks": {
+       "database": { "status": "ok" },
+       "env": {
+         "DATABASE_URL": "set",
+         "ADMIN_PASSWORD": "set"
+       }
+     }
+   }
+   ```
+
+3. **Test chess move**:
+   ```bash
+   curl -X POST https://chesschat.uk/api/chess-move \
+     -H "Content-Type: application/json" \
+     -d '{"fen":"rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1","cpuLevel":3}'
+   ```
+
+## Troubleshooting
+
+### "Worker not found" Error
+
+Check:
+1. Worker is deployed: `wrangler deployments list`
+2. Route is configured correctly in Cloudflare Dashboard
+3. DNS is configured and propagated
+
+### "Database connection failed"
+
+Check:
+1. `DATABASE_URL` secret is set: `wrangler secret list`
+2. Connection string is correct format
+3. Database is accessible from internet
+4. For Accelerate: API key is valid
+
+### "Unauthorized" on admin endpoints
+
+Check:
+1. `ADMIN_PASSWORD` secret is set
+2. You're sending `Authorization: Bearer YOUR_PASSWORD` header
+
+### GitHub Actions deployment fails
+
+Check:
+1. `CF_API_TOKEN` secret is set in GitHub
+2. Token has correct permissions
+3. Token is not expired
+
+## Summary
+
+**Total manual steps**: 4-5 (depending on DB choice)
+
+1. Create database/Accelerate project (~5 min)
+2. Set 2 Worker secrets (~1 min)
+3. Verify route configuration (~1 min)
+4. Set 1 GitHub secret (~1 min)
+5. Run verification (~30 sec)
+
+**Everything else is automated**:
+- Prisma migrations
+- Client generation
+- Worker deployment
+- Health checks
+- Post-deployment verification

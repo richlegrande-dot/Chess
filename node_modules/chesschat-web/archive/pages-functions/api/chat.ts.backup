@@ -1,0 +1,435 @@
+// Cloudflare Pages Function: Post-Game Chat Analysis with Self-Healing
+// Path: /api/chat
+
+import {
+  sanitizeFEN,
+  sanitizePGN,
+  sanitizeModelIdentifier,
+  sanitizeUserMessage,
+  checkRateLimit,
+  getClientIP,
+  validateEnvironment,
+  ErrorCode,
+  mapErrorToResponse,
+  incrementCounter
+} from '../lib/security';
+
+interface Env {
+  OPENAI_API_KEY: string;
+  ANALYTICS_KV?: KVNamespace;
+  RATE_LIMIT_KV?: KVNamespace;
+  RATE_LIMIT_PER_IP?: string;
+  RATE_LIMIT_WINDOW?: string;
+}
+
+interface ChatMessage {
+  id: string;
+  content: string;
+  isUser: boolean;
+  timestamp: string;
+}
+
+interface GameContext {
+  finalFEN: string;
+  pgn: string;
+  result: string;
+}
+
+interface ChatRequest {
+  message: string;
+  gameContext: GameContext;
+  chatHistory: ChatMessage[];
+  model: string;
+}
+
+interface OpenAIMessage {
+  role: string;
+  content: string;
+}
+
+interface OpenAIRequest {
+  model: string;
+  messages: OpenAIMessage[];
+  max_tokens: number;
+  temperature: number;
+}
+
+// Circuit breaker state (in-memory)
+interface CircuitBreakerState {
+  failures: number;
+  lastFailureTime: number;
+  state: 'CLOSED' | 'OPEN' | 'HALF_OPEN';
+  consecutiveSuccesses: number;
+}
+
+const chatCircuitBreaker: CircuitBreakerState = {
+  failures: 0,
+  lastFailureTime: 0,
+  state: 'CLOSED',
+  consecutiveSuccesses: 0,
+};
+
+// Configuration
+const CIRCUIT_BREAKER_THRESHOLD = 5;
+const CIRCUIT_BREAKER_TIMEOUT = 60000;
+const CIRCUIT_BREAKER_HALF_OPEN_SUCCESS_THRESHOLD = 2;
+const MAX_RETRIES = 3;
+const BASE_RETRY_DELAY = 1000;
+
+// Health metrics
+let totalChatRequests = 0;
+let successfulChatRequests = 0;
+let failedChatRequests = 0;
+let totalChatResponseTime = 0;
+
+// Circuit breaker helpers
+function checkChatCircuitBreaker(): { allowed: boolean; reason?: string } {
+  const now = Date.now();
+
+  if (chatCircuitBreaker.state === 'OPEN') {
+    const timeSinceFailure = now - chatCircuitBreaker.lastFailureTime;
+
+    if (timeSinceFailure > CIRCUIT_BREAKER_TIMEOUT) {
+      chatCircuitBreaker.state = 'HALF_OPEN';
+      chatCircuitBreaker.consecutiveSuccesses = 0;
+      console.log('Chat circuit breaker: OPEN -> HALF_OPEN');
+      return { allowed: true };
+    }
+
+    const retryAfter = Math.ceil((CIRCUIT_BREAKER_TIMEOUT - timeSinceFailure) / 1000);
+    return {
+      allowed: false,
+      reason: `Chat service temporarily unavailable. Retry after ${retryAfter}s`,
+    };
+  }
+
+  return { allowed: true };
+}
+
+function recordChatSuccess(): void {
+  if (chatCircuitBreaker.state === 'HALF_OPEN') {
+    chatCircuitBreaker.consecutiveSuccesses++;
+    if (chatCircuitBreaker.consecutiveSuccesses >= CIRCUIT_BREAKER_HALF_OPEN_SUCCESS_THRESHOLD) {
+      chatCircuitBreaker.state = 'CLOSED';
+      chatCircuitBreaker.failures = 0;
+      chatCircuitBreaker.consecutiveSuccesses = 0;
+      console.log('Chat circuit breaker: HALF_OPEN -> CLOSED');
+    }
+  } else if (chatCircuitBreaker.state === 'CLOSED') {
+    chatCircuitBreaker.failures = Math.max(0, chatCircuitBreaker.failures - 1);
+  }
+}
+
+function recordChatFailure(): void {
+  chatCircuitBreaker.failures++;
+  chatCircuitBreaker.lastFailureTime = Date.now();
+
+  if (chatCircuitBreaker.state === 'HALF_OPEN') {
+    chatCircuitBreaker.state = 'OPEN';
+    chatCircuitBreaker.consecutiveSuccesses = 0;
+    console.log('Chat circuit breaker: HALF_OPEN -> OPEN');
+  } else if (chatCircuitBreaker.failures >= CIRCUIT_BREAKER_THRESHOLD) {
+    chatCircuitBreaker.state = 'OPEN';
+    console.log(`Chat circuit breaker: CLOSED -> OPEN (${chatCircuitBreaker.failures} failures)`);
+  }
+}
+
+// Retry with exponential backoff
+async function retryWithBackoff<T>(
+  fn: () => Promise<T>,
+  maxRetries: number = MAX_RETRIES,
+  baseDelay: number = BASE_RETRY_DELAY
+): Promise<{ result?: T; error?: string; retryCount: number }> {
+  let lastError: Error | null = null;
+
+  for (let attempt = 0; attempt <= maxRetries; attempt++) {
+    try {
+      const result = await fn();
+      return { result, retryCount: attempt };
+    } catch (error) {
+      lastError = error as Error;
+      console.error(`Chat attempt ${attempt + 1}/${maxRetries + 1} failed:`, error);
+
+      if (attempt < maxRetries) {
+        const delay = baseDelay * Math.pow(2, attempt);
+        console.log(`Retrying chat in ${delay}ms...`);
+        await new Promise((resolve) => setTimeout(resolve, delay));
+      }
+    }
+  }
+
+  return {
+    error: lastError?.message || 'Unknown error after all retries',
+    retryCount: maxRetries,
+  };
+}
+
+// Main handler
+export async function onRequestPost(context: {
+  request: Request;
+  env: Env;
+}): Promise<Response> {
+  const startTime = Date.now();
+  totalChatRequests++;
+  let recoveryAction: string | undefined;
+
+  try {
+    // Validate environment
+    const envCheck = validateEnvironment(context.env);
+    if (!envCheck.valid) {
+      failedChatRequests++;
+      const errorResponse = mapErrorToResponse(
+        new Error(`Missing configuration: ${envCheck.missing.join(', ')}`),
+        ErrorCode.MISSING_CONFIG
+      );
+      return new Response(JSON.stringify(errorResponse), {
+        status: 503,
+        headers: { 'Content-Type': 'application/json' },
+      });
+    }
+
+    // Rate limiting (if KV available)
+    if (context.env.RATE_LIMIT_KV) {
+      const clientIP = getClientIP(context.request);
+      const limit = parseInt(context.env.RATE_LIMIT_PER_IP || '30');
+      const window = parseInt(context.env.RATE_LIMIT_WINDOW || '60');
+      
+      const rateLimitCheck = await checkRateLimit(context.env.RATE_LIMIT_KV, clientIP, limit, window);
+      
+      if (!rateLimitCheck.allowed) {
+        failedChatRequests++;
+        const errorResponse = mapErrorToResponse(
+          new Error('Rate limit exceeded'),
+          ErrorCode.RATE_LIMITED
+        );
+        return new Response(JSON.stringify({
+          ...errorResponse,
+          resetAt: rateLimitCheck.resetAt
+        }), {
+          status: 429,
+          headers: {
+            'Content-Type': 'application/json',
+            'Retry-After': Math.ceil((rateLimitCheck.resetAt - Date.now()) / 1000).toString(),
+            'X-RateLimit-Limit': limit.toString(),
+            'X-RateLimit-Remaining': '0',
+            'X-RateLimit-Reset': rateLimitCheck.resetAt.toString()
+          },
+        });
+      }
+    }
+
+    // Check circuit breaker
+    const circuitCheck = checkChatCircuitBreaker();
+    if (!circuitCheck.allowed) {
+      failedChatRequests++;
+      return new Response(
+        JSON.stringify({
+          success: false,
+          error: circuitCheck.reason,
+          recoveryAction: 'Chat service in recovery mode. Automatic healing in progress.',
+          circuitBreakerState: chatCircuitBreaker.state,
+        }),
+        {
+          status: 503,
+          headers: {
+            'Content-Type': 'application/json',
+            'Retry-After': '60',
+          },
+        }
+      );
+    }
+
+    const { message, gameContext, chatHistory, model } =
+      (await context.request.json()) as ChatRequest;
+
+    // Sanitize and validate inputs
+    let sanitizedMessage: string;
+    let sanitizedFEN: string;
+    let sanitizedPGN: string;
+    let sanitizedModel: string;
+
+    try {
+      sanitizedMessage = sanitizeUserMessage(message);
+      sanitizedFEN = sanitizeFEN(gameContext.finalFEN);
+      sanitizedPGN = sanitizePGN(gameContext.pgn);
+      sanitizedModel = sanitizeModelIdentifier(model);
+    } catch (sanitizeError) {
+      failedChatRequests++;
+      const errorResponse = mapErrorToResponse(sanitizeError, ErrorCode.INVALID_INPUT);
+      return new Response(JSON.stringify(errorResponse), {
+        status: 400,
+        headers: { 'Content-Type': 'application/json' },
+      });
+    }
+
+    const apiKey = context.env.OPENAI_API_KEY;
+
+    // Count moves from sanitized PGN
+    const moveCount = (sanitizedPGN.match(/\d+\./g) || []).length;
+
+    // Construct system prompt with sanitized inputs
+    const systemPrompt = `You are a helpful chess coach analyzing a completed game. Always refer to specific moves by their number (e.g., "On move 12...", "After 8.Nf3...").
+
+Game Information:
+- Final position (FEN): ${sanitizedFEN}
+- Complete game (PGN): ${sanitizedPGN}
+- Result: ${gameContext.result}
+- Total moves: ${moveCount}
+
+Guidelines:
+- Reference actual moves from the PGN when explaining
+- Use move numbers consistently (1.e4, 2.Nf3, etc.)
+- Never invent or hallucinate moves that didn't happen
+- Explain concepts at an appropriate level
+- Be encouraging while pointing out improvements
+- If asked to explain "like I'm 8 years old", use very simple language
+- For translations, maintain chess accuracy`;
+
+    // Build messages array
+    const messages: OpenAIMessage[] = [
+      {
+        role: 'system',
+        content: systemPrompt,
+      },
+    ];
+
+    // Add chat history
+    for (const msg of chatHistory) {
+      messages.push({
+        role: msg.isUser ? 'user' : 'assistant',
+        content: msg.content,
+      });
+    }
+
+    // Add current message (sanitized)
+    messages.push({
+      role: 'user',
+      content: sanitizedMessage,
+    });
+
+    const openAIRequest: OpenAIRequest = {
+      model: sanitizedModel,
+      messages,
+      max_tokens: 500,
+      temperature: 0.7,
+    };
+
+    // Call OpenAI API with retry logic
+    const { result: data, error: retryError, retryCount } = await retryWithBackoff(async () => {
+      const openAIResponse = await fetch('https://api.openai.com/v1/chat/completions', {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${apiKey}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(openAIRequest),
+      });
+
+      if (!openAIResponse.ok) {
+        const errorData = await openAIResponse.text().catch(() => 'Unknown error');
+
+        // Detect specific error types
+        if (openAIResponse.status === 429) {
+          recoveryAction = 'Rate limit hit. Retrying with exponential backoff.';
+          throw new Error(`Rate limit: ${openAIResponse.status}`);
+        } else if (openAIResponse.status >= 500) {
+          recoveryAction = 'OpenAI service issue. Retrying automatically.';
+          throw new Error(`Service error: ${openAIResponse.status}`);
+        } else if (openAIResponse.status === 401) {
+          recoveryAction = 'Authentication failed. Check API key.';
+          throw new Error('Authentication failed');
+        } else if (openAIResponse.status === 400) {
+          recoveryAction = 'Invalid request. Check message format or model.';
+          throw new Error(`Bad request: ${errorData}`);
+        }
+
+        throw new Error(`API error: ${openAIResponse.status} - ${errorData}`);
+      }
+
+      return (await openAIResponse.json()) as {
+        choices: Array<{ message: { content: string } }>;
+      };
+    });
+
+    if (retryError || !data) {
+      recordChatFailure();
+      failedChatRequests++;
+
+      return new Response(
+        JSON.stringify({
+          success: false,
+          error: retryError || 'Failed to get chat response after retries',
+          retryCount,
+          recoveryAction: recoveryAction || 'All retries exhausted. Service will auto-recover.',
+          circuitBreakerState: chatCircuitBreaker.state,
+        }),
+        {
+          status: 503,
+          headers: { 'Content-Type': 'application/json' },
+        }
+      );
+    }
+
+    const response = data.choices[0]?.message?.content || '';
+
+    if (!response) {
+      recordChatFailure();
+      failedChatRequests++;
+
+      return new Response(
+        JSON.stringify({
+          success: false,
+          error: 'Empty response from AI',
+          recoveryAction: 'AI returned empty response. Try rephrasing your question.',
+          retryCount,
+        }),
+        {
+          status: 500,
+          headers: { 'Content-Type': 'application/json' },
+        }
+      );
+    }
+
+    // Success! Record metrics
+    recordChatSuccess();
+    successfulChatRequests++;
+    const responseTime = Date.now() - startTime;
+
+    // Increment analytics counter (non-blocking)
+    if (context.env.ANALYTICS_KV) {
+      incrementCounter(context.env.ANALYTICS_KV, 'totalAnalysisRequests').catch(console.error);
+    }
+    totalChatResponseTime += responseTime;
+
+    return new Response(
+      JSON.stringify({
+        success: true,
+        response,
+        retryCount,
+        responseTime,
+        recoveryAction: retryCount > 0 ? `Recovered after ${retryCount} ${retryCount === 1 ? 'retry' : 'retries'}` : undefined,
+        circuitBreakerState: chatCircuitBreaker.state,
+      }),
+      {
+        headers: { 'Content-Type': 'application/json' },
+      }
+    );
+  } catch (error) {
+    recordChatFailure();
+    failedChatRequests++;
+    console.error('Chat error:', error);
+
+    return new Response(
+      JSON.stringify({
+        success: false,
+        error: error instanceof Error ? error.message : 'Unknown error',
+        recoveryAction: 'Unexpected error. Service will auto-recover. Please retry.',
+        circuitBreakerState: chatCircuitBreaker.state,
+      }),
+      {
+        status: 500,
+        headers: { 'Content-Type': 'application/json' },
+      }
+    );
+  }
+}

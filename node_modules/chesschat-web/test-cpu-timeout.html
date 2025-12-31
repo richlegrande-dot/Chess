@@ -1,0 +1,295 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>CPU Timeout Constraint Test</title>
+  <style>
+    body {
+      font-family: 'Monaco', 'Courier New', monospace;
+      background: #1a1a1a;
+      color: #00ff00;
+      padding: 20px;
+      max-width: 1200px;
+      margin: 0 auto;
+    }
+    h1 {
+      color: #00ff00;
+      border-bottom: 2px solid #00ff00;
+      padding-bottom: 10px;
+    }
+    .test-section {
+      background: #0a0a0a;
+      border: 1px solid #00ff00;
+      border-radius: 8px;
+      padding: 20px;
+      margin: 20px 0;
+    }
+    .test-result {
+      margin: 10px 0;
+      padding: 10px;
+      border-left: 4px solid;
+    }
+    .pass {
+      border-color: #00ff00;
+      background: rgba(0, 255, 0, 0.1);
+    }
+    .fail {
+      border-color: #ff0000;
+      background: rgba(255, 0, 0, 0.1);
+      color: #ff0000;
+    }
+    .pending {
+      border-color: #ffff00;
+      background: rgba(255, 255, 0, 0.1);
+      color: #ffff00;
+    }
+    button {
+      background: #00ff00;
+      color: #000;
+      border: none;
+      padding: 10px 20px;
+      font-size: 16px;
+      font-weight: bold;
+      border-radius: 4px;
+      cursor: pointer;
+      margin: 5px;
+    }
+    button:hover {
+      background: #00cc00;
+    }
+    button:disabled {
+      background: #666;
+      cursor: not-allowed;
+    }
+    .log {
+      background: #000;
+      padding: 10px;
+      border-radius: 4px;
+      font-size: 12px;
+      max-height: 400px;
+      overflow-y: auto;
+      margin-top: 10px;
+    }
+    .log-entry {
+      margin: 2px 0;
+    }
+    .log-info { color: #00ff00; }
+    .log-warn { color: #ffaa00; }
+    .log-error { color: #ff0000; }
+    .summary {
+      font-size: 18px;
+      font-weight: bold;
+      margin: 20px 0;
+    }
+  </style>
+</head>
+<body>
+  <h1>🧪 CPU Timeout Constraint Test Suite</h1>
+  
+  <div class="test-section">
+    <h2>Test Configuration</h2>
+    <p>This test verifies that the CPU move computation respects time limits at all difficulty levels.</p>
+    <ul>
+      <li><strong>Level 1-2:</strong> 5 second timeout, base time 1.5s, max 4s</li>
+      <li><strong>Level 3-4:</strong> 10 second timeout, base time 1.5s, max 4s</li>
+      <li><strong>Level 5-6:</strong> 20 second timeout, base time 3s, max 8s</li>
+      <li><strong>Level 7-8:</strong> 30 second timeout, base time 5s, max 15s</li>
+    </ul>
+    <button id="runAllTests">Run All Tests</button>
+    <button id="runLevel7Test">Test Level 7 Only</button>
+    <button id="clearLogs">Clear Logs</button>
+  </div>
+
+  <div class="test-section">
+    <h2>Test Results</h2>
+    <div id="results"></div>
+    <div class="summary" id="summary"></div>
+  </div>
+
+  <div class="test-section">
+    <h2>Execution Log</h2>
+    <div class="log" id="log"></div>
+  </div>
+
+  <script type="module">
+    import { ChessGame } from '/src/lib/chess.js';
+    import { CpuWorkerClient } from '/src/lib/cpu/cpuWorkerClient.js';
+
+    const resultsDiv = document.getElementById('results');
+    const logDiv = document.getElementById('log');
+    const summaryDiv = document.getElementById('summary');
+    let testResults = [];
+
+    function addLog(message, type = 'info') {
+      const entry = document.createElement('div');
+      entry.className = `log-entry log-${type}`;
+      entry.textContent = `[${new Date().toLocaleTimeString()}] ${message}`;
+      logDiv.appendChild(entry);
+      logDiv.scrollTop = logDiv.scrollHeight;
+      console.log(message);
+    }
+
+    function addTestResult(testName, passed, details) {
+      testResults.push({ testName, passed, details });
+      
+      const result = document.createElement('div');
+      result.className = `test-result ${passed ? 'pass' : 'fail'}`;
+      result.innerHTML = `
+        <strong>${passed ? '✅' : '❌'} ${testName}</strong><br>
+        ${details}
+      `;
+      resultsDiv.appendChild(result);
+      
+      updateSummary();
+    }
+
+    function updateSummary() {
+      const passed = testResults.filter(r => r.passed).length;
+      const total = testResults.length;
+      const passRate = ((passed / total) * 100).toFixed(1);
+      
+      summaryDiv.textContent = `Test Summary: ${passed}/${total} passed (${passRate}%)`;
+      summaryDiv.style.color = passed === total ? '#00ff00' : '#ffaa00';
+    }
+
+    async function testCpuLevel(level, fen = 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1') {
+      const testName = `Level ${level} Timeout Constraint`;
+      
+      addLog(`Starting test for Level ${level}`, 'info');
+      
+      // Configuration based on level
+      const config = {
+        1: { timeout: 5000, baseTime: 1500, maxTime: 4000, depth: 2 },
+        2: { timeout: 5000, baseTime: 1500, maxTime: 4000, depth: 2 },
+        3: { timeout: 10000, baseTime: 1500, maxTime: 4000, depth: 3 },
+        4: { timeout: 10000, baseTime: 1500, maxTime: 4000, depth: 3 },
+        5: { timeout: 20000, baseTime: 3000, maxTime: 8000, depth: 4 },
+        6: { timeout: 20000, baseTime: 3000, maxTime: 8000, depth: 4 },
+        7: { timeout: 30000, baseTime: 5000, maxTime: 15000, depth: 5 },
+        8: { timeout: 30000, baseTime: 5000, maxTime: 15000, depth: 5 },
+      }[level];
+
+      const client = new CpuWorkerClient();
+      const startTime = performance.now();
+      
+      try {
+        addLog(`Requesting move: timeLimit=${config.maxTime}ms, depth=${config.depth}`, 'info');
+        
+        const result = await client.computeMove({
+          fen,
+          cpuLevel: level,
+          timeLimitMs: config.maxTime,
+          minDepth: config.depth,
+          maxDepth: config.depth,
+          debug: true
+        });
+        
+        const elapsed = performance.now() - startTime;
+        
+        addLog(`Move computed in ${elapsed.toFixed(0)}ms: ${result.move.from}-${result.move.to}`, 'info');
+        addLog(`Metadata: depth=${result.metadata.depthReached}, complete=${result.metadata.complete}`, 'info');
+        
+        // Test passes if:
+        // 1. Move was returned
+        // 2. Time taken is less than maxTime + grace period (300ms)
+        // 3. Time taken is less than timeout
+        const gracePeriod = 300;
+        const withinMaxTime = elapsed <= (config.maxTime + gracePeriod);
+        const withinTimeout = elapsed <= config.timeout;
+        
+        const passed = result.move && withinMaxTime && withinTimeout;
+        
+        const details = `
+          Time: ${elapsed.toFixed(0)}ms / ${config.maxTime}ms max (${withinMaxTime ? 'PASS' : 'FAIL'})<br>
+          Timeout: ${config.timeout}ms (${withinTimeout ? 'PASS' : 'FAIL'})<br>
+          Move: ${result.move.from}-${result.move.to}<br>
+          Depth: ${result.metadata.depthReached}/${config.depth}<br>
+          Complete: ${result.metadata.complete ? 'Yes' : 'No'}<br>
+          Source: ${result.metadata.source}
+        `;
+        
+        addTestResult(testName, passed, details);
+        addLog(`Test ${passed ? 'PASSED' : 'FAILED'}: Level ${level}`, passed ? 'info' : 'error');
+        
+      } catch (error) {
+        const elapsed = performance.now() - startTime;
+        addLog(`Test FAILED with error after ${elapsed.toFixed(0)}ms: ${error.message}`, 'error');
+        
+        const details = `
+          Error: ${error.message}<br>
+          Time elapsed: ${elapsed.toFixed(0)}ms<br>
+          Expected max: ${config.maxTime}ms<br>
+          Timeout: ${config.timeout}ms
+        `;
+        
+        addTestResult(testName, false, details);
+      }
+    }
+
+    async function testComplexPosition(level) {
+      // Test with a complex middlegame position that requires more computation
+      const complexFen = 'r1bqk2r/pp2bppp/2n1pn2/2pp4/2PP4/1P2PN2/P3BPPP/RNBQ1RK1 w kq - 0 9';
+      
+      addLog(`Testing Level ${level} with complex position`, 'warn');
+      await testCpuLevel(level, complexFen);
+    }
+
+    document.getElementById('runAllTests').addEventListener('click', async () => {
+      resultsDiv.innerHTML = '';
+      testResults = [];
+      addLog('========================================', 'info');
+      addLog('Starting Full Test Suite', 'info');
+      addLog('========================================', 'info');
+      
+      // Test each level sequentially
+      for (let level = 1; level <= 8; level++) {
+        await testCpuLevel(level);
+        
+        // Add small delay between tests
+        await new Promise(resolve => setTimeout(resolve, 500));
+      }
+      
+      addLog('========================================', 'info');
+      addLog('Testing Complex Positions', 'info');
+      addLog('========================================', 'info');
+      
+      // Test complex positions for levels 5, 6, 7, 8
+      for (let level = 5; level <= 8; level++) {
+        await testComplexPosition(level);
+        await new Promise(resolve => setTimeout(resolve, 500));
+      }
+      
+      addLog('========================================', 'info');
+      addLog('All Tests Complete', 'info');
+      addLog('========================================', 'info');
+    });
+
+    document.getElementById('runLevel7Test').addEventListener('click', async () => {
+      resultsDiv.innerHTML = '';
+      testResults = [];
+      addLog('========================================', 'warn');
+      addLog('Testing Level 7 Only', 'warn');
+      addLog('========================================', 'warn');
+      
+      await testCpuLevel(7);
+      
+      addLog('Testing Level 7 with complex position', 'warn');
+      await testComplexPosition(7);
+      
+      addLog('Level 7 tests complete', 'info');
+    });
+
+    document.getElementById('clearLogs').addEventListener('click', () => {
+      logDiv.innerHTML = '';
+      resultsDiv.innerHTML = '';
+      summaryDiv.textContent = '';
+      testResults = [];
+    });
+
+    // Auto-run level 7 test on page load
+    addLog('Page loaded. Ready to test CPU timeout constraints.', 'info');
+    addLog('Click "Run All Tests" to test all levels, or "Test Level 7 Only" for quick test.', 'info');
+  </script>
+</body>
+</html>

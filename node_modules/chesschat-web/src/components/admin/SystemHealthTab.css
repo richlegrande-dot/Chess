@@ -1,0 +1,143 @@
+.system-health-tab {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.health-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 10px;
+}
+
+.health-header h2 {
+  margin: 0;
+  color: #fff;
+}
+
+.health-controls {
+  display: flex;
+  align-items: center;
+  gap: 15px;
+}
+
+.health-controls label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: #999;
+}
+
+.health-controls button {
+  padding: 8px 16px;
+  background: #4a9eff;
+  color: white;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+.health-card {
+  background: #1a1a1a;
+  border: 2px solid #3a3a3a;
+  border-radius: 8px;
+  padding: 20px;
+}
+
+.health-card h3 {
+  margin: 0 0 16px 0;
+  color: #fff;
+}
+
+.health-card.status-healthy {
+  border-color: #28a745;
+}
+
+.health-card.status-degraded {
+  border-color: #ffc107;
+}
+
+.health-card.status-unhealthy {
+  border-color: #dc3545;
+}
+
+.status-badge {
+  font-size: 24px;
+  font-weight: bold;
+  margin: 12px 0;
+}
+
+.status-healthy .status-badge {
+  color: #28a745;
+}
+
+.status-degraded .status-badge {
+  color: #ffc107;
+}
+
+.status-unhealthy .status-badge {
+  color: #dc3545;
+}
+
+.timestamp, .uptime {
+  color: #999;
+  font-size: 14px;
+  margin: 4px 0;
+}
+
+.health-details {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.detail-row {
+  display: flex;
+  justify-content: space-between;
+  padding: 8px 0;
+  border-bottom: 1px solid #3a3a3a;
+}
+
+.detail-row:last-child {
+  border-bottom: none;
+}
+
+.detail-row span:first-child {
+  color: #999;
+}
+
+.detail-row span:last-child {
+  color: #fff;
+  font-weight: 500;
+}
+
+.text-success {
+  color: #28a745 !important;
+}
+
+.text-error {
+  color: #dc3545 !important;
+}
+
+.text-warning {
+  color: #ffc107 !important;
+}
+
+.recommendations {
+  border-color: #ffc107;
+}
+
+.recommendations h3 {
+  color: #ffc107;
+}
+
+.recommendations ul {
+  margin: 0;
+  padding-left: 20px;
+}
+
+.recommendations li {
+  color: #e0e0e0;
+  margin: 8px 0;
+}

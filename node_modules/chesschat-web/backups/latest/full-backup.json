@@ -1,0 +1,413 @@
+[
+  {
+    "id": "cmjbjqoto00001494vrn7h93n",
+    "title": "Chess Tactics: Essential Patterns for Improvement",
+    "sourceType": "DOC",
+    "url": "file://knowledge_seed/01-chess-tactics.md",
+    "isDeleted": false,
+    "createdAt": "2025-12-18T14:39:20.364Z",
+    "updatedAt": "2025-12-18T14:39:20.364Z",
+    "chunks": [
+      {
+        "id": "cmjbjqp3h00021494s4tbahvy",
+        "sourceId": "cmjbjqoto00001494vrn7h93n",
+        "chunkText": "## Introduction to Chess Tactics\n\nChess tactics are short-term sequences of moves that result in a concrete advantage. Unlike strategy (long-term planning), tactics are immediate, forcing sequences that win material, deliver checkmate, or gain positional advantages.\r\n\r\nMastering tactical patterns is the fastest way to improve your chess. Studies show that tactical awareness accounts for 70-80% of rating improvement for players under 2000 Elo.",
+        "tags": "[\"tactics\",\"introduction-to-chess-tactics\"]",
+        "language": "en",
+        "metadata": "{\"heading\":\"Introduction to Chess Tactics\",\"section\":1,\"source\":\"01-chess-tactics.md\"}",
+        "createdAt": "2025-12-18T14:39:20.717Z"
+      },
+      {
+        "id": "cmjbjqp7400041494eb5cmwpn",
+        "sourceId": "cmjbjqoto00001494vrn7h93n",
+        "chunkText": "## Pin\n\nA pin occurs when an attacked piece cannot move without exposing a more valuable piece behind it. Pins are one of the most common and powerful tactical motifs.\r\n\r\n### Absolute Pin\r\nWhen the piece behind is the king, the pinned piece is completely immobilized (cannot legally move). Example: A bishop on b5 pinning a knight on c6 to the king on e8.\r\n\r\n### Relative Pin\r\nWhen a less valuable piece shields a more valuable one. The pinned piece can legally move but at a high cost. Example: A rook pinning a knight to a queen.\r\n\r\n**Key Recognition:** Look for pieces aligned on ranks, files, or diagonals with the enemy king or valuable pieces.",
+        "tags": "[\"pin\"]",
+        "language": "en",
+        "metadata": "{\"heading\":\"Pin\",\"section\":2,\"source\":\"01-chess-tactics.md\"}",
+        "createdAt": "2025-12-18T14:39:20.849Z"
+      },
+      {
+        "id": "cmjbjqpb000061494k908atd3",
+        "sourceId": "cmjbjqoto00001494vrn7h93n",
+        "chunkText": "## Fork\n\nA fork is when a single piece attacks two or more enemy pieces simultaneously, forcing the opponent to choose which piece to save.\r\n\r\n### Knight Forks\r\nKnights are natural forking pieces due to their unique movement pattern. The \"family fork\" (attacking king and queen) is especially devastating.\r\n\r\n**Common Pattern:** Knights on central squares (d5, e5, d4, e4) can fork pieces on opposite sides of the board.\r\n\r\n### Pawn Forks\r\nPawns can fork pieces on adjacent files. Often underestimated but highly effective, especially in the opening and middlegame.\r\n\r\n### Queen and Rook Forks\r\nThese pieces can fork along ranks and files. Queen forks are particularly powerful due to diagonal movement as well.\r\n\r\n**Practice Tip:** Always check if your pieces can reach a square that attacks multiple targets.",
+        "tags": "[\"fork\"]",
+        "language": "en",
+        "metadata": "{\"heading\":\"Fork\",\"section\":3,\"source\":\"01-chess-tactics.md\"}",
+        "createdAt": "2025-12-18T14:39:20.988Z"
+      },
+      {
+        "id": "cmjbjqpei00081494vumayt6f",
+        "sourceId": "cmjbjqoto00001494vrn7h93n",
+        "chunkText": "## Skewer\n\nA skewer is the \"reverse pin\" - a valuable piece is attacked first and must move, exposing a less valuable piece behind it to capture.\r\n\r\n**Classic Example:** Rook on a1, king on e1, rook on h1. White plays Ra8+ forcing the king to move, then captures the rook on h1.\r\n\r\nSkewers work best with long-range pieces (rooks, bishops, queens) and often involve checks to force the more valuable piece to move.",
+        "tags": "[\"skewer\"]",
+        "language": "en",
+        "metadata": "{\"heading\":\"Skewer\",\"section\":4,\"source\":\"01-chess-tactics.md\"}",
+        "createdAt": "2025-12-18T14:39:21.115Z"
+      },
+      {
+        "id": "cmjbjqpi0000a14948mas9r22",
+        "sourceId": "cmjbjqoto00001494vrn7h93n",
+        "chunkText": "## Discovered Attack\n\nA discovered attack occurs when moving one piece exposes an attack from another piece behind it. This creates dual threats that are often impossible to defend.\r\n\r\n### Discovered Check\r\nThe most powerful form - the piece behind gives check, allowing the moving piece to capture material freely since the opponent must address the check first.\r\n\r\n**Power Move:** If the moving piece also gives check, it's called a \"double check\" - the opponent must move the king (blocking or capturing a single piece won't help).",
+        "tags": "[\"discovered\",\"discovered-attack\"]",
+        "language": "en",
+        "metadata": "{\"heading\":\"Discovered Attack\",\"section\":5,\"source\":\"01-chess-tactics.md\"}",
+        "createdAt": "2025-12-18T14:39:21.241Z"
+      },
+      {
+        "id": "cmjbjqple000c1494joc1j2ku",
+        "sourceId": "cmjbjqoto00001494vrn7h93n",
+        "chunkText": "## Remove the Defender\n\nSometimes the only piece defending a valuable target can be removed through capture, deflection, or forcing it away.\r\n\r\n**Pattern Recognition:** Identify what's defending key squares or pieces, then calculate if you can eliminate that defender.\r\n\r\nExample: If a knight on f6 is the only defender of h7, removing the knight (through capture or forcing it to move) allows checkmate on h7.",
+        "tags": "[\"remove-the-defender\"]",
+        "language": "en",
+        "metadata": "{\"heading\":\"Remove the Defender\",\"section\":6,\"source\":\"01-chess-tactics.md\"}",
+        "createdAt": "2025-12-18T14:39:21.362Z"
+      },
+      {
+        "id": "cmjbjqpp8000e1494ab1yw5o8",
+        "sourceId": "cmjbjqoto00001494vrn7h93n",
+        "chunkText": "## Deflection and Decoy\n\n### Deflection\r\nForcing a defending piece away from its defensive duty through a sacrifice or exchange.\r\n\r\n### Decoy\r\nLuring a piece to a bad square where it becomes vulnerable or creates a tactical opportunity.\r\n\r\n**Advanced Concept:** These often involve sacrifices that seem illogical until you see the follow-up tactical blow.",
+        "tags": "[\"deflection\",\"deflection-and-decoy\"]",
+        "language": "en",
+        "metadata": "{\"heading\":\"Deflection and Decoy\",\"section\":7,\"source\":\"01-chess-tactics.md\"}",
+        "createdAt": "2025-12-18T14:39:21.500Z"
+      },
+      {
+        "id": "cmjbjqpss000g1494qm5bgnks",
+        "sourceId": "cmjbjqoto00001494vrn7h93n",
+        "chunkText": "## Overloading\n\nA piece is overloaded when it has too many defensive responsibilities and cannot fulfill all of them simultaneously.\r\n\r\n**Example:** A queen defending both a rook and preventing checkmate. Attacking one forces the queen to abandon the other.",
+        "tags": "[\"overloading\"]",
+        "language": "en",
+        "metadata": "{\"heading\":\"Overloading\",\"section\":8,\"source\":\"01-chess-tactics.md\"}",
+        "createdAt": "2025-12-18T14:39:21.629Z"
+      },
+      {
+        "id": "cmjbjqpw3000i1494e73ynao8",
+        "sourceId": "cmjbjqoto00001494vrn7h93n",
+        "chunkText": "## Zwischenzug (In-Between Move)\n\nAn unexpected intermediate move that disrupts the expected sequence. Instead of making the \"obvious\" recapture or response, you insert a forcing move (check, attack, threat) first.\r\n\r\n**Why It Works:** The in-between move creates an even bigger threat, forcing your opponent to respond before they can execute their plan.",
+        "tags": "[\"zwischenzug-inbetween-move\"]",
+        "language": "en",
+        "metadata": "{\"heading\":\"Zwischenzug (In-Between Move)\",\"section\":9,\"source\":\"01-chess-tactics.md\"}",
+        "createdAt": "2025-12-18T14:39:21.748Z"
+      },
+      {
+        "id": "cmjbjqpz2000k1494m36bbqxa",
+        "sourceId": "cmjbjqoto00001494vrn7h93n",
+        "chunkText": "## Back Rank Weakness\n\nWhen a king is trapped on the back rank by its own pawns, it becomes vulnerable to back rank checkmates from rooks or queens.\r\n\r\n**Prevention:** Create \"luft\" (breathing room) by moving a pawn in front of the king, or ensure pieces defend the back rank.\r\n\r\n**Exploitation:** Look for ways to infiltrate the back rank with rooks or queens when the enemy king lacks escape squares.",
+        "tags": "[\"back-rank-weakness\"]",
+        "language": "en",
+        "metadata": "{\"heading\":\"Back Rank Weakness\",\"section\":10,\"source\":\"01-chess-tactics.md\"}",
+        "createdAt": "2025-12-18T14:39:21.854Z"
+      },
+      {
+        "id": "cmjbjqq2a000m1494r7bayiee",
+        "sourceId": "cmjbjqoto00001494vrn7h93n",
+        "chunkText": "## Tactical Vision Training\n\nTo improve tactical awareness:\r\n\r\n1. **Daily Puzzles:** Solve 10-15 tactical puzzles daily\r\n2. **Pattern Recognition:** Study classic tactical patterns repeatedly\r\n3. **Slow Analysis:** Take time to find ALL tactics in a position, not just the first one\r\n4. **Blunder Check:** Before moving, ask \"What does my opponent's move threaten?\"\r\n5. **Forcing Sequences:** Always consider checks, captures, and threats (in that order)",
+        "tags": "[\"tactical-vision-training\"]",
+        "language": "en",
+        "metadata": "{\"heading\":\"Tactical Vision Training\",\"section\":11,\"source\":\"01-chess-tactics.md\"}",
+        "createdAt": "2025-12-18T14:39:21.970Z"
+      },
+      {
+        "id": "cmjbjqq5l000o1494fxf6l78q",
+        "sourceId": "cmjbjqoto00001494vrn7h93n",
+        "chunkText": "## Common Tactical Mistakes\n\n- Missing opponent's counter-tactics\r\n- Calculating only your attacking sequences\r\n- Forgetting to check defensive resources\r\n- Moving too quickly without calculation\r\n- Underestimating opponent's threats\r\n\r\n**Remember:** Even grandmasters miss tactics. The key is systematic checking and pattern recognition through practice.",
+        "tags": "[\"common-tactical-mistakes\"]",
+        "language": "en",
+        "metadata": "{\"heading\":\"Common Tactical Mistakes\",\"section\":12,\"source\":\"01-chess-tactics.md\"}",
+        "createdAt": "2025-12-18T14:39:22.090Z"
+      },
+      {
+        "id": "cmjbjqq8n000q1494y67dhcrs",
+        "sourceId": "cmjbjqoto00001494vrn7h93n",
+        "chunkText": "## Tactical Priority System\n\nWhen analyzing a position, check in this order:\r\n1. **Checks** - Forcing moves that limit opponent's options\r\n2. **Captures** - Immediate material changes\r\n3. **Threats** - Moves that create unavoidable problems\r\n\r\nThis \"CCT\" framework helps organize tactical calculation and prevents missing key moves.",
+        "tags": "[\"tactical-priority-system\"]",
+        "language": "en",
+        "metadata": "{\"heading\":\"Tactical Priority System\",\"section\":13,\"source\":\"01-chess-tactics.md\"}",
+        "createdAt": "2025-12-18T14:39:22.199Z"
+      },
+      {
+        "id": "cmjbjqqby000s1494hn0qtmow",
+        "sourceId": "cmjbjqoto00001494vrn7h93n",
+        "chunkText": "## Conclusion\n\nTactical mastery requires:\r\n- Pattern recognition through repeated exposure\r\n- Careful calculation of forcing sequences\r\n- Awareness of defensive resources\r\n- Systematic checking before each move\r\n\r\nPractice these patterns daily, and your tactical vision will dramatically improve. Most games at amateur levels are decided by tactics, making this the highest-impact area for study.",
+        "tags": "[\"conclusion\"]",
+        "language": "en",
+        "metadata": "{\"heading\":\"Conclusion\",\"section\":14,\"source\":\"01-chess-tactics.md\"}",
+        "createdAt": "2025-12-18T14:39:22.319Z"
+      }
+    ]
+  },
+  {
+    "id": "cmjbjqqio000u1494x704x7vg",
+    "title": "Opening Principles: Building a Strong Foundation",
+    "sourceType": "DOC",
+    "url": "file://knowledge_seed/02-opening-principles.md",
+    "isDeleted": false,
+    "createdAt": "2025-12-18T14:39:22.560Z",
+    "updatedAt": "2025-12-18T14:39:22.560Z",
+    "chunks": [
+      {
+        "id": "cmjbjqqlu000w1494ig3w8var",
+        "sourceId": "cmjbjqqio000u1494x704x7vg",
+        "chunkText": "## The Purpose of the Opening\n\nThe opening phase (typically the first 10-15 moves) has three primary goals:\r\n1. **Develop pieces** to active squares\r\n2. **Control the center** with pawns and pieces\r\n3. **Ensure king safety** through castling\r\n\r\nFollowing these principles provides a solid foundation regardless of specific opening knowledge.",
+        "tags": "[\"opening\",\"the-purpose-of-the-opening\"]",
+        "language": "en",
+        "metadata": "{\"heading\":\"The Purpose of the Opening\",\"section\":1,\"source\":\"02-opening-principles.md\"}",
+        "createdAt": "2025-12-18T14:39:22.674Z"
+      },
+      {
+        "id": "cmjbjqqp2000y1494kfxs5i08",
+        "sourceId": "cmjbjqqio000u1494x704x7vg",
+        "chunkText": "## Center Control\n\nThe center squares (e4, d4, e5, d5) are the most important in chess. Pieces in the center control more squares and have greater mobility than pieces on the edge.\r\n\r\n### Why the Center Matters\r\n- Central pawns control key squares\r\n- Pieces in the center reach both flanks quickly\r\n- Knights on the rim are dim (edge knights control only 2-4 squares vs. 8 in the center)\r\n- Control the center, control the game\r\n\r\n### Methods of Center Control\r\n1. **Classical:** Occupy center with pawns (e4 and d4)\r\n2. **Hypermodern:** Control center with pieces from the flanks (fianchetto bishops)\r\n3. **Mixed:** Combine pawn presence and piece pressure\r\n\r\n**Key Insight:** You don't always need to occupy the center - controlling it is what matters.",
+        "tags": "[\"center\",\"center-control\"]",
+        "language": "en",
+        "metadata": "{\"heading\":\"Center Control\",\"section\":2,\"source\":\"02-opening-principles.md\"}",
+        "createdAt": "2025-12-18T14:39:22.791Z"
+      },
+      {
+        "id": "cmjbjqqt5001014945s3ot7wp",
+        "sourceId": "cmjbjqqio000u1494x704x7vg",
+        "chunkText": "## Development\n\nDevelopment means bringing pieces from their starting squares to more active positions where they participate in the game.\r\n\r\n### Development Priority Order\r\n1. **Knights before bishops** - Knights need more moves to reach optimal squares\r\n2. **Develop toward the center** - Pieces should aim at or occupy central squares\r\n3. **Castle early** - Usually by move 8-10 in most openings\r\n4. **Connect rooks** - Clear the back rank so rooks can communicate\r\n\r\n### Common Development Mistakes\r\n- Moving the same piece multiple times in the opening\r\n- Bringing the queen out too early (vulnerable to attacks with tempo)\r\n- Developing knights to the edge (Nh3, Na3 usually poor)\r\n- Neglecting development to grab pawns (greedy and risky)\r\n\r\n**Rule of Thumb:** Try to develop a new piece with each move, not move already-developed pieces.",
+        "tags": "[\"development\"]",
+        "language": "en",
+        "metadata": "{\"heading\":\"Development\",\"section\":3,\"source\":\"02-opening-principles.md\"}",
+        "createdAt": "2025-12-18T14:39:22.938Z"
+      },
+      {
+        "id": "cmjbjqqw800121494gj9ji8v1",
+        "sourceId": "cmjbjqqio000u1494x704x7vg",
+        "chunkText": "## King Safety\n\nAn unsafe king is the most common cause of opening disasters. Castle early and often!\r\n\r\n### Castling Guidelines\r\n- **Castle kingside** in most positions (shorter, faster)\r\n- **Castle queenside** when your attack is on the kingside\r\n- Castle **before** launching pawn storms\r\n- Don't castle into an attack\r\n\r\n### Creating King Safety\r\nEven without castling, ensure:\r\n- King not in the center during tactics\r\n- Pawn shield intact\r\n- Escape squares available\r\n- Enemy pieces can't easily invade\r\n\r\n**Warning Signs:** Uncastled king + open center + enemy pieces developed = disaster waiting to happen.",
+        "tags": "[\"king safety\",\"king\",\"king-safety\"]",
+        "language": "en",
+        "metadata": "{\"heading\":\"King Safety\",\"section\":4,\"source\":\"02-opening-principles.md\"}",
+        "createdAt": "2025-12-18T14:39:23.048Z"
+      },
+      {
+        "id": "cmjbjqqzc001414944x6ir5no",
+        "sourceId": "cmjbjqqio000u1494x704x7vg",
+        "chunkText": "## Don't Move Pawns Unnecessarily\n\nEvery pawn move creates permanent weaknesses. Pawns can't move backward, so pawn moves must be purposeful.\r\n\r\n### When to Move Pawns\r\n- Establish center control (e4, d4)\r\n- Enable piece development (d3 to develop bishop)\r\n- Attack enemy pieces\r\n- Create space for castling\r\n- Launch a justified attack\r\n\r\n### When NOT to Move Pawns\r\n- Just because you can\r\n- Weakening your king position\r\n- Creating pawn weaknesses (isolated, backward, doubled)\r\n- Before completing development\r\n\r\n**Principle:** Develop pieces first, push pawns later (except central pawns).",
+        "tags": "[\"pawn\",\"dont-move-pawns-unnecessarily\"]",
+        "language": "en",
+        "metadata": "{\"heading\":\"Don't Move Pawns Unnecessarily\",\"section\":5,\"source\":\"02-opening-principles.md\"}",
+        "createdAt": "2025-12-18T14:39:23.160Z"
+      },
+      {
+        "id": "cmjbjqr2s00161494usqii1xm",
+        "sourceId": "cmjbjqqio000u1494x704x7vg",
+        "chunkText": "## Control the Center, Then Attack the Flanks\n\nAttacking on the wings without center control is strategically unsound. The opponent can break in the center and your attack becomes meaningless.\r\n\r\n### The Classical Approach\r\n1. Establish central control with pawns\r\n2. Develop all pieces\r\n3. Castle for safety\r\n4. Then consider flank attacks\r\n\r\n### When Flank Attacks Work\r\n- You already control or have stable center\r\n- Opponent's king is on that flank\r\n- Your pieces support the pawn advance\r\n- You've completed development",
+        "tags": "[\"center\",\"control-the-center-then-attack\"]",
+        "language": "en",
+        "metadata": "{\"heading\":\"Control the Center, Then Attack the Flanks\",\"section\":6,\"source\":\"02-opening-principles.md\"}",
+        "createdAt": "2025-12-18T14:39:23.284Z"
+      },
+      {
+        "id": "cmjbjqr6f00181494eflnmabz",
+        "sourceId": "cmjbjqqio000u1494x704x7vg",
+        "chunkText": "## Common Opening Traps to Avoid\n\n### Scholar's Mate (1.e4 e5 2.Bc4 Nc6 3.Qh5)\r\nEasily defended with ...g6 or ...Qe7. Teaches why early queen moves are risky.\r\n\r\n### Fried Liver Attack\r\nRequires accurate defense. Shows importance of not ignoring development.\r\n\r\n### Fishing Pole Trap\r\nIn the Ruy Lopez - hanging knight on g5 isn't really hanging. Calculate before capturing!\r\n\r\n**Learning Point:** Understand the ideas behind traps so you recognize similar patterns.",
+        "tags": "[\"opening\",\"common-opening-traps-to-avoid\"]",
+        "language": "en",
+        "metadata": "{\"heading\":\"Common Opening Traps to Avoid\",\"section\":7,\"source\":\"02-opening-principles.md\"}",
+        "createdAt": "2025-12-18T14:39:23.416Z"
+      },
+      {
+        "id": "cmjbjqra0001a14949yqnst4s",
+        "sourceId": "cmjbjqqio000u1494x704x7vg",
+        "chunkText": "## Specific Opening Systems\n\n### Italian Game (1.e4 e5 2.Nf3 Nc6 3.Bc4)\r\nClassical development, fights for center, quick castling. Excellent for learning opening principles.\r\n\r\n### Spanish/Ruy Lopez (1.e4 e5 2.Nf3 Nc6 3.Bb5)\r\nMost theoretically rich opening. Teaches long-term planning and piece coordination.\r\n\r\n### Queen's Gambit (1.d4 d5 2.c4)\r\nNot a true gambit - Black can't hold the pawn safely. Teaches queenside initiative and structural play.\r\n\r\n### Sicilian Defense (1.e4 c5)\r\nSharp and complex. Black fights for the center asymmetrically. High-risk, high-reward.\r\n\r\n### French Defense (1.e4 e6)\r\nSolid but passive. Black accepts a cramped position hoping to counter-attack later.\r\n\r\n### King's Indian Defense (1.d4 Nf6 2.c4 g6)\r\nHypermodern approach. Black allows White the center, then attacks it with pieces and pawns.",
+        "tags": "[\"opening\",\"specific-opening-systems\"]",
+        "language": "en",
+        "metadata": "{\"heading\":\"Specific Opening Systems\",\"section\":8,\"source\":\"02-opening-principles.md\"}",
+        "createdAt": "2025-12-18T14:39:23.545Z"
+      },
+      {
+        "id": "cmjbjqrdh001c1494qdxrxp2o",
+        "sourceId": "cmjbjqqio000u1494x704x7vg",
+        "chunkText": "## Opening Principles Checklist\n\nBefore each move in the opening, ask:\r\n1. ✓ Am I developing a new piece?\r\n2. ✓ Is this piece going to its best square?\r\n3. ✓ Am I controlling central squares?\r\n4. ✓ Is my king safe (or getting safe soon)?\r\n5. ✓ Am I creating unnecessary weaknesses?",
+        "tags": "[\"opening\",\"opening-principles-checklist\"]",
+        "language": "en",
+        "metadata": "{\"heading\":\"Opening Principles Checklist\",\"section\":9,\"source\":\"02-opening-principles.md\"}",
+        "createdAt": "2025-12-18T14:39:23.669Z"
+      },
+      {
+        "id": "cmjbjqrgm001e14948ixxz3ox",
+        "sourceId": "cmjbjqqio000u1494x704x7vg",
+        "chunkText": "## Transitioning to Middlegame\n\nThe opening ends when:\r\n- Both sides have completed development\r\n- Kings are castled\r\n- Rooks are connected\r\n- Central pawn structure is established\r\n\r\n**Strategic Goal:** Enter the middlegame with well-placed pieces, safe king, and good pawn structure.",
+        "tags": "[\"transitioning-to-middlegame\"]",
+        "language": "en",
+        "metadata": "{\"heading\":\"Transitioning to Middlegame\",\"section\":10,\"source\":\"02-opening-principles.md\"}",
+        "createdAt": "2025-12-18T14:39:23.782Z"
+      },
+      {
+        "id": "cmjbjqrke001g1494vhmsrktq",
+        "sourceId": "cmjbjqqio000u1494x704x7vg",
+        "chunkText": "## Study Recommendations\n\n### For Beginners\r\nLearn principles, not memorization:\r\n- Focus on 2-3 openings with each color\r\n- Understand the IDEAS behind moves\r\n- Play the Italian Game and Queen's Gambit first\r\n\r\n### For Intermediate Players\r\nDeepen understanding:\r\n- Study complete games in your openings\r\n- Learn key pawn structures and plans\r\n- Understand typical middlegame ideas from your openings\r\n\r\n### For Advanced Players\r\nSpecialize and prepare:\r\n- Deep theoretical knowledge in chosen openings\r\n- Prepare novelties and improvements\r\n- Study opponent-specific lines",
+        "tags": "[\"study\",\"study-recommendations\"]",
+        "language": "en",
+        "metadata": "{\"heading\":\"Study Recommendations\",\"section\":11,\"source\":\"02-opening-principles.md\"}",
+        "createdAt": "2025-12-18T14:39:23.918Z"
+      },
+      {
+        "id": "cmjbjqrni001i14946ypgmt0w",
+        "sourceId": "cmjbjqqio000u1494x704x7vg",
+        "chunkText": "## Common Opening Misconceptions\n\n**Myth:** \"I need to memorize 20 moves of theory\"\r\n**Truth:** Understanding principles gets you through most opening phases successfully.\r\n\r\n**Myth:** \"Following grandmaster games means copying their moves\"\r\n**Truth:** Understanding WHY grandmasters make certain moves is what matters.\r\n\r\n**Myth:** \"New openings give me an advantage\"\r\n**Truth:** Playing your known openings well beats trying unfamiliar ones.",
+        "tags": "[\"opening\",\"common-opening-misconceptions\"]",
+        "language": "en",
+        "metadata": "{\"heading\":\"Common Opening Misconceptions\",\"section\":12,\"source\":\"02-opening-principles.md\"}",
+        "createdAt": "2025-12-18T14:39:24.030Z"
+      },
+      {
+        "id": "cmjbjqrqw001k14942te096vw",
+        "sourceId": "cmjbjqqio000u1494x704x7vg",
+        "chunkText": "## Conclusion\n\nMaster these opening principles before diving into specific theory:\r\n1. Control the center\r\n2. Develop pieces rapidly\r\n3. Ensure king safety\r\n4. Don't move the same piece twice\r\n5. Don't bring the queen out early\r\n6. Castle early\r\n7. Connect your rooks\r\n\r\nFollow these guidelines and you'll emerge from the opening with a playable position every time. Opening knowledge helps, but understanding principles helps more.",
+        "tags": "[\"conclusion\"]",
+        "language": "en",
+        "metadata": "{\"heading\":\"Conclusion\",\"section\":13,\"source\":\"02-opening-principles.md\"}",
+        "createdAt": "2025-12-18T14:39:24.152Z"
+      }
+    ]
+  },
+  {
+    "id": "cmjbjqs0z001m1494j0p473ok",
+    "title": "Endgame Fundamentals: Converting Advantages to Victory",
+    "sourceType": "DOC",
+    "url": "file://knowledge_seed/03-endgame-fundamentals.md",
+    "isDeleted": false,
+    "createdAt": "2025-12-18T14:39:24.515Z",
+    "updatedAt": "2025-12-18T14:39:24.515Z",
+    "chunks": [
+      {
+        "id": "cmjbjqs4d001o1494qzfzajnd",
+        "sourceId": "cmjbjqs0z001m1494j0p473ok",
+        "chunkText": "## Why Endgames Matter\n\n\"The endgame is where you prove you deserve to win\" - ancient chess wisdom. Many games reach equal middlegames where endgame technique determines the outcome.\r\n\r\nEndgame mastery provides:\r\n- Ability to convert small advantages\r\n- Confidence in simplified positions\r\n- Defensive resources in worse positions\r\n- Understanding of what matters in endings",
+        "tags": "[\"endgame\",\"why-endgames-matter\"]",
+        "language": "en",
+        "metadata": "{\"heading\":\"Why Endgames Matter\",\"section\":1,\"source\":\"03-endgame-fundamentals.md\"}",
+        "createdAt": "2025-12-18T14:39:24.638Z"
+      },
+      {
+        "id": "cmjbjqs7m001q1494lrbl4p6n",
+        "sourceId": "cmjbjqs0z001m1494j0p473ok",
+        "chunkText": "## What Defines the Endgame\n\nThe endgame begins when:\r\n- Queens are traded (usually)\r\n- Few minor pieces remain\r\n- Kings become active pieces\r\n- Pawns become critical\r\n\r\n**Material Count Rule:** Total material under 30 points (Q=9, R=5, B/N=3, P=1) usually indicates endgame.",
+        "tags": "[\"endgame\",\"what-defines-the-endgame\"]",
+        "language": "en",
+        "metadata": "{\"heading\":\"What Defines the Endgame\",\"section\":2,\"source\":\"03-endgame-fundamentals.md\"}",
+        "createdAt": "2025-12-18T14:39:24.754Z"
+      },
+      {
+        "id": "cmjbjqsax001s149419dgpk1j",
+        "sourceId": "cmjbjqs0z001m1494j0p473ok",
+        "chunkText": "## King Activity: The Endgame King\n\nIn the endgame, the king transforms from liability to powerful piece. Centralized kings control squares, support pawns, and attack enemy pawns.\r\n\r\n### King Activation Principles\r\n- **Centralize immediately** when the endgame begins\r\n- King should lead pawn advances\r\n- Active kings worth about 4 points of material\r\n- The king's reach determines many endgames\r\n\r\n**Key Rule:** In the endgame, activate your king before anything else.",
+        "tags": "[\"endgame\",\"king\",\"king-activity-the-endgame-king\"]",
+        "language": "en",
+        "metadata": "{\"heading\":\"King Activity: The Endgame King\",\"section\":3,\"source\":\"03-endgame-fundamentals.md\"}",
+        "createdAt": "2025-12-18T14:39:24.874Z"
+      },
+      {
+        "id": "cmjbjqsea001u1494j9sgawzz",
+        "sourceId": "cmjbjqs0z001m1494j0p473ok",
+        "chunkText": "## Opposition\n\nOpposition is a key endgame concept where kings face each other with one square between them. The player NOT to move \"has the opposition.\"\r\n\r\n### Why Opposition Matters\r\n- Forces the enemy king away\r\n- Allows your king to advance\r\n- Often determines king and pawn endings\r\n\r\n### Types of Opposition\r\n1. **Direct Opposition:** Kings face each other (vertical, horizontal, or diagonal)\r\n2. **Distant Opposition:** Same file/rank/diagonal but separated by odd number of squares\r\n3. **Rectangular Opposition:** Advanced concept for maneuvering\r\n\r\n**Practical Tip:** In king and pawn endings, calculate who has opposition after each move.",
+        "tags": "[\"opposition\"]",
+        "language": "en",
+        "metadata": "{\"heading\":\"Opposition\",\"section\":4,\"source\":\"03-endgame-fundamentals.md\"}",
+        "createdAt": "2025-12-18T14:39:24.994Z"
+      },
+      {
+        "id": "cmjbjqshd001w1494pjenapc7",
+        "sourceId": "cmjbjqs0z001m1494j0p473ok",
+        "chunkText": "## Basic Checkmates\n\nEvery player must know how to deliver checkmate with basic material.\r\n\r\n### King and Queen vs. King\r\n- Restrict enemy king to edge\r\n- Use your king to cut off escape\r\n- Deliver checkmate on the edge\r\n- Should complete in 10 moves or less\r\n\r\n**Method:** Push enemy king to edge systematically, use queen to control ranks/files while your king approaches.\r\n\r\n### King and Rook vs. King\r\n- Similar to queen checkmate but requires more care\r\n- Use your king to restrict enemy king\r\n- Rook delivers checkmate on edge\r\n- Takes about 15-20 moves\r\n\r\n**Key Technique:** The \"building a bridge\" method to avoid stalemate tricks.\r\n\r\n### King and Two Bishops vs. King\r\n- Drive enemy king to corner\r\n- Bishops control long diagonals\r\n- King helps restrict movement\r\n- Harder than queen/rook checkmates\r\n\r\n### King, Bishop, and Knight vs. King\r\n- Requires forcing king to a corner matching your bishop's color\r\n- Complex technique requiring study\r\n- Takes 30+ moves with perfect play\r\n- Rare in practical play but good to know\r\n\r\n**Study Priority:** Master queen and rook mates first. Others are nice to know but appear rarely.",
+        "tags": "[\"checkmate\",\"basic-checkmates\"]",
+        "language": "en",
+        "metadata": "{\"heading\":\"Basic Checkmates\",\"section\":5,\"source\":\"03-endgame-fundamentals.md\"}",
+        "createdAt": "2025-12-18T14:39:25.106Z"
+      },
+      {
+        "id": "cmjbjqtg3002g1494msky5fso",
+        "sourceId": "cmjbjqs0z001m1494j0p473ok",
+        "chunkText": "## Conclusion\n\nEndgame mastery separates strong players from average ones. The good news: endgames are more about knowledge and technique than creativity.\r\n\r\nStudy the fundamental positions, practice regularly, and your endgame technique will dramatically improve your results. Remember: knowing how to win a won position is just as important as reaching a won position.\r\n\r\n\"In the endgame, the threat is stronger than the execution\" - but only if you know the technique to execute!",
+        "tags": "[\"conclusion\"]",
+        "language": "en",
+        "metadata": "{\"heading\":\"Conclusion\",\"section\":15,\"source\":\"03-endgame-fundamentals.md\"}",
+        "createdAt": "2025-12-18T14:39:26.356Z"
+      },
+      {
+        "id": "cmjbjqsl9001y1494s5egr0f3",
+        "sourceId": "cmjbjqs0z001m1494j0p473ok",
+        "chunkText": "## Pawn Endgames\n\nPawn endings are the most fundamental endgames. Pure calculation determines most positions.\r\n\r\n### Key Pawn Endgame Concepts\r\n\r\n#### The Square Rule\r\nTo determine if a king catches a passed pawn:\r\n1. Draw a square from the pawn to the queening square\r\n2. If the king can enter this square on their turn, they catch it\r\n3. Works for pawns on their 4th rank or beyond\r\n\r\n#### Creating Passed Pawns\r\n- **Candidate passed pawn:** One that could become passed\r\n- Create passed pawns by:\r\n  - Exchanging pawns favorably\r\n  - Breakthrough sacrifices\r\n  - Outflanking with king\r\n\r\n#### Pawn Breakthroughs\r\nForcing sequences where sacrificing pawns creates an unstoppable passed pawn.\r\n\r\n**Classic Pattern:** Three connected pawns vs two, sacrifice to create a passer.\r\n\r\n### Outside Passed Pawns\r\nA passed pawn far from the main action. It diverts the enemy king, allowing your king to win pawns on the other side.\r\n\r\n**Principle:** An outside passed pawn is often worth more than central material.",
+        "tags": "[\"endgame\",\"pawn\",\"pawn-endgames\"]",
+        "language": "en",
+        "metadata": "{\"heading\":\"Pawn Endgames\",\"section\":6,\"source\":\"03-endgame-fundamentals.md\"}",
+        "createdAt": "2025-12-18T14:39:25.246Z"
+      },
+      {
+        "id": "cmjbjqsom00201494r8zo41ui",
+        "sourceId": "cmjbjqs0z001m1494j0p473ok",
+        "chunkText": "## Rook Endgames\n\n\"All rook endgames are drawn\" - old joke, but they're the most common endgames.\r\n\r\n### Lucena Position\r\nThe basic winning position in rook endgames:\r\n- Your pawn is on 7th rank with king in front\r\n- Enemy rook cuts off your king from side\r\n- Your rook builds a bridge to escape checks\r\n\r\n**Must Know:** This is THE fundamental winning rook endgame position.\r\n\r\n### Philidor Position\r\nThe basic drawing position:\r\n- Defending rook on 6th rank (or 3rd if Black)\r\n- King blocks in front of pawn\r\n- Passive defense until attacker pushes pawn, then check from behind\r\n\r\n**Defensive Key:** Keep rook on 6th (or 3rd) until pawn advances.\r\n\r\n### Rook Behind Passed Pawn\r\nStrong principle in rook endings - place your rook BEHIND passed pawns (yours or theirs).\r\n\r\n**Why:** Rook gains power as pawn advances. Rook in front of pawn gets shut out.\r\n\r\n### Cutting Off the King\r\nUsing your rook to restrict enemy king to one side. The fewer files between their king and pawn, the easier to draw or win.\r\n\r\n**General Rule:** \r\n- 3+ files away: usually winning\r\n- 2 files: probably winning with good technique\r\n- 1 file: drawing chances\r\n- 0 files (king in front): usually drawn",
+        "tags": "[\"endgame\",\"rook\",\"rook-endgames\"]",
+        "language": "en",
+        "metadata": "{\"heading\":\"Rook Endgames\",\"section\":7,\"source\":\"03-endgame-fundamentals.md\"}",
+        "createdAt": "2025-12-18T14:39:25.366Z"
+      },
+      {
+        "id": "cmjbjqss700221494t6o2tu9w",
+        "sourceId": "cmjbjqs0z001m1494j0p473ok",
+        "chunkText": "## Minor Piece Endgames\n\n### Knight vs. Pawns\r\nKnights are short-range pieces, poor at stopping distant passed pawns.\r\n\r\n**Rule:** Knight needs king support to stop passed pawns.\r\n\r\n### Bishop vs. Pawns\r\nBishops are long-range, better than knights at stopping passed pawns from distance.\r\n\r\n### Bishop vs. Knight\r\nDepends heavily on pawn structure:\r\n- **Closed positions:** Knight equals or better\r\n- **Open positions:** Bishop usually better\r\n- **Pawns on one color:** Bishop's color matters enormously\r\n\r\n### Opposite-Colored Bishops\r\nThese positions are EXTREMELY drawish even with material imbalance:\r\n- One extra pawn often insufficient\r\n- Two connected passed pawns usually required to win\r\n- Blockading on the right color squares draws\r\n\r\n### Same-Colored Bishops\r\nMore decisive than opposite-colored:\r\n- Extra pawn usually wins\r\n- Good vs. bad bishop critical\r\n- Pawn structure determines outcome",
+        "tags": "[\"endgame\",\"minor-piece-endgames\"]",
+        "language": "en",
+        "metadata": "{\"heading\":\"Minor Piece Endgames\",\"section\":8,\"source\":\"03-endgame-fundamentals.md\"}",
+        "createdAt": "2025-12-18T14:39:25.495Z"
+      },
+      {
+        "id": "cmjbjqsvg00241494mya1yfkx",
+        "sourceId": "cmjbjqs0z001m1494j0p473ok",
+        "chunkText": "## Queen Endgames\n\nQueen endgames are complex with many pieces remaining. Checks are powerful, and perpetual check is a common drawing mechanism.\r\n\r\n### Queen vs. Pawn on 7th\r\nGenerally winning for queen, but there are drawing exceptions:\r\n- Pawn on a7 or h7 with king nearby can draw\r\n- Center pawns always lose\r\n\r\n### Queen and Pawn vs. Queen\r\nUsually drawn unless:\r\n- Advanced passed pawn (6th or 7th rank)\r\n- Weak enemy king position\r\n- Tactical tricks available",
+        "tags": "[\"endgame\",\"queen\",\"queen-endgames\"]",
+        "language": "en",
+        "metadata": "{\"heading\":\"Queen Endgames\",\"section\":9,\"source\":\"03-endgame-fundamentals.md\"}",
+        "createdAt": "2025-12-18T14:39:25.613Z"
+      },
+      {
+        "id": "cmjbjqsym00261494ho4pmckn",
+        "sourceId": "cmjbjqs0z001m1494j0p473ok",
+        "chunkText": "## Practical Endgame Strategy\n\n### When Ahead Material\r\n- **Trade pieces, not pawns** - Simplify to basic endgames\r\n- **Activate your king** immediately\r\n- **Create passed pawns** on optimal squares\r\n- **Avoid pawn trades** that reduce winning chances\r\n\r\n### When Behind Material\r\n- **Trade pawns, not pieces** - Fewer pawns = more drawing chances\r\n- **Create counterplay** with active pieces\r\n- **Blockade enemy passed pawns** immediately\r\n- **Look for fortresses** - positions where defender can hold despite material deficit",
+        "tags": "[\"endgame\",\"strategy\",\"practical-endgame-strategy\"]",
+        "language": "en",
+        "metadata": "{\"heading\":\"Practical Endgame Strategy\",\"section\":10,\"source\":\"03-endgame-fundamentals.md\"}",
+        "createdAt": "2025-12-18T14:39:25.726Z"
+      },
+      {
+        "id": "cmjbjqt2500281494r0emal5n",
+        "sourceId": "cmjbjqs0z001m1494j0p473ok",
+        "chunkText": "## Endgame Technique\n\n### Triangulation\r\nLosing a tempo to put opponent in zugzwang. Works in king and pawn endings and some minor piece endings.\r\n\r\n**Concept:** Make a triangle with your king while opponent must move, worsening their position.\r\n\r\n### Zugzwang\r\nWhen any move worsens your position, but you must move. Common in endgames, rare in openings/middlegames.\r\n\r\n**Recognition:** Position is fine but ANY move makes it worse.\r\n\r\n### Tempo Moves\r\nMoves that don't change the position but force opponent to move. Valuable when opponent is in zugzwang or near it.",
+        "tags": "[\"endgame\",\"technique\",\"endgame-technique\"]",
+        "language": "en",
+        "metadata": "{\"heading\":\"Endgame Technique\",\"section\":11,\"source\":\"03-endgame-fundamentals.md\"}",
+        "createdAt": "2025-12-18T14:39:25.853Z"
+      },
+      {
+        "id": "cmjbjqt5y002a1494ckmy5sfg",
+        "sourceId": "cmjbjqs0z001m1494j0p473ok",
+        "chunkText": "## Study Method for Endgames\n\n1. **Learn basic checkmates** until automatic\r\n2. **Master key pawn endgame positions** (opposition, square rule)\r\n3. **Study Lucena and Philidor** in rook endgames\r\n4. **Learn basic bishop/knight endgames**\r\n5. **Practice endgames from your games**\r\n\r\n### Recommended Study Order\r\n1. King and pawn endings (opposition, breakthrough, square rule)\r\n2. Rook endings (Lucena, Philidor, cutting king)\r\n3. Basic checkmates (Q, R, 2B, B+N)\r\n4. Minor piece endings (N vs pawns, B vs pawns, B vs N)\r\n5. Queen endings (perpetual checks, Q vs advanced pawn)",
+        "tags": "[\"endgame\",\"study\",\"study-method-for-endgames\"]",
+        "language": "en",
+        "metadata": "{\"heading\":\"Study Method for Endgames\",\"section\":12,\"source\":\"03-endgame-fundamentals.md\"}",
+        "createdAt": "2025-12-18T14:39:25.990Z"
+      },
+      {
+        "id": "cmjbjqt9l002c1494pk6z03m5",
+        "sourceId": "cmjbjqs0z001m1494j0p473ok",
+        "chunkText": "## Common Endgame Mistakes\n\n- Allowing opponent's king to activate\r\n- Pushing pawns prematurely\r\n- Not calculating forcing sequences\r\n- Forgetting about stalemate possibilities\r\n- Passive piece placement\r\n- Trading into worse endgames",
+        "tags": "[\"endgame\",\"common-endgame-mistakes\"]",
+        "language": "en",
+        "metadata": "{\"heading\":\"Common Endgame Mistakes\",\"section\":13,\"source\":\"03-endgame-fundamentals.md\"}",
+        "createdAt": "2025-12-18T14:39:26.121Z"
+      },
+      {
+        "id": "cmjbjqtcz002e14945aiq80zv",
+        "sourceId": "cmjbjqs0z001m1494j0p473ok",
+        "chunkText": "## Endgame Principles Summary\n\n1. **Activate king immediately**\r\n2. **Rook behind passed pawns**\r\n3. **Create passed pawns** on optimal squares\r\n4. **Trade pieces (not pawns) when ahead**\r\n5. **Trade pawns (not pieces) when behind**\r\n6. **Calculate forcing sequences** precisely\r\n7. **Avoid stalemate traps**\r\n8. **Use opposition** in pawn endings\r\n9. **Centralize pieces** for maximum activity\r\n10. **Convert advantages methodically**, don't rush",
+        "tags": "[\"endgame\",\"endgame-principles-summary\"]",
+        "language": "en",
+        "metadata": "{\"heading\":\"Endgame Principles Summary\",\"section\":14,\"source\":\"03-endgame-fundamentals.md\"}",
+        "createdAt": "2025-12-18T14:39:26.243Z"
+      }
+    ]
+  }
+]
