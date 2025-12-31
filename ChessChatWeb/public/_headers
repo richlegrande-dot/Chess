@@ -1,6 +1,17 @@
 # Cloudflare Pages Security Headers
 # Applied to all routes
 
+# CRITICAL: Index must be first and most specific to prevent caching old bundles
+/index.html
+  Cache-Control: no-store, no-cache, must-revalidate, proxy-revalidate, max-age=0
+  Pragma: no-cache
+  Expires: 0
+
+/
+  Cache-Control: no-store
+  Pragma: no-cache
+  Expires: 0
+
 /*
   # Security Headers
   X-Content-Type-Options: nosniff
@@ -19,17 +30,6 @@
 
 # HTML - No caching for dynamic content
 /*.html
-  Cache-Control: no-store, no-cache, must-revalidate, proxy-revalidate, max-age=0
-  Pragma: no-cache
-  Expires: 0
-
-# Root index
-/index.html
-  Cache-Control: no-store, no-cache, must-revalidate, proxy-revalidate, max-age=0
-  Pragma: no-cache
-  Expires: 0
-
-/
   Cache-Control: no-store, no-cache, must-revalidate, proxy-revalidate, max-age=0
   Pragma: no-cache
   Expires: 0

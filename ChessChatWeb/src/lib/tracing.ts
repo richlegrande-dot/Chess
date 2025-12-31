@@ -3,7 +3,22 @@
  * Provides detailed logging with unique request IDs for debugging CPU move issues
  */
 
-import { debugLog } from './logging/debugLogger';
+import { debugLog as importedDebugLog } from './logging/debugLogger';
+
+// Crash-proof fallback: ensure debugLog is always defined
+const debugLog = importedDebugLog ?? {
+  log: (..._args: any[]) => {},
+  warn: (..._args: any[]) => {},
+  error: (..._args: any[]) => {},
+  info: (..._args: any[]) => {},
+  debug: (..._args: any[]) => {},
+  isEnabled: () => false,
+};
+
+// Runtime assertion - should never trigger but helps debugging
+if (!debugLog || typeof debugLog.log !== 'function') {
+  console.error('❌ CRITICAL: debugLog missing or malformed - using noop fallback');
+}
 
 // Simple UUID v4 generator (no external dependency)
 function generateUUID(): string {

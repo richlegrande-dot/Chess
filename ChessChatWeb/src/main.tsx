@@ -7,8 +7,11 @@ import { AppErrorBoundary } from './components/AppErrorBoundary';
 (window as any).mainScriptLoaded = true;
 
 // BUILD VERSION CHECK
-console.log('🔧 CHESSCHAT BUILD: 2025-12-25-PERFORMANCE-FIX');
-console.log('✅ Opening book integration, feature parameters, beam search optimization');
+const buildSha = import.meta.env.VITE_BUILD_SHA ?? 'dev-local';
+const buildDate = '2025-12-31-DEBUGLOG-FIX';
+console.log(`🔧 CHESSCHAT BUILD: ${buildDate}`);
+console.log(`📦 Build SHA: ${buildSha}`);
+console.log('✅ Crash-proof debugLog, cache control, production fixes');
 
 // IMMEDIATE DOM FEEDBACK - Prove JavaScript is executing
 console.log('🚀 MAIN_TSX_START - JavaScript execution began');
