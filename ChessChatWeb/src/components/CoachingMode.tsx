@@ -348,32 +348,12 @@ export const CoachingMode: React.FC = () => {
         
         // CONSTRAINT A: Always attempt Prisma Worker API for levels that support it
         // Worker will be tried first; fallback to local computation only on actual failure
-        // For levels 7-8: Use infinite retry with Force Move button to handle worker timeouts
         const useWorker = cpuLevel >= 3 && cpuLevel <= 8; // Levels 3-8 use worker
-        console.log(`[CPU Move] 🔧 CODE VERSION: 2025-12-28-v2 | Level ${cpuLevel} | useWorker: ${useWorker}`);
+        console.log(`[CPU Move] 🔧 CODE VERSION: 2025-12-30-v3-learning-layer | Level ${cpuLevel} | useWorker: ${useWorker}`);
         const currentMoveHistory = moveHistory.map((m: any) => m.move || m);
         
-        // LEARNING INTEGRATION: Get teaching opportunities
-        let learningContext;
-        try {
-          const { getTeachingOpportunities } = await import('../lib/cpu/learningIntegration');
-          const opportunities = getTeachingOpportunities(chess, cpuLevel);
-          if (opportunities.userSignatures.length > 0) {
-            learningContext = {
-              userSignatures: opportunities.userSignatures.map(sig => ({
-                category: sig.category,
-                title: sig.title,
-                confidenceScore: sig.confidenceScore,
-                masteryScore: sig.masteryScore,
-                occurrences: sig.occurrences
-              })),
-              gamesPlayed: opportunities.userSignatures.length
-            };
-            console.log(`[Learning] Teaching ${learningContext.userSignatures.length} patterns this move`);
-          }
-        } catch (error) {
-          console.log('[Learning] Not available yet:', error);
-        }
+        // NOTE: Local CPU learning has been deprecated in favor of server-side Learning Layer V3
+        // Learning now happens via POST /api/learning/ingest-game and influences coaching, not moves
         
         if (useWorker) {
           console.log('[CPU Move] Using API for server-side computation');
@@ -385,6 +365,7 @@ export const CoachingMode: React.FC = () => {
           let lastError: Error | null = null;
           let workerSuccess = false;
           let apiStartTime = Date.now(); // Declare outside loop for error handling
+          let statusCode: number | undefined = undefined; // Track HTTP status for telemetry
           
           while (retryCount <= maxRetries && !workerSuccess && !forceMovePending) {
             try {
@@ -419,7 +400,9 @@ export const CoachingMode: React.FC = () => {
               if (!apiResponse.ok) {
                 const errorText = await apiResponse.text();
                 console.error(`[CPU Move] ❌ API Error Response (${apiResponse.status}):`, errorText);
-                throw new Error(`API returned ${apiResponse.status}: ${apiResponse.statusText}`);
+                const error = new Error(`API returned ${apiResponse.status}: ${apiResponse.statusText}`);
+                (error as any).statusCode = apiResponse.status; // Attach for telemetry
+                throw error;
               }
               
               const apiData = await apiResponse.json();
@@ -615,13 +598,20 @@ export const CoachingMode: React.FC = () => {
             if (selectedMove) {
               console.log(`[CPU Move] API result: depth ${workerResult.metadata.depthReached}, time ${Math.round(workerElapsed)}ms, source: ${workerResult.metadata.source}`);
               
-              // Log time budget diagnostics
+              // Log time budget diagnostics (if available)
               if (apiData.diagnostics) {
-                console.log(`[CPU Move] ⏱️ Time Budget: requested=${apiData.diagnostics.requestedTimeMs}ms, capped=${apiData.diagnostics.cappedTimeMs}ms, used=${apiData.diagnostics.searchTimeMs}ms, utilization=${apiData.diagnostics.budgetUtilization}, abort=${apiData.diagnostics.abortReason}, hasDebug=${apiData.diagnostics.hasDebugInfo}, debugMs=${apiData.diagnostics.debugEngineMs}, mode=${apiData.diagnostics.debugMode}`);
-                console.log(`[CPU Move] 🐛 Raw Engine Data:`, {
-                  rawMove: apiData.diagnostics.rawEngineMove,
-                  rawDebug: apiData.diagnostics.rawEngineDebug,
-                  parsedMove: apiData.move
+                const diag = apiData.diagnostics;
+                console.log(`[CPU Move] ⏱️ Time Budget: requested=${diag.requestedTimeMs || 'N/A'}ms, capped=${diag.cappedTimeMs || 'N/A'}ms, used=${diag.searchTimeMs || diag.stockfishMs || 'N/A'}ms, utilization=${diag.budgetUtilization || 'N/A'}, abort=${diag.abortReason || 'N/A'}`);
+                console.log(`[CPU Move] 🐛 Stockfish Data:`, {
+                  cpuLevel: diag.cpuLevel,
+                  depth: diag.depth,
+                  nodes: diag.nodes,
+                  evaluation: diag.evaluation,
+                  pv: diag.pv,
+                  mate: diag.mate,
+                  uciMove: diag.uciMove,
+                  sanMove: diag.move,
+                  nps: diag.nps
                 });
               }
             
@@ -677,10 +667,12 @@ export const CoachingMode: React.FC = () => {
             retryCount++;
             
             const isTimeout = error instanceof Error && (error.message.includes('timeout') || error.message.includes('timed out'));
+            statusCode = (error as any).statusCode; // Extract HTTP status if attached
             const errorDetails = {
               message: error instanceof Error ? error.message : String(error),
               stack: error instanceof Error ? error.stack : undefined,
               type: error instanceof Error ? error.constructor.name : typeof error,
+              statusCode,
               fullError: error
             };
             
@@ -754,6 +746,11 @@ export const CoachingMode: React.FC = () => {
               throw new Error('Worker retries incomplete - force move not requested (this should not happen)');
             }
             
+            // 🚫 FALLBACK DISABLED FOR DEBUGGING - Let it fail to fix root cause
+            console.error(`[CPU Move] 🚫 FALLBACK DISABLED - Worker failed after retries, throwing error to surface issue`);
+            throw new Error(`Worker API failed after ${retryCount} retries: ${lastError?.message || 'Unknown error'}`);
+            
+            /* ORIGINAL FALLBACK CODE - TEMPORARILY DISABLED
             // Fallback to learning AI (SINGLE MOVE ONLY when forced for levels 7-8, or after retries exhausted for other levels)
             console.log(`[CPU Move] 🔀 Using minimax fallback${forceMovePending ? ' (forced by user)' : ' (retries exhausted)'}`);
             const fallbackStartTime = Date.now();
@@ -776,7 +773,7 @@ export const CoachingMode: React.FC = () => {
                   moveTo: selectedMove.to,
                   depthReached: actualSearchDepth,
                   error: error instanceof Error ? error : new Error(String(error)),
-                  statusCode: undefined, // Could extract from fetch response
+                  statusCode: statusCode, // Extract from fetch response
                   workerTimeMs: workerFailureTime,
                   fallbackTimeMs: fallbackElapsedMs,
                   totalTimeMs: Date.now() - perfStart,
@@ -795,7 +792,9 @@ export const CoachingMode: React.FC = () => {
                 // Don't throw - allow game to continue
               }
             }
+            */
             
+            /* FALLBACK PERFORMANCE TRACKING - DISABLED
             // Track fallback performance
             const fallbackTime = Date.now() - startTime;
             setWorkerStats(prev => {
@@ -819,6 +818,7 @@ export const CoachingMode: React.FC = () => {
                 recentMoves,
               };
             });
+            */
           } // End catch block
           } // End while loop (retry attempts)
           
@@ -903,6 +903,25 @@ export const CoachingMode: React.FC = () => {
           return { ...prevState, isThinking: false, cpuError: 'No move selected' };
         }
 
+        // CRITICAL: Check if board state has changed since move was calculated
+        const currentFEN = prevState.chess.getFEN();
+        const calculatedFEN = fen; // FEN from stateSnapshot when move was calculated
+        
+        if (currentFEN !== calculatedFEN) {
+          // Board state changed - move is no longer valid for current position
+          console.warn('[CPU Move] ⚠️ Board state changed during calculation. Canceling move.');
+          console.log('[CPU Move] Expected FEN:', calculatedFEN);
+          console.log('[CPU Move] Current FEN:', currentFEN);
+          clearTimeout(cpuMoveTimeout.current!);
+          cpuMoveInFlight.current = false;
+          persistentLogger.warn('CPU move canceled - board state changed', { 
+            expectedFEN: calculatedFEN,
+            currentFEN,
+            move: `${selectedMove.from}→${selectedMove.to}`
+          });
+          return { ...prevState, isThinking: false };
+        }
+
         // CRITICAL FIX: Clone chess instance first (immutable pattern)
         const newChess = prevState.chess.clone();
         
@@ -918,6 +937,7 @@ export const CoachingMode: React.FC = () => {
           const moveNum = Math.ceil(prevState.moveHistory.length / 2) + 1;
           moveTracer.logError(requestId, `Invalid move: ${selectedMove.from}→${selectedMove.to}`, fen, pgn, moveNum);
           console.error('[CPU Move] Invalid move selected!');
+          console.log('[CPU Move] Available legal moves:', prevState.chess.moves({ verbose: true }).map((m: any) => `${m.from}→${m.to}`));
           persistentLogger.error('CPU selected invalid move', { from: selectedMove.from, to: selectedMove.to, fen, moveNum });
           return { ...prevState, isThinking: false, cpuError: 'CPU selected invalid move. Please retry.' };
         }

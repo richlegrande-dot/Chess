@@ -8,6 +8,8 @@ import { CoachingAnalysisModal } from './CoachingAnalysisModal';
 import { coachingEngine, CoachingReport } from '../lib/coaching';
 import { getEnhancedLearningSystem } from '../lib/coaching/enhancedLearningSystem';
 import { GameplayMetrics } from '../lib/coaching/types';
+import { Chess } from 'chess.js';
+import { api } from '../lib/api';
 import '../styles/CoachingReport.css';
 
 interface PostGameCoachingProps {
@@ -28,6 +30,16 @@ export const PostGameCoaching: React.FC<PostGameCoachingProps> = ({
   const [isAnalyzing, setIsAnalyzing] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [playerInsights, setPlayerInsights] = useState<any>(null);
+  
+  // Learning V3 ingestion state
+  const [learningStatus, setLearningStatus] = useState<{
+    attempted: boolean;
+    success: boolean;
+    degraded: boolean;
+    stockfishWarm: boolean;
+    message: string;
+    canRetry: boolean;
+  }>({ attempted: false, success: false, degraded: false, stockfishWarm: true, message: '', canRetry: false });
 
   useEffect(() => {
     analyzeGame();
@@ -77,11 +89,88 @@ export const PostGameCoaching: React.FC<PostGameCoachingProps> = ({
       setPlayerInsights(insights);
       
       console.log('[PostGameCoaching] Player insights:', insights);
+
+      // LEARNING V3: Ingest game for server-side analysis
+      await ingestGameToLearningV3();
+      
     } catch (err) {
       console.error('Coaching analysis error:', err);
       setError('Failed to analyze game. Please try again.');
     } finally {
       setIsAnalyzing(false);
+    }
+  };
+
+  const ingestGameToLearningV3 = async () => {
+    try {
+      setLearningStatus(prev => ({ ...prev, attempted: true }));
+      
+      // Generate PGN from move history
+      const chess = new Chess();
+      moveHistory.forEach(move => {
+        try {
+          chess.move(move.move);
+        } catch (e) {
+          console.warn('[Learning V3] Invalid move in history:', move.move);
+        }
+      });
+      const pgn = chess.pgn();
+      
+      const userId = localStorage.getItem('userId') || `guest-${Date.now()}`;
+      const gameId = `game-${Date.now()}`;
+      
+      console.log('[Learning V3] Ingesting game:', { userId, gameId, moveCount: moveHistory.length });
+      
+      const result = await api.ingestGameForLearning(
+        userId,
+        gameId,
+        pgn,
+        `${gameResult} - ${moveHistory.length} moves`
+      );
+      
+      if (result.partial && result.analysisMode === 'degraded') {
+        // Stockfish was cold, degraded mode
+        console.log('[Learning V3] Degraded mode:', result.message);
+        setLearningStatus({
+          attempted: true,
+          success: true,
+          degraded: true,
+          stockfishWarm: false,
+          message: result.message || 'Analysis queued - Stockfish is warming up',
+          canRetry: true
+        });
+      } else if (result.success) {
+        // Full analysis completed
+        console.log('[Learning V3] Full analysis completed:', result.conceptsUpdated, 'concepts updated');
+        setLearningStatus({
+          attempted: true,
+          success: true,
+          degraded: false,
+          stockfishWarm: true,
+          message: `Deep analysis complete! ${result.conceptsUpdated || 0} concepts updated.`,
+          canRetry: false
+        });
+      } else {
+        // Error occurred
+        setLearningStatus({
+          attempted: true,
+          success: false,
+          degraded: false,
+          stockfishWarm: true,
+          message: result.error || 'Analysis failed',
+          canRetry: true
+        });
+      }
+    } catch (err) {
+      console.error('[Learning V3] Ingestion error:', err);
+      setLearningStatus({
+        attempted: true,
+        success: false,
+        degraded: false,
+        stockfishWarm: true,
+        message: err instanceof Error ? err.message : 'Network error',
+        canRetry: true
+      });
     }
   };
 
@@ -145,6 +234,49 @@ export const PostGameCoaching: React.FC<PostGameCoachingProps> = ({
             "Great game, friend! Wall-E found some interesting things to share!"
           </p>
           <div className="game-result">{gameResult}</div>
+          
+          {/* Learning V3 Status Banner */}
+          {learningStatus.attempted && learningStatus.degraded && (
+            <div style={{
+              marginTop: '1rem',
+              padding: '12px 16px',
+              background: 'rgba(245, 158, 11, 0.1)',
+              border: '1px solid rgba(245, 158, 11, 0.3)',
+              borderRadius: '8px',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '10px'
+            }}>
+              <span style={{ fontSize: '1.5rem' }}>⏳</span>
+              <div style={{ flex: 1 }}>
+                <div style={{ fontWeight: 600, color: '#f59e0b' }}>Deep Analysis Pending</div>
+                <div style={{ fontSize: '0.85rem', opacity: 0.8, marginTop: '2px' }}>
+                  {learningStatus.message}
+                </div>
+              </div>
+            </div>
+          )}
+          
+          {learningStatus.attempted && !learningStatus.degraded && learningStatus.success && (
+            <div style={{
+              marginTop: '1rem',
+              padding: '12px 16px',
+              background: 'rgba(16, 185, 129, 0.1)',
+              border: '1px solid rgba(16, 185, 129, 0.3)',
+              borderRadius: '8px',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '10px'
+            }}>
+              <span style={{ fontSize: '1.5rem' }}>✅</span>
+              <div style={{ flex: 1 }}>
+                <div style={{ fontWeight: 600, color: '#10b981' }}>Deep Analysis Complete</div>
+                <div style={{ fontSize: '0.85rem', opacity: 0.8, marginTop: '2px' }}>
+                  {learningStatus.message}
+                </div>
+              </div>
+            </div>
+          )}
         </div>
 
         {/* Statistics Overview */}
@@ -510,7 +642,17 @@ export const PostGameCoaching: React.FC<PostGameCoachingProps> = ({
         {/* Footer Actions */}
 
         <div className="coaching-footer">
-          <button onClick={onClose} className="primary-button">Got it! Start New Game</button>
+          {learningStatus.canRetry && learningStatus.degraded ? (
+            <button 
+              onClick={ingestGameToLearningV3} 
+              className="primary-button"
+              style={{ background: 'linear-gradient(135deg, #f59e0b, #d97706)' }}
+            >
+              🔄 Retry Deep Analysis
+            </button>
+          ) : (
+            <button onClick={onClose} className="primary-button">Got it! Start New Game</button>
+          )}
           <button onClick={analyzeGame} className="secondary-button">Refresh Analysis</button>
           <button
             className="secondary-button insights-chat-button"

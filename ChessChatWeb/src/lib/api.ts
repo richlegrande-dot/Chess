@@ -225,10 +225,42 @@ async function apiFetch<T = any>(
   }
 }
 
+// Learning V3 ingestion
+export async function ingestGameForLearning(
+  userId: string,
+  gameId: string,
+  pgn: string,
+  chatContext?: string
+): Promise<{
+  success: boolean;
+  partial?: boolean;
+  analysisMode?: 'full' | 'degraded';
+  stockfishWarm?: boolean;
+  message?: string;
+  requestId?: string;
+  nextStep?: string;
+  conceptsUpdated?: number;
+  error?: string;
+}> {
+  const response = await fetchWithRetry<any>(
+    `${API_BASE}/learning/ingest-game`,
+    {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ userId, gameId, pgn, chatContext }),
+    }
+  );
+
+  return response;
+}
+
 export const api = {
   chessMove: getAIMove,
   chat: sendChatMessage,
   analyzeGame,
+  ingestGameForLearning,
 
   // Health endpoints
   health: {

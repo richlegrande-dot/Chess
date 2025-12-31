@@ -15,8 +15,12 @@ export const CPU_MOVE_TIME_MS = 2500;
 /** Grace period for worker messaging overhead (milliseconds) */
 export const CPU_MOVE_GRACE_MS = 250;
 
-/** Total timeout including grace period */
-export const CPU_TOTAL_TIMEOUT_MS = CPU_MOVE_TIME_MS + CPU_MOVE_GRACE_MS;
+/** 
+ * Total timeout including grace period and cold start buffer
+ * Increased to 120s to handle Render.com free tier cold starts (30-60s)
+ * Cold start only affects first move after idle, subsequent moves use normal timeout
+ */
+export const CPU_TOTAL_TIMEOUT_MS = 120000; // 120 seconds for cold start tolerance
 
 // ============================================================================
 // DIFFICULTY CONFIGURATION (How levels differ)
@@ -71,19 +75,19 @@ export interface LevelConfig {
  * 
  * Key principles:
  * - All levels use the SAME time budget (CPU_MOVE_TIME_MS)
+ * - Depth LIMITED to 1-2 to match Cloudflare Worker constraints (10ms CPU limit)
  * - Difficulty increases via:
- *   1. Deeper search targets
- *   2. Better move ordering (wider beam)
- *   3. Quiescence search
- *   4. Aspiration windows
- *   5. Tactical pre-scanning
- *   6. More sophisticated evaluation
+ *   1. Move ordering (wider beam)
+ *   2. Evaluation complexity
+ *   3. Tactical scanning depth
+ * 
+ * CRITICAL: Worker API enforces max depth 2 to prevent timeouts
  */
 export const LEVEL_CONFIGS: Record<number, LevelConfig> = {
   1: {
     minDepth: 1,
-    targetDepth: 2,
-    hardCap: 3,
+    targetDepth: 1,
+    hardCap: 1,
     beamWidth: 8,
     useQuiescence: false,
     quiescenceMaxDepth: 0,
@@ -98,8 +102,8 @@ export const LEVEL_CONFIGS: Record<number, LevelConfig> = {
   
   2: {
     minDepth: 1,
-    targetDepth: 3,
-    hardCap: 4,
+    targetDepth: 1,
+    hardCap: 1,
     beamWidth: 10,
     useQuiescence: false,
     quiescenceMaxDepth: 0,
@@ -114,11 +118,11 @@ export const LEVEL_CONFIGS: Record<number, LevelConfig> = {
   
   3: {
     minDepth: 1,
-    targetDepth: 4,
-    hardCap: 5,
+    targetDepth: 1,
+    hardCap: 1,
     beamWidth: 12,
     useQuiescence: true,
-    quiescenceMaxDepth: 4,
+    quiescenceMaxDepth: 2,
     useAspiration: false,
     aspirationWindow: 0,
     evalComplexity: 'lite',
@@ -129,82 +133,82 @@ export const LEVEL_CONFIGS: Record<number, LevelConfig> = {
   },
   
   4: {
-    minDepth: 2,
-    targetDepth: 5,
-    hardCap: 6,
+    minDepth: 1,
+    targetDepth: 2,
+    hardCap: 2,
     beamWidth: 14,
     useQuiescence: true,
-    quiescenceMaxDepth: 5,
-    useAspiration: true,
-    aspirationWindow: 50,
+    quiescenceMaxDepth: 2,
+    useAspiration: false,
+    aspirationWindow: 0,
     evalComplexity: 'full',
     tacticalScan: 'basic',
     openingBook: true,
-    nullMoveReduction: 3,
+    nullMoveReduction: 2,
     lmrThreshold: 5,
   },
   
   5: {
-    minDepth: 2,
-    targetDepth: 6,
-    hardCap: 7,
+    minDepth: 1,
+    targetDepth: 2,
+    hardCap: 2,
     beamWidth: 16,
     useQuiescence: true,
-    quiescenceMaxDepth: 6,
-    useAspiration: true,
-    aspirationWindow: 40,
+    quiescenceMaxDepth: 2,
+    useAspiration: false,
+    aspirationWindow: 0,
     evalComplexity: 'full',
     tacticalScan: 'full',
     openingBook: true,
-    nullMoveReduction: 3,
+    nullMoveReduction: 2,
     lmrThreshold: 6,
   },
   
   6: {
-    minDepth: 3,
-    targetDepth: 7,
-    hardCap: 8,
+    minDepth: 1,
+    targetDepth: 2,
+    hardCap: 2,
     beamWidth: 18,
     useQuiescence: true,
-    quiescenceMaxDepth: 6,
-    useAspiration: true,
-    aspirationWindow: 35,
+    quiescenceMaxDepth: 2,
+    useAspiration: false,
+    aspirationWindow: 0,
     evalComplexity: 'full',
     tacticalScan: 'full',
     openingBook: true,
-    nullMoveReduction: 3,
+    nullMoveReduction: 2,
     lmrThreshold: 6,
   },
   
   7: {
-    minDepth: 3,
-    targetDepth: 8,
-    hardCap: 10,
-    beamWidth: 12,
+    minDepth: 2,
+    targetDepth: 2,
+    hardCap: 2,
+    beamWidth: 20,
     useQuiescence: true,
-    quiescenceMaxDepth: 6,
-    useAspiration: true,
-    aspirationWindow: 30,
+    quiescenceMaxDepth: 2,
+    useAspiration: false,
+    aspirationWindow: 0,
     evalComplexity: 'full',
     tacticalScan: 'full',
     openingBook: true,
-    nullMoveReduction: 3,
+    nullMoveReduction: 2,
     lmrThreshold: 7,
   },
   
   8: {
-    minDepth: 4,
-    targetDepth: 10,
-    hardCap: 12,
-    beamWidth: 15,
+    minDepth: 2,
+    targetDepth: 2,
+    hardCap: 2,
+    beamWidth: 22,
     useQuiescence: true,
-    quiescenceMaxDepth: 8,
-    useAspiration: true,
-    aspirationWindow: 25,
+    quiescenceMaxDepth: 2,
+    useAspiration: false,
+    aspirationWindow: 0,
     evalComplexity: 'full',
     tacticalScan: 'full',
     openingBook: true,
-    nullMoveReduction: 3,
+    nullMoveReduction: 2,
     lmrThreshold: 8,
   },
 };

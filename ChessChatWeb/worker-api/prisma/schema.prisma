@@ -262,3 +262,109 @@ model AICallLog {
   @@index([playerId])
   @@map("ai_call_logs")
 }
+
+// ============= LEARNING LAYER V3: CONCEPT-BASED MASTERY SYSTEM =============
+
+// User's mastery state for each chess concept
+model UserConceptState {
+  id              String   @id @default(uuid())
+  userId          String
+  conceptId       String   // e.g., "hanging_pieces", "back_rank_mate"
+  
+  // Mastery tracking (0.0 to 1.0)
+  mastery         Float    @default(0.5)
+  confidence      Float    @default(0.0)  // Amount of data collected
+  
+  // Performance metrics (Exponential Moving Average)
+  mistakeRateEMA  Float    @default(0.0)  // Mistakes per game
+  successRateEMA  Float    @default(0.0)  // Successful avoidances per game
+  
+  // Spaced repetition
+  spacedRepDueAt  DateTime @default(now())
+  lastSeenAt      DateTime?
+  lastPracticedAt DateTime?
+  
+  // Evidence trail (JSON array of {gameId, moveNum, delta})
+  evidenceRefs    Json     @default("[]")
+  
+  // Metadata
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  
+  @@unique([userId, conceptId])
+  @@index([userId, mastery])
+  @@index([userId, spacedRepDueAt])
+  @@map("user_concept_states")
+}
+
+// Coaching action tracking with outcome measurement
+model AdviceIntervention {
+  id                  String   @id @default(uuid())
+  userId              String
+  gameId              String?  // Game where advice was given
+  
+  // What was advised
+  conceptsTargeted    Json     // Array of concept IDs
+  adviceText          String   // Summary of advice (not full response)
+  messageHash         String   // Hash for deduplication
+  
+  // Expected outcome
+  expectedBehavior    String   // Description of desired change
+  measurementCriteria Json     // What to measure and thresholds
+  
+  // Evaluation window
+  evaluationGames     Int      @default(5)  // Next N games to evaluate
+  gamesEvaluated      Int      @default(0)  // Progress counter
+  
+  // Outcomes (filled after evaluation)
+  outcome             String?  // "success" | "partial" | "failure" | "unknown"
+  measuredDelta       Float?   // Numeric change in target metric
+  followUpRequired    Boolean  @default(false)
+  
+  // Metadata
+  createdAt           DateTime @default(now())
+  evaluatedAt         DateTime?
+  
+  @@index([userId, createdAt])
+  @@index([userId, outcome])
+  @@map("advice_interventions")
+}
+
+// Weekly practice plan with target concepts
+model PracticePlan {
+  id                String   @id @default(uuid())
+  userId            String
+  
+  // Plan window
+  planStart         DateTime
+  planEnd           DateTime
+  
+  // Target concepts (JSON array of {conceptId, priority, reason})
+  targetConcepts    Json
+  
+  // Suggested exercises (JSON array of drill descriptions)
+  suggestedDrills   Json
+  
+  // Status
+  completed         Boolean  @default(false)
+  adherenceScore    Float?   // 0.0-1.0 based on actual practice
+  
+  // Metadata
+  createdAt         DateTime @default(now())
+  
+  @@index([userId, planStart])
+  @@map("practice_plans")
+}
+
+// Event log for learning system actions
+model LearningEvent {
+  id          String   @id @default(uuid())
+  ts          DateTime @default(now())
+  userId      String?
+  eventType   String   // GAME_INGESTED | CONCEPT_UPDATED | ADVICE_ISSUED | ADVICE_EVALUATED
+  payload     Json     // Event-specific data (bounded size)
+  
+  @@index([ts(sort: Desc)])
+  @@index([userId, ts])
+  @@map("learning_events")
+}

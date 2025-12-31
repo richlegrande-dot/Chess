@@ -6,11 +6,22 @@
   "scripts": {
     "dev": "wrangler dev",
     "deploy": "wrangler deploy",
+    "deploy:staging": "wrangler deploy --env staging",
     "env": "dotenv -e .dev.vars",
     "prisma:generate": "npm run env -- npx prisma generate",
     "prisma:migrate": "npm run env -- npx prisma migrate dev",
+    "prisma:migrate:deploy": "npm run env -- npx prisma migrate deploy",
     "prisma:push": "npm run env -- npx prisma db push",
-    "prisma:studio": "npm run env -- npx prisma studio"
+    "prisma:studio": "npm run env -- npx prisma studio",
+    "test:e2e": "node test-learning-e2e.js",
+    "test:learning": "node test-learning-e2e.js https://chesschat.uk",
+    "verify:health": "node scripts/verify-learning-health.mjs --url https://chesschat.uk",
+    "verify:ingest": "node scripts/ingest-sample-game.mjs --url https://chesschat.uk",
+    "verify:concepts": "node scripts/verify-concept-states.mjs --url https://chesschat.uk",
+    "verify:plan": "node scripts/verify-practice-plan.mjs --url https://chesschat.uk",
+    "verify:intervention": "node scripts/verify-intervention-loop.mjs --url https://chesschat.uk",
+    "verify:all": "bash verify-all.sh https://chesschat.uk",
+    "verify:all:staging": "bash verify-all.sh https://chesschat.uk/api-staging"
   },
   "dependencies": {
     "@prisma/client": "^5.8.0",

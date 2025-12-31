@@ -161,12 +161,19 @@ For 2-ply analysis with warm service:
 ## Next Steps
 
 1. ✅ **COMPLETE**: Fix deployed and validated
-2. **Monitor**: Watch production timing logs for real-world performance
-3. **Optimize Further** (optional):
+2. ✅ **TIMEOUT FIX**: Increased `/evaluate` endpoint timeout buffer (800ms → 2300ms for 300ms movetime)
+3. **Monitor**: Watch production timing logs for real-world performance after redeployment
+4. **Optimize Further** (optional):
    - Could increase MAX_PLY from 2 to 4-6 now that we're under budget
    - Could reduce movetime from 300ms to 200ms for even faster response
-4. **Disable Debug Mode**: Set `LEARNING_V3_DEBUG_TIMING="false"` after monitoring period
-5. **Commit Server Changes**: Push stockfish-server updates to git for Render auto-deploy
+5. **Disable Debug Mode**: Set `LEARNING_V3_DEBUG_TIMING="false"` after monitoring period
+
+### Deployment Issue Encountered
+
+**Issue**: Initial deployment failed with 500 errors on `/evaluate` endpoint  
+**Cause**: Timeout buffer too aggressive (`movetimeMs + 500ms` = 800ms for 300ms movetime)  
+**Fix**: Increased to `max(movetimeMs * 3, movetimeMs + 2000ms)` = 2300ms for 300ms requests  
+**Rationale**: Stockfish needs buffer for position parsing, engine initialization, and I/O overhead beyond the actual search time
 
 ---
 

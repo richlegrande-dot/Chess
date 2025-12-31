@@ -120,7 +120,8 @@ async function runTests() {
     if (result.success && result.source === 'stockfish') {
       console.log('✅ PASS - Move computed via Stockfish');
       console.log(`   Move: ${result.move}`);
-      console.log(`   Engine Time: ${result.diagnostics?.stockfishMs || result.diagnostics?.engineMs || 0}ms`);
+      const engineMs = result.diagnostics?.stockfishMs || result.diagnostics?.engineMs || result.diagnostics?.totalMs || 0;
+      console.log(`   Engine Time: ${engineMs}ms`);
       console.log(`   Depth: ${result.diagnostics?.depth}`);
       console.log(`   Nodes: ${result.diagnostics?.nodes || 'N/A'}`);
       passedTests++;
@@ -141,7 +142,8 @@ async function runTests() {
     if (result.success && result.source === 'stockfish') {
       console.log('✅ PASS - Tactical move computed via Stockfish');
       console.log(`   Move: ${result.move}`);
-      console.log(`   Engine Time: ${result.diagnostics?.stockfishMs || result.diagnostics?.engineMs || 0}ms`);
+      const engineMs = result.diagnostics?.stockfishMs || result.diagnostics?.engineMs || result.diagnostics?.totalMs || 0;
+      console.log(`   Engine Time: ${engineMs}ms`);
       console.log(`   Eval: ${result.diagnostics?.evaluation || 'N/A'} pawns`);
       console.log(`   Depth: ${result.diagnostics?.depth}`);
       
@@ -227,7 +229,8 @@ async function runTests() {
       const start = Date.now();
       const result = await testChessMove(OPENING_FEN, level);
       const elapsed = Date.now() - start;
-      times.push({ level, elapsed, engineMs: result.diagnostics?.engineMs || 0 });
+      const engineMs = result.diagnostics?.stockfishMs || result.diagnostics?.engineMs || result.diagnostics?.totalMs || 0;
+      times.push({ level, elapsed, engineMs });
     }
     
     console.log('   Level | Total (ms) | Engine (ms)');

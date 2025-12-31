@@ -1,8 +1,12 @@
 /**
  * Learning Integration for CPU
  * 
- * Connects Wall-E's learned patterns to CPU move selection.
- * This makes Wall-E a teaching coach that adapts to player weaknesses.
+ * @deprecated This module is deprecated in favor of server-side Learning Layer V3.
+ * All learning logic has moved to the worker API with concept-based mastery tracking.
+ * 
+ * This file is kept for backward compatibility only and will be removed in future versions.
+ * 
+ * See: LEARNING_LAYER_V3.md for the new architecture.
  */
 
 import { ChessGame } from '../ChessGame';
@@ -10,11 +14,14 @@ import { getProtectedTrainingCore } from '../coaching/protectedTrainingCore';
 import { getSignatureEngine } from '../coaching/signatureEngine';
 import { MoveBiasContext } from './moveBiasing';
 
+console.warn('[DEPRECATED] learningIntegration.ts is deprecated. Use server-side Learning Layer V3 instead.');
+
 // ============================================================================
 // LEARNING INTEGRATION
 // ============================================================================
 
 /**
+ * @deprecated Use server-side concept states instead
  * Get teaching opportunities for current game state
  * Returns high-confidence patterns that should influence CPU play
  */
@@ -80,6 +87,7 @@ export function getTeachingOpportunities(
 }
 
 /**
+ * @deprecated Learning no longer influences move selection. Returns empty context.
  * Calculate teaching priority for a signature
  */
 function calculateTeachingPriority(
@@ -103,6 +111,7 @@ function calculateTeachingPriority(
 }
 
 /**
+ * @deprecated Use server-side concept states via API
  * Check if learning integration is available
  */
 export function isLearningAvailable(): boolean {
@@ -115,6 +124,7 @@ export function isLearningAvailable(): boolean {
 }
 
 /**
+ * @deprecated Use server-side API: GET /api/learning/profile
  * Get learning statistics for display
  */
 export function getLearningStatistics(): {

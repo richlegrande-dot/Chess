@@ -2,6 +2,24 @@ import { PrismaClient } from '@prisma/client/edge';
 import { withAccelerate } from '@prisma/extension-accelerate';
 import { Chess } from 'chess.js';
 import { StockfishEngine, StockfishMoveRequest } from './stockfish';
+import {
+  handleLearningIngest,
+  handleLearningPlan,
+  handleLearningFeedback,
+  handleWallePostgame,
+  handleLearningHealth,
+} from './learningEndpoints';
+import { probeStockfishWarmth } from './stockfishWarmup';
+
+interface ExecutionContext {
+  waitUntil(promise: Promise<any>): void;
+  passThroughOnException(): void;
+}
+
+interface ScheduledEvent {
+  scheduledTime: number;
+  cron: string;
+}
 
 interface Env {
   DATABASE_URL: string;
@@ -10,6 +28,7 @@ interface Env {
   VERSION: string;
   STOCKFISH_SERVER_URL: string;
   STOCKFISH_API_KEY: string;
+  ENABLE_STOCKFISH_KEEPWARM?: string;
   AI_COACH?: Fetcher;
   INTERNAL_AUTH_TOKEN?: string;
 }
@@ -325,15 +344,73 @@ async function handleChessMove(request: Request, env: Env): Promise<Response> {
         );
       }
 
-      // Success - Stockfish returned a move
+      // Success - Stockfish returned a move (in UCI format)
+      // CRITICAL: Convert UCI move to SAN for frontend compatibility
+      let sanMove: string;
+      try {
+        const chess = new Chess(fen);
+        const uciMove = result.move; // e.g., "e2e4"
+        
+        // Parse UCI: extract from/to squares
+        const from = uciMove.substring(0, 2); // "e2"
+        const to = uciMove.substring(2, 4);   // "e4"
+        const promotion = uciMove.length > 4 ? uciMove[4] : undefined; // "q" for queen promotion
+        
+        // Make the move in chess.js to get SAN notation
+        const moveResult = chess.move({ from, to, promotion });
+        
+        if (!moveResult) {
+          throw new Error(`Invalid UCI move: ${uciMove} for position ${fen}`);
+        }
+        
+        sanMove = moveResult.san; // e.g., "e4", "Nf3", "O-O", "exd5"
+      } catch (error) {
+        const errorMsg = error instanceof Error ? error.message : 'UCI to SAN conversion failed';
+        console.error('UCI to SAN conversion error:', {
+          uciMove: result.move,
+          fen,
+          error: errorMsg,
+          requestId
+        });
+        
+        // Critical: return error instead of invalid move
+        const logData: WorkerCallLogData = {
+          endpoint: '/api/chess-move',
+          method: 'POST',
+          success: false,
+          latencyMs,
+          cpuLevel: effectiveCpuLevel,
+          timeMs: effectiveTimeMs,
+          difficulty,
+          mode: 'vs-cpu',
+          engine: 'stockfish',
+          error: `UCI to SAN conversion failed: ${errorMsg}`,
+          requestJson: requestBody,
+        };
+        await logWorkerCall(env, logData);
+        
+        return new Response(
+          JSON.stringify({
+            success: false,
+            errorCode: 'MOVE_CONVERSION_ERROR',
+            error: `Failed to convert UCI move "${result.move}" to SAN: ${errorMsg}`,
+            source: 'stockfish',
+            requestId,
+            workerCallLog: logData,
+          }),
+          { status: 500, headers: getCacheHeaders() }
+        );
+      }
+      
       const responseData = {
         success: true,
-        move: result.move,
+        move: sanMove, // SAN format: "e4", "Nf3", "O-O"
         source: 'stockfish',
         requestId,
         diagnostics: {
           fen,
-          move: result.move,
+          move: sanMove,
+          uciMove: result.move, // Include UCI for debugging
           cpuLevel: effectiveCpuLevel,
           latencyMs,
           stockfishMs: result.time,
@@ -341,7 +418,8 @@ async function handleChessMove(request: Request, env: Env): Promise<Response> {
           nodes: result.nodes,
           evaluation: result.evaluation,
           pv: result.pv,
-          mate: result.mate
+          mate: result.mate,
+          nps: result.nodes && result.time ? Math.round((result.nodes / result.time) * 1000) : undefined
         },
       };
 
@@ -513,6 +591,20 @@ async function handleChessMove(request: Request, env: Env): Promise<Response> {
 }
 
 async function handleWorkerHealth(request: Request, env: Env): Promise<Response> {
+  // Require admin authentication
+  const authHeader = request.headers.get('Authorization');
+  const expectedAuth = `Bearer ${env.ADMIN_PASSWORD}`;
+  
+  if (env.ADMIN_PASSWORD && authHeader !== expectedAuth) {
+    return new Response(
+      JSON.stringify({
+        success: false,
+        error: 'Unauthorized - admin password required',
+      }),
+      { status: 401, headers: getCacheHeaders() }
+    );
+  }
+
   const startTime = Date.now();
   const checks: any = {
     timestamp: new Date().toISOString(),
@@ -611,6 +703,50 @@ async function handleStockfishHealth(request: Request, env: Env): Promise<Respon
   }
 }
 
+async function handleStockfishWarmStatus(request: Request, env: Env): Promise<Response> {
+  // Require admin authentication
+  const authHeader = request.headers.get('Authorization');
+  const expectedAuth = `Bearer ${env.ADMIN_PASSWORD}`;
+  
+  if (env.ADMIN_PASSWORD && authHeader !== expectedAuth) {
+    return new Response(
+      JSON.stringify({
+        success: false,
+        error: 'Unauthorized',
+      }),
+      { status: 401, headers: getCacheHeaders() }
+    );
+  }
+
+  try {
+    const warmupResult = await probeStockfishWarmth(env, 1200);
+    
+    return new Response(
+      JSON.stringify({
+        ok: true,
+        serverUrl: env.STOCKFISH_SERVER_URL,
+        warm: warmupResult.warm,
+        latencyMs: warmupResult.latencyMs,
+        timestamp: warmupResult.timestamp,
+        error: warmupResult.error,
+      }),
+      { status: 200, headers: getCacheHeaders() }
+    );
+  } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+    
+    return new Response(
+      JSON.stringify({
+        ok: false,
+        serverUrl: env.STOCKFISH_SERVER_URL,
+        error: errorMessage,
+        timestamp: new Date().toISOString(),
+      }),
+      { status: 500, headers: getCacheHeaders() }
+    );
+  }
+}
+
 async function handleGetWorkerCalls(request: Request, env: Env): Promise<Response> {
   const url = new URL(request.url);
   const limit = parseInt(url.searchParams.get('limit') || '50', 10);
@@ -704,13 +840,29 @@ export default {
 
     // Route to handlers
     let response: Response;
+    
+    // Get Prisma client for this request
+    const prisma = getPrismaClient(env);
 
-    if (path === '/api/chess-move' && request.method === 'POST') {
+    // Learning Layer V3 Endpoints
+    if (path === '/api/learning/ingest-game' && request.method === 'POST') {
+      response = await handleLearningIngest(request, env, prisma);
+    } else if (path === '/api/learning/plan' && request.method === 'GET') {
+      response = await handleLearningPlan(request, env, prisma);
+    } else if (path === '/api/learning/feedback' && request.method === 'POST') {
+      response = await handleLearningFeedback(request, env, prisma);
+    } else if (path === '/api/walle/postgame' && request.method === 'POST') {
+      response = await handleWallePostgame(request, env, prisma);
+    } else if (path === '/api/admin/learning-health' && request.method === 'GET') {
+      response = await handleLearningHealth(request, env, prisma);
+    } else if (path === '/api/chess-move' && request.method === 'POST') {
       response = await handleChessMove(request, env);
     } else if (path === '/api/admin/worker-health' && request.method === 'GET') {
       response = await handleWorkerHealth(request, env);
     } else if (path === '/api/admin/stockfish-health' && request.method === 'GET') {
       response = await handleStockfishHealth(request, env);
+    } else if (path === '/api/admin/stockfish-warm-status' && request.method === 'GET') {
+      response = await handleStockfishWarmStatus(request, env);
     } else if (path === '/api/admin/worker-calls' && request.method === 'GET') {
       response = await handleGetWorkerCalls(request, env);
     } else if (path === '/api/admin/worker-calls/clear' && request.method === 'POST') {
@@ -722,8 +874,14 @@ export default {
           error: 'Not found',
           availableEndpoints: [
             'POST /api/chess-move',
+            'POST /api/learning/ingest-game',
+            'GET /api/learning/plan',
+            'POST /api/learning/feedback',
+            'POST /api/walle/postgame',
+            'GET /api/admin/learning-health',
             'GET /api/admin/worker-health',
             'GET /api/admin/stockfish-health',
+            'GET /api/admin/stockfish-warm-status',
             'GET /api/admin/worker-calls',
             'POST /api/admin/worker-calls/clear',
           ],
@@ -738,5 +896,24 @@ export default {
     });
 
     return response;
+  },
+
+  // Scheduled handler for keep-warm pings (optional)
+  async scheduled(event: ScheduledEvent, env: Env, ctx: ExecutionContext): Promise<void> {
+    // Only run if explicitly enabled via env var
+    if (env.ENABLE_STOCKFISH_KEEPWARM !== 'true') {
+      console.log('[Keep-Warm] Disabled via ENABLE_STOCKFISH_KEEPWARM');
+      return;
+    }
+
+    console.log('[Keep-Warm] Running scheduled ping to Stockfish server...');
+    
+    try {
+      const stockfish = new StockfishEngine(env);
+      await stockfish.init();
+      console.log('[Keep-Warm] ✅ Stockfish server pinged successfully');
+    } catch (error) {
+      console.error('[Keep-Warm] ❌ Failed to ping Stockfish:', error instanceof Error ? error.message : error);
+    }
   },
 };
