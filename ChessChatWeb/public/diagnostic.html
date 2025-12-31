@@ -1,0 +1,176 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ChessChat Deployment Diagnostic</title>
+    <style>
+        body {
+            font-family: monospace;
+            background: #1a1a1a;
+            color: #e0e0e0;
+            padding: 20px;
+            max-width: 900px;
+            margin: 0 auto;
+        }
+        .status { padding: 10px; margin: 10px 0; border-radius: 5px; }
+        .success { background: #1a4d2e; border-left: 4px solid #4ade80; }
+        .error { background: #4d1a1a; border-left: 4px solid #ef4444; }
+        .warning { background: #4d3d1a; border-left: 4px solid #fbbf24; }
+        .info { background: #1a2a4d; border-left: 4px solid #3b82f6; }
+        h1 { color: #4ade80; }
+        h2 { color: #60a5fa; margin-top: 30px; }
+        code { background: #2a2a2a; padding: 2px 6px; border-radius: 3px; }
+        pre { background: #2a2a2a; padding: 15px; border-radius: 5px; overflow-x: auto; }
+        button { 
+            background: #3b82f6; 
+            color: white; 
+            border: none; 
+            padding: 10px 20px; 
+            border-radius: 5px; 
+            cursor: pointer; 
+            font-family: monospace;
+            font-size: 14px;
+            margin: 5px;
+        }
+        button:hover { background: #2563eb; }
+        .timestamp { color: #9ca3af; font-size: 12px; }
+    </style>
+</head>
+<body>
+    <h1>🔍 ChessChat Deployment Diagnostic</h1>
+    <div class="timestamp">Generated: <span id="timestamp"></span></div>
+    
+    <h2>📦 Bundle Information</h2>
+    <div id="bundle-info" class="status info">Checking...</div>
+    
+    <h2>🔧 Build Stamp</h2>
+    <div id="build-info" class="status info">Checking...</div>
+    
+    <h2>🧪 debugLog Test</h2>
+    <div id="debuglog-test" class="status info">Testing...</div>
+    
+    <h2>🌐 Network Info</h2>
+    <div id="network-info" class="status info">
+        <pre id="network-details"></pre>
+    </div>
+    
+    <h2>🔄 Actions</h2>
+    <button onclick="location.reload(true)">Hard Refresh</button>
+    <button onclick="clearCacheAndReload()">Clear Cache & Reload</button>
+    <button onclick="testCPUMove()">Test CPU Move</button>
+    
+    <h2>📋 Expected vs Actual</h2>
+    <div class="status info">
+        <strong>Expected Bundle:</strong> NOT <code>index-4sfy9DNu.js</code> (this is the OLD buggy version)<br>
+        <strong>Expected Build:</strong> <code>2025-12-31-DEBUGLOG-FIX</code><br>
+        <strong>Expected Behavior:</strong> No "debugLog is not defined" errors
+    </div>
+
+    <script>
+        // Show timestamp
+        document.getElementById('timestamp').textContent = new Date().toISOString();
+        
+        // Check bundle
+        const scripts = Array.from(document.getElementsByTagName('script'));
+        const mainScript = scripts.find(s => s.src.includes('/assets/index-'));
+        const bundleDiv = document.getElementById('bundle-info');
+        
+        if (mainScript) {
+            const bundleMatch = mainScript.src.match(/index-([a-zA-Z0-9]+)\.js/);
+            if (bundleMatch) {
+                const hash = bundleMatch[1];
+                if (hash === '4sfy9DNu') {
+                    bundleDiv.className = 'status error';
+                    bundleDiv.innerHTML = `
+                        ❌ <strong>OLD BUNDLE DETECTED</strong><br>
+                        Bundle: <code>${hash}</code><br>
+                        This is the BUGGY version from before the fix.<br>
+                        <strong>Action Required:</strong> Cloudflare hasn't deployed the new build yet.
+                    `;
+                } else {
+                    bundleDiv.className = 'status success';
+                    bundleDiv.innerHTML = `
+                        ✅ <strong>NEW BUNDLE DETECTED</strong><br>
+                        Bundle: <code>${hash}</code><br>
+                        Bundle hash has changed from 4sfy9DNu.
+                    `;
+                }
+            }
+        }
+        
+        // Check for build stamp in console
+        const buildDiv = document.getElementById('build-info');
+        const originalLog = console.log;
+        let buildFound = false;
+        
+        console.log = function(...args) {
+            const msg = args.join(' ');
+            if (msg.includes('2025-12-31-DEBUGLOG-FIX')) {
+                buildFound = true;
+                buildDiv.className = 'status success';
+                buildDiv.innerHTML = '✅ Build stamp found: <code>2025-12-31-DEBUGLOG-FIX</code>';
+            }
+            originalLog.apply(console, args);
+        };
+        
+        setTimeout(() => {
+            if (!buildFound) {
+                buildDiv.className = 'status error';
+                buildDiv.innerHTML = '❌ Build stamp NOT found. Expected: <code>2025-12-31-DEBUGLOG-FIX</code>';
+            }
+        }, 2000);
+        
+        // Test debugLog
+        setTimeout(() => {
+            const testDiv = document.getElementById('debuglog-test');
+            try {
+                // This will fail in the old bundle, succeed in the new one
+                fetch('/api/health')
+                    .then(() => {
+                        testDiv.className = 'status success';
+                        testDiv.innerHTML = '✅ No debugLog errors detected in console';
+                    })
+                    .catch(() => {
+                        testDiv.className = 'status warning';
+                        testDiv.innerHTML = '⚠️ API check failed, but no debugLog errors seen';
+                    });
+            } catch (e) {
+                if (e.message && e.message.includes('debugLog')) {
+                    testDiv.className = 'status error';
+                    testDiv.innerHTML = `❌ debugLog error: <code>${e.message}</code>`;
+                } else {
+                    testDiv.className = 'status warning';
+                    testDiv.innerHTML = `⚠️ Test error: <code>${e.message}</code>`;
+                }
+            }
+        }, 1000);
+        
+        // Network info
+        const networkDetails = document.getElementById('network-details');
+        networkDetails.textContent = `
+URL: ${window.location.href}
+User Agent: ${navigator.userAgent}
+Online: ${navigator.onLine}
+Cache Status: ${performance.getEntriesByType('navigation')[0]?.transferSize === 0 ? 'Cached' : 'Fresh'}
+        `.trim();
+        
+        function clearCacheAndReload() {
+            if ('caches' in window) {
+                caches.keys().then(names => {
+                    names.forEach(name => caches.delete(name));
+                }).then(() => {
+                    window.location.reload(true);
+                });
+            } else {
+                window.location.reload(true);
+            }
+        }
+        
+        function testCPUMove() {
+            alert('Navigate to Coaching Mode and make a move to test CPU functionality');
+            window.location.href = '/';
+        }
+    </script>
+</body>
+</html>
