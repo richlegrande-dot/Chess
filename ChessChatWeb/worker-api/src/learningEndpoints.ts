@@ -5,6 +5,11 @@
  * All endpoints respect feature flags and create audit trails.
  */
 
+interface ExecutionContext {
+  waitUntil(promise: Promise<any>): void;
+  passThroughOnException(): void;
+}
+
 import type { Env, LearningV3Config } from './featureFlags';
 import {
   getLearningV3Config,
@@ -20,6 +25,7 @@ import {
 import { ingestGame, evaluateInterventions } from './learningIngestion';
 import { generatePracticePlan } from './learningCore';
 import { analyzeGameWithStockfish } from './gameAnalysisV3';
+import { analyzeAndStoreGame } from './gameAnalysisIntegration';
 import type { MistakeEvent } from './learningCore';
 import { shouldProceedWithAnalysis } from './stockfishWarmup';
 import { timed } from './timing';
@@ -40,21 +46,21 @@ function getCacheHeaders(): Headers {
  * POST /api/learning/ingest-game
  * 
  * Analyzes a game and updates concept states.
+ * Architecture Change #3: Uses async processing with Render /analyze-game endpoint
  */
 export async function handleLearningIngest(
   request: Request,
   env: Env,
-  prisma: any
+  prisma: any,
+  ctx?: ExecutionContext
 ): Promise<Response> {
   const requestId = crypto.randomUUID();
   const startTime = Date.now();
-  const t = timed(requestId);
   
   try {
     const body = await request.json() as any;
-    t.log('parse_body');
     
-    const { userId, gameId, pgn } = body;
+    const { userId, gameId, pgn, playerColor = 'white' } = body;
     
     if (!userId || !gameId || !pgn) {
       return new Response(
@@ -66,7 +72,32 @@ export async function handleLearningIngest(
       );
     }
     
-    // Check feature flags
+    // Check if Architecture Change #3 is enabled
+    const useRenderAnalysis = env.STOCKFISH_GAME_ANALYSIS_ENABLED === 'true';
+    
+    if (useRenderAnalysis && ctx) {
+      // NEW FLOW (Architecture Change #3): Async processing with Render endpoint
+      console.log(`[LearningIngest] Queueing async analysis: gameId=${gameId} userId=${userId}`);
+      
+      // Queue async analysis (non-blocking)
+      ctx.waitUntil(
+        analyzeAndStoreGame(gameId, userId, pgn, playerColor, env, prisma, requestId)
+      );
+      
+      return new Response(
+        JSON.stringify({
+          success: true,
+          requestId,
+          message: 'Game queued for analysis',
+          analysisMode: 'async',
+          gameId,
+        }),
+        { status: 202, headers: getCacheHeaders() }
+      );
+    }
+    
+    // OLD FLOW (Legacy): Synchronous analysis (fallback)
+    console.log(`[LearningIngest] Using legacy sync analysis: gameId=${gameId}`);
     const { enabled, config, reason } = getEffectiveLearningState(env, request, userId);
     t.log('feature_flags');
     

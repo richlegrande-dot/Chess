@@ -1043,7 +1043,7 @@ async function handleClearWorkerCalls(request: Request, env: Env): Promise<Respo
 
 // Main request handler
 export default {
-  async fetch(request: Request, env: Env): Promise<Response> {
+  async fetch(request: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
     const url = new URL(request.url);
     const path = url.pathname;
 
@@ -1077,7 +1077,7 @@ export default {
     }
     // Learning Layer V3 Endpoints
     else if (path === '/api/learning/ingest-game' && request.method === 'POST') {
-      response = await handleLearningIngest(request, env, prisma);
+      response = await handleLearningIngest(request, env, prisma, ctx);
     } else if (path === '/api/learning/plan' && request.method === 'GET') {
       response = await handleLearningPlan(request, env, prisma);
     } else if (path === '/api/learning/feedback' && request.method === 'POST') {
