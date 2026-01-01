@@ -5,7 +5,7 @@
  */
 
 import { Chess } from 'chess.js';
-import { getStockfishEngine } from './stockfish';
+import { StockfishEngine } from './stockfish';
 import type { MistakeEvent } from './learningCore';
 import { classifyGamePhase } from './learningCore';
 

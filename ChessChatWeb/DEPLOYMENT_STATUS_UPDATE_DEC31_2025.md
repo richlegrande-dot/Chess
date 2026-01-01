@@ -1,8 +1,8 @@
-# Deployment Status Update - Dec 31, 2025 22:15 UTC
+# Deployment Status Update - Dec 31, 2025 22:30 UTC
 
 ## Current Production Status: ❌ BROKEN BUNDLE STILL LIVE
 
-### Verification Results (Tested: Dec 31, 2025 22:15 UTC)
+### Verification Results (Latest Test: Dec 31, 2025 22:30 UTC)
 
 **Production Bundle Check:**
 ```powershell
@@ -18,60 +18,99 @@
 
 ### Latest Commits (in order)
 ```bash
-2495ae9 (HEAD -> main, origin/main) Add package files to root for Cloudflare auto-install
+8d2df5b (HEAD -> main, origin/main) Fix: Convert root to workspace bridge for Cloudflare auto-install
+2495ae9 Add package files to root for Cloudflare auto-install
 a40e5ea Fix: Complete rebuild with crash-proof debugLog + monorepo configuration
 6a80f0c Force deploy: Trigger Cloudflare rebuild for debugLog fix
 0a2b7b3 Force deploy: Trigger Cloudflare rebuild for debugLog fix
-369d899 Add deployment diagnostic page
 ```
 
 **Code Fix:** ✅ Complete in commit a40e5ea
-**Latest Commit:** 2495ae9 (adds package files to root for Cloudflare)
+**Workspace Bridge:** ✅ Complete in commit 8d2df5b (LATEST)
 **Pushed to GitHub:** ✅ Yes (origin/main up to date)
 
 ---
 
-## Configuration Status: ✅ UPDATED
+## Configuration Status: ❌ INCORRECT
 
-### Cloudflare Pages Settings (Applied)
+### Cloudflare Pages Settings (NEEDS FIX)
 
-| Setting | Value | Status |
-|---------|-------|--------|
-| **Root directory** | `ChessChatWeb` | ✅ Configured |
-| **Build command** | `npm install && npm run build` | ✅ Configured |
-| **Build output directory** | `dist` | ✅ Configured |
-| **Build watch paths** | `ChessChatWeb/**` | ✅ Configured |
+| Setting | Current Value | Required Value | Status |
+|---------|---------------|----------------|--------|
+| **Root directory** | `ChessChatWeb` | `ChessChatWeb` | ✅ Correct |
+| **Build command** | `npm ci && npm run build` | `npm run build` | ❌ **DOUBLE INSTALL BUG** |
+| **Build output directory** | `dist` | `dist` | ✅ Correct |
+| **Deploy command** | *(empty)* | *(empty - auto-deploy)* | ✅ Correct |
+| **Build watch paths** | `ChessChatWeb/**` | `ChessChatWeb/**` | ✅ Correct |
+
+### Current Build Failure
+
+**Build Log Analysis (Dec 31, 2025 22:59 UTC):**
+```
+✅ Auto-install: npm clean-install (446 packages, 22s) - SUCCESS
+✅ Build command: npm ci (446 packages, 21s) - SUCCESS
+❌ Build command: npm run build - FAILED
+   ERROR: "Cannot find module @rollup/rollup-linux-x64-gnu"
+   CAUSE: npm bug with optional dependencies on double install
+```
+
+**Root Cause:**
+1. Cloudflare runs `npm clean-install` automatically (installs all deps correctly)
+2. Build command runs `npm ci` AGAIN (redundant, triggers npm optional deps bug)
+3. Second `npm ci` breaks Rollup's native bindings
+4. Vite build fails when Rollup can't find its platform-specific binary
+5. Known npm issue: https://github.com/npm/cli/issues/4828
 
 ---
 
-## Problem: Deployment Not Triggered
+## Problem: Build Command Incomplete + Wrong Deploy Command
 
-### Why Production Still Shows Old Bundle
+### Why Deployment Is Failing
 
-**Possible Causes:**
-1. **No auto-deployment triggered** - GitHub webhook didn't fire or was ignored
-2. **Deployment failed silently** - Build error not visible in dashboard
-3. **Wrong deployment promoted** - Old deployment still marked as "active"
-4. **Configuration not saved** - Settings reverted or not applied
+**Confirmed Root Cause (Build Log Evidence):**
+1. **Double npm install** - Cloudflare auto-installs, then build command runs `npm ci` again
+2. **Optional dependencies bug** - Second `npm ci` breaks Rollup native bindings
+3. **Vite build fails** - Can't find `@rollup/rollup-linux-x64-gnu`
+
+**Latest Error Message (22:59 UTC):**
+```
+Error: Cannot find module @rollup/rollup-linux-x64-gnu. 
+npm has a bug related to optional dependencies.
+```
+
+**Reality:** 
+- Cloudflare **already runs** `npm clean-install` before your build command
+- Running `npm ci` in build command is **redundant** and triggers npm bug
+- Build command should be **JUST** `npm run build`
+- Dependencies are already installed by auto-install phase
+- Known npm issue: https://github.com/npm/cli/issues/4828
 
 ### What Needs to Happen
 
 **IMMEDIATE ACTION REQUIRED:**
 
-1. **Go to Cloudflare Dashboard**
-   - URL: https://dash.cloudflare.com/559ee9fa2c5827d89d4b416991f8360b/pages/view/chess/deployments
+1. **Go to Cloudflare Dashboard → Settings → Build & deployments**
+   - URL: https://dash.cloudflare.com/559ee9fa2c5827d89d4b416991f8360b/pages/view/chess/settings/builds
 
-2. **Check Deployment Status for Commit 2495ae9**
-   - Look for deployment matching commit hash: `2495ae9`
-   - Status should be: "Success" (green) or "Failed" (red)
-   - If no deployment exists → Manual trigger needed
-   - If "Failed" → Click "Retry deployment"
-   - If "Success" but old bundle live → Wrong deployment active
+2. **Fix Build Command**
+   ```/Clear Deploy Command**
+   - Find "Deploy command" field
+   - **Delete the entire value** (currently: `npx wrangler pages deploy dist --project-name=chess`)
+   - **Leave completely empty**
+   - Reason: Pages auto-deploys after build - manual deploy causes auth error
 
-3. **Manual Deployment Trigger (if needed)**
+3. **Remove Deploy Command**
+   - Find "Deploy command" or "Custom deploy command" setting
+   - Clear/delete the value: `npx wrangler deploy --env production`
+   - Leave empty (Pages auto-deploys from build output directory)
+   - Save changes
+
+4. **Clear Build Cache**
    - Settings → Build cache → Click "Clear cache"
-   - Deployments → Click "Retry deployment" on latest commit
-   - OR: Create new commit to trigger webhook
+
+5. **Trigger New Deployment**
+   - Deployments tab → Click "Retry deployment" on latest commit (8d2df5b)
+   - OR: Push empty commit to trigger webhook
 
 ---
 
@@ -224,9 +263,18 @@ git push origin main
 | 22:04 | Cleared build cache, retry failed (same error) | ❌ Failed |
 | 22:06 | Identified monorepo configuration issue | 📋 Diagnosed |
 | 22:08 | Updated Cloudflare settings (Path, Build command) | ✅ Complete |
+| **22:48** | **Deployment FAILED: Incomplete build + wrong deploy cmd** | ❌ **FAILED** |
+| **22:55** | **Deployment FAILED: Manual deploy causes auth error** | ❌ **FAILED** |
+| **22:55+** | **DIAGNOSIS: Deploy command redundant - Pages auto-deploys** | 📋 **SOLUTION** |
+| **22:59** | **Deployment FAILED: Rollup native module not found** | ❌ **FAILED** |
+| **22:59+** | **DIAGNOSIS: Double npm install breaks optional deps** | 📋 **ROOT CAUSE** |
 | 22:10 | Added package files to root (commit 2495ae9) | ✅ Pushed |
 | **22:15** | **VERIFIED: Old bundle still live in production** | ❌ **BLOCKED** |
-| **22:15+** | **⏳ AWAITING: Manual deployment trigger/retry** | ⏳ **PENDING** |
+| 22:17 | Implemented workspace bridge (root package.json) | ✅ Complete |
+| 22:19 | Updated build stamp to 2025-12-31-WORKSPACE-FIX-01 | ✅ Complete |
+| 22:20 | Committed and pushed workspace fix (8d2df5b) | ✅ Complete |
+| **22:30** | **VERIFIED: Old bundle still live (60s after push)** | ❌ **BLOCKED** |
+| **22:30+** | **⏳ AWAITING: Cloudflare build for commit 8d2df5b** | ⏳ **PENDING** |
 
 ---
 
@@ -238,22 +286,39 @@ git push origin main
 
 ---
 
-## Summary
+## Summary - DEPLOYMENT SUCCESSFUL! 🎉
+
+**Final Solution (Jan 1, 2026 14:12 UTC):**
+
+**Build Configuration:**
+- ✅ Build command: `npm run build` (auto-install handles dependencies)
+- ✅ Deploy command: `echo "Build complete - Cloudflare Pages will auto-deploy"`
+- ✅ Postinstall script: Forces Rollup native binding installation
+- ✅ Root directory: `ChessChatWeb`
+
+**Build Results:**
+- ✅ Auto-install: 446 packages (25s)
+- ✅ Postinstall: Rollup binding installed
+- ✅ Vite build: Completed in 2.95s
+- ✅ New bundle: `index-B0wiv4s_.js` (385.38 kB)
+- ✅ Deploy: Success with no-op command
+
+**Key Learnings:**
+1. **Postinstall workaround:** Solves npm optional dependencies bug #4828
+2. **Deploy command solution:** No-op echo satisfies required field while allowing auto-deploy
+3. **Monorepo structure:** Root package files enable Cloudflare auto-install
+4. **Documentation:** https://developers.cloudflare.com/workers/ci-cd/builds/configuration/
 
 **Current State:**
-- ✅ Code is fixed and pushed to GitHub
-- ✅ Cloudflare configuration is updated
-- ❌ Production still serving broken bundle (4sfy9DNu)
-- ⏳ Deployment needs to be triggered/retried manually
+- ✅ Code fixed (commit a40e5ea + ec9ec71)
+- ✅ Build succeeds with postinstall workaround
+- ✅ Deploy succeeds with no-op command
+- ⏳ CDN propagation in progress (2-3 minutes)
+- 🔄 Production bundle updating from `4sfy9DNu` → `B0wiv4s_`
 
-**Required Action:**
-**USER MUST:** Go to Cloudflare dashboard and manually trigger/retry deployment for commit 2495ae9
-
-**Expected Outcome:**
-Once deployment succeeds, production will serve bundle `BMs3-3Jy` with the debugLog fix, and CPU moves will work without errors.
-
----
-
-**Last Updated:** Dec 31, 2025 22:15 UTC  
-**Bundle Status:** ❌ BROKEN (4sfy9DNu)  
-**Action Required:** Manual deployment trigger
+**Last Updated:** Jan 1, 2026 14:12 UTC  
+**Bundle Status:** ⏳ DEPLOYING (CDN propagation in progress)  
+**Latest Commit:** ec9ec71 (postinstall workaround)  
+**Build Status:** ✅ SUCCESS  
+**Deploy Status:** ✅ SUCCESS  
+**Next Check:** Wait 2-3 minutes for CDN propagation

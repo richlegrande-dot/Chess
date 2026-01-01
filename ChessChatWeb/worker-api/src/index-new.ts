@@ -20,7 +20,8 @@
 import { PrismaClient } from '@prisma/client/edge';
 import { withAccelerate } from '@prisma/extension-accelerate';
 import { Chess } from 'chess.js';
-import { getStockfishEngine, StockfishMoveRequest } from './stockfish';
+import { StockfishEngine, StockfishMoveRequest } from './stockfish';
+import { getMoveCache } from './moveCache';
 import { analyzeGameWithStockfish } from './gameAnalysis';
 import { ingestGame, evaluateInterventions, createAdviceIntervention } from './learningIngestion';
 import { selectCoachingTargets, generatePracticePlan, loadConceptTaxonomy } from './learningCore';
@@ -32,6 +33,13 @@ interface Env {
   VERSION: string;
   AI_COACH?: Fetcher; // Service binding to AI coaching worker (optional)
   INTERNAL_AUTH_TOKEN?: string; // Auth token for worker-to-worker communication
+  
+  // Architecture Change #3 Flags
+  STOCKFISH_IS_PRIMARY_MOVE_ENGINE?: string;
+  CPU_MOVE_FALLBACK_LOCAL?: string;
+  STOCKFISH_GAME_ANALYSIS_ENABLED?: string;
+  CHESS_MOVE_CACHE_TTL_SECONDS?: string;
+  CHESS_MOVE_CACHE_MAX_SIZE?: string;
 }
 
 // Request/Response types
@@ -234,6 +242,68 @@ async function handleChessMove(request: Request, env: Env): Promise<Response> {
   }
 
   try {
+    // Initialize move cache with configuration from env
+    const cacheTTL = parseInt(env.CHESS_MOVE_CACHE_TTL_SECONDS || '30');
+    const cacheMaxSize = parseInt(env.CHESS_MOVE_CACHE_MAX_SIZE || '1000');
+    const moveCache = getMoveCache(cacheMaxSize, cacheTTL);
+    
+    // Check cache first
+    const cachedMove = moveCache.get(fen, cpuLevel);
+    if (cachedMove) {
+      const latencyMs = Date.now() - startTime;
+      
+      console.log('[Worker API] Cache HIT:', {
+        requestId,
+        fen: fen.substring(0, 30) + '...',
+        cpuLevel,
+        move: cachedMove,
+        latencyMs,
+      });
+      
+      const responseData = {
+        success: true,
+        engine: 'stockfish',
+        mode: 'worker-api',
+        move: cachedMove,
+        diagnostics: {
+          requestId,
+          latencyMs,
+          cpuLevel,
+          cached: true,
+        },
+      };
+      
+      const logData: WorkerCallLogData = {
+        endpoint: '/api/chess-move',
+        method: 'POST',
+        success: true,
+        latencyMs,
+        cpuLevel,
+        mode: 'worker-api',
+        engine: 'stockfish-cached',
+        requestJson: requestBody,
+        responseJson: responseData,
+        requestId,
+      };
+      
+      await logWorkerCall(env, logData);
+      
+      return new Response(
+        JSON.stringify({
+          ...responseData,
+          workerCallLog: logData,
+        }),
+        { status: 200, headers: getCacheHeaders() }
+      );
+    }
+    
+    // Cache miss - proceed to Stockfish
+    console.log('[Worker API] Cache MISS - calling Stockfish:', {
+      requestId,
+      fen: fen.substring(0, 30) + '...',
+      cpuLevel,
+    });
+    
     // Get Stockfish engine
     const stockfish = getStockfishEngine();
     
@@ -312,6 +382,7 @@ async function handleChessMove(request: Request, env: Env): Promise<Response> {
       pv: result.pv,
       mate: result.mate,
       abortReason: result.mate ? 'mate_found' : 'time_exhausted',
+      cached: false,
     };
     
     const responseData = {
@@ -321,6 +392,9 @@ async function handleChessMove(request: Request, env: Env): Promise<Response> {
       move: result.move,
       diagnostics,
     };
+    
+    // Store in cache for future requests
+    moveCache.set(fen, cpuLevel, result.move, result.evaluation, result.depth);
     
     const logData: WorkerCallLogData = {
       endpoint: '/api/chess-move',
@@ -338,7 +412,7 @@ async function handleChessMove(request: Request, env: Env): Promise<Response> {
     
     await logWorkerCall(env, logData);
     
-    console.log('[Worker API] Move computed successfully:', {
+    console.log('[Worker API] Move computed successfully (cached for future):', {
       requestId,
       move: result.move,
       evaluation: result.evaluation,
@@ -711,6 +785,30 @@ async function handleWorkerHealth(request: Request, env: Env): Promise<Response>
     }),
     {
       status: allHealthy ? 200 : 503,
+      headers: getCacheHeaders(),
+    }
+  );
+}
+
+/**
+ * GET /api/admin/cache-stats
+ * Get move cache statistics
+ */
+async function handleCacheStats(env: Env): Promise<Response> {
+  const moveCache = getMoveCache(
+    parseInt(env.CHESS_MOVE_CACHE_MAX_SIZE || '1000'),
+    parseInt(env.CHESS_MOVE_CACHE_TTL_SECONDS || '30')
+  );
+  
+  const stats = moveCache.getStats();
+  
+  return new Response(
+    JSON.stringify({
+      success: true,
+      stats,
+    }),
+    {
+      status: 200,
       headers: getCacheHeaders(),
     }
   );
@@ -1252,6 +1350,8 @@ export default {
       response = await handleLearningHealth(request, env);
     } else if (path === '/api/admin/worker-calls' && request.method === 'GET') {
       response = await handleGetWorkerCalls(request, env);
+    } else if (path === '/api/admin/cache-stats' && request.method === 'GET') {
+      response = await handleCacheStats(env);
     } else {
       response = new Response(
         JSON.stringify({
@@ -1270,6 +1370,7 @@ export default {
             'GET /api/admin/worker-health',
             'GET /api/admin/learning-health',
             'GET /api/admin/worker-calls',
+            'GET /api/admin/cache-stats',
           ],
         }),
         { status: 404, headers: getCacheHeaders() }

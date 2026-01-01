@@ -11,6 +11,7 @@
     "dev": "vite",
     "dev:mock": "tsx mock-backend.ts",
     "dev:pages": "wrangler pages dev . --port 3000",
+    "postinstall": "npm install @rollup/rollup-linux-x64-gnu --no-save || true",
     "build": "vite build",
     "build:check": "tsc && vite build",
     "preview": "vite preview",
