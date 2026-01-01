@@ -1,7 +1,11 @@
-# Cloudflare Pages configuration
-name = "chesschat-web"
+# Cloudflare Pages configuration for chess project
+name = "chess"
 pages_build_output_dir = "dist"
 compatibility_date = "2024-11-21"
+
+# Build configuration
+# Note: Cloudflare Pages runs auto-install before build command
+# Do NOT include npm install/ci in build scripts - it breaks optional dependencies
 
 # Note: Pages Functions configuration (bindings, env vars) must be set in Dashboard
 # Dashboard: Pages > chesschat-web > Settings > Functions
@@ -37,7 +41,7 @@ service = "walle-assistant"
 
 [env.production]
 # Production environment
-name = "chesschat-web-production"
+name = "chess"
 
 [[env.production.services]]
 binding = "WALLE_ASSISTANT"
@@ -45,7 +49,7 @@ service = "walle-assistant"
 
 [env.preview]
 # Preview/staging environment  
-name = "chesschat-web-preview"
+name = "chess-preview"
 
 [[env.preview.services]]
 binding = "WALLE_ASSISTANT"
