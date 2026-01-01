@@ -37,6 +37,13 @@ LEARNING_V3_MAX_POSITIONS_PER_GAME = "4"   # Max positions to analyze per game
 LEARNING_V3_MAX_DB_WRITES = "50"           # Guardrail: Max DB writes per ingestion
 LEARNING_V3_MAX_STOCKFISH_CALLS = "6"      # Guardrail: Max Stockfish API calls per ingestion
 
+# Architecture Change #3 Flags (Jan 1, 2026)
+STOCKFISH_IS_PRIMARY_MOVE_ENGINE = "true"    # Render Stockfish is authoritative for ALL moves
+CPU_MOVE_FALLBACK_LOCAL = "false"            # Emergency fallback disabled by default
+STOCKFISH_GAME_ANALYSIS_ENABLED = "true"     # Enable /analyze-game endpoint usage
+CHESS_MOVE_CACHE_TTL_SECONDS = "30"          # Cache moves for 30 seconds
+CHESS_MOVE_CACHE_MAX_SIZE = "1000"           # Max cached move entries
+
 # Cron triggers (optional keep-warm mechanism)
 # Uncomment to enable scheduled pings to Stockfish server every 10 minutes
 # [[triggers.crons]]

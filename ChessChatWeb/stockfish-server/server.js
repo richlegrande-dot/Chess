@@ -912,6 +912,268 @@ app.post('/evaluate', authenticateApiKey, async (req, res) => {
 });
 
 /**
+ * POST /analyze-game
+ * Analyze a complete game and identify key moments (mistakes, blunders, brilliant moves)
+ * 
+ * Request Body:
+ * - pgn (string, required): PGN of the game to analyze
+ * - depth (number, optional): Stockfish depth per position (default: 14)
+ * - samplingStrategy (string, optional): 'smart' or 'all' (default: 'smart')
+ * 
+ * Response:
+ * - success (boolean)
+ * - gameId (string): unique identifier for this analysis
+ * - playerColor (string): 'white' or 'black' (color to analyze)
+ * - keyMoments (array): Array of significant positions with evaluations
+ * - accuracy (number): Overall accuracy percentage
+ * - blunders (number): Count of blunders (eval swing > 300cp)
+ * - mistakes (number): Count of mistakes (eval swing > 100cp)
+ * - computeTimeMs (number): Total time spent analyzing
+ */
+app.post('/analyze-game', authenticateApiKey, async (req, res) => {
+  const startTime = Date.now();
+  let enginesUsed = [];
+  
+  try {
+    const { pgn, depth = 14, samplingStrategy = 'smart', playerColor = 'white' } = req.body;
+    
+    // Validate input
+    if (!pgn) {
+      return res.status(400).json({ 
+        success: false,
+        error: 'Missing required field: pgn',
+        requestId: req.requestId
+      });
+    }
+    
+    // Parse PGN
+    const chess = new Chess();
+    try {
+      chess.loadPgn(pgn);
+    } catch (err) {
+      return res.status(400).json({ 
+        success: false,
+        error: 'Invalid PGN notation', 
+        details: err.message,
+        requestId: req.requestId
+      });
+    }
+    
+    const moves = chess.history({ verbose: true });
+    if (moves.length < 4) {
+      return res.status(400).json({ 
+        success: false,
+        error: 'Game too short for analysis (minimum 4 moves)',
+        requestId: req.requestId
+      });
+    }
+    
+    const validDepth = Math.max(10, Math.min(20, parseInt(depth, 10) || 14));
+    const gameId = req.requestId || crypto.randomBytes(8).toString('hex');
+    
+    console.log(JSON.stringify({
+      action: 'analyze_game_start',
+      requestId: req.requestId,
+      gameId,
+      totalMoves: moves.length,
+      depth: validDepth,
+      samplingStrategy,
+      playerColor
+    }));
+    
+    // Determine which positions to analyze based on sampling strategy
+    let positionsToAnalyze = [];
+    if (samplingStrategy === 'all') {
+      // Analyze every position
+      positionsToAnalyze = moves.map((_, index) => index);
+    } else {
+      // Smart sampling: first 4, last 4, and every 6th ply in between
+      const totalPlies = moves.length;
+      positionsToAnalyze = [];
+      
+      // First 4 plies
+      for (let i = 0; i < Math.min(4, totalPlies); i++) {
+        positionsToAnalyze.push(i);
+      }
+      
+      // Every 6th ply in the middle
+      if (totalPlies > 8) {
+        for (let i = 6; i < totalPlies - 4; i += 6) {
+          if (!positionsToAnalyze.includes(i)) {
+            positionsToAnalyze.push(i);
+          }
+        }
+      }
+      
+      // Last 4 plies
+      for (let i = Math.max(4, totalPlies - 4); i < totalPlies; i++) {
+        if (!positionsToAnalyze.includes(i)) {
+          positionsToAnalyze.push(i);
+        }
+      }
+      
+      positionsToAnalyze.sort((a, b) => a - b);
+    }
+    
+    console.log(JSON.stringify({
+      action: 'analyze_game_sampling',
+      requestId: req.requestId,
+      totalMoves: moves.length,
+      sampled: positionsToAnalyze.length,
+      positions: positionsToAnalyze
+    }));
+    
+    // Analyze positions
+    const keyMoments = [];
+    chess.reset();
+    let prevEval = 0; // Starting position eval (roughly equal)
+    
+    for (let i = 0; i < moves.length; i++) {
+      const move = moves[i];
+      const fen = chess.fen();
+      
+      // Make the move
+      chess.move(move.san);
+      const fenAfterMove = chess.fen();
+      
+      // Analyze this position if it's in our sample
+      if (positionsToAnalyze.includes(i)) {
+        try {
+          // Get engine from pool
+          const engine = await getEngine();
+          enginesUsed.push(engine);
+          
+          // Evaluate position after move
+          const analysis = await engine.evaluatePosition(fenAfterMove, validDepth, req.requestId);
+          
+          // Calculate evaluation swing (from player's perspective)
+          // Flip sign if it's black's move
+          let evalCp = analysis.evaluation;
+          if (move.color === 'b') {
+            evalCp = -evalCp;
+          }
+          
+          const evalSwing = Math.abs(evalCp - prevEval);
+          
+          // Classify move quality
+          let classification = 'good';
+          if (evalSwing > 300) {
+            classification = 'blunder';
+          } else if (evalSwing > 100) {
+            classification = 'mistake';
+          } else if (evalSwing < -50) {
+            classification = 'brilliant';
+          }
+          
+          // Only include if it's the player's move and significant
+          const isPlayerMove = (playerColor === 'white' && move.color === 'w') || 
+                               (playerColor === 'black' && move.color === 'b');
+          
+          if (isPlayerMove && (classification === 'blunder' || classification === 'mistake' || classification === 'brilliant')) {
+            keyMoments.push({
+              ply: i + 1,
+              fen: fen,
+              move: move.san,
+              fenAfterMove: fenAfterMove,
+              evalCp: analysis.evaluation,
+              evalSwing: Math.round(evalSwing),
+              classification,
+              bestMove: analysis.bestMove,
+              depth: analysis.depth,
+              mate: analysis.mate
+            });
+          }
+          
+          prevEval = evalCp;
+          
+          // Release engine back to pool
+          releaseEngine(engine);
+          enginesUsed = enginesUsed.filter(e => e !== engine);
+          
+        } catch (error) {
+          console.error(JSON.stringify({
+            action: 'analyze_game_position_error',
+            requestId: req.requestId,
+            ply: i + 1,
+            error: error.message
+          }));
+          // Continue analyzing other positions
+        }
+      }
+    }
+    
+    // Calculate statistics
+    const blunders = keyMoments.filter(m => m.classification === 'blunder').length;
+    const mistakes = keyMoments.filter(m => m.classification === 'mistake').length;
+    const brilliant = keyMoments.filter(m => m.classification === 'brilliant').length;
+    
+    // Calculate accuracy (simplified: percentage of moves that weren't blunders or mistakes)
+    const playerMoves = moves.filter(m => 
+      (playerColor === 'white' && m.color === 'w') || 
+      (playerColor === 'black' && m.color === 'b')
+    ).length;
+    const accuracy = Math.round((1 - (blunders + mistakes) / playerMoves) * 100);
+    
+    const duration = Date.now() - startTime;
+    
+    console.log(JSON.stringify({
+      action: 'analyze_game_complete',
+      requestId: req.requestId,
+      gameId,
+      keyMoments: keyMoments.length,
+      blunders,
+      mistakes,
+      brilliant,
+      accuracy,
+      durationMs: duration
+    }));
+    
+    res.json({
+      success: true,
+      gameId,
+      playerColor,
+      keyMoments,
+      statistics: {
+        totalMoves: moves.length,
+        playerMoves,
+        positionsAnalyzed: positionsToAnalyze.length,
+        blunders,
+        mistakes,
+        brilliant,
+        accuracy
+      },
+      depth: validDepth,
+      samplingStrategy,
+      computeTimeMs: duration,
+      timestamp: new Date().toISOString(),
+      requestId: req.requestId
+    });
+    
+  } catch (error) {
+    console.error(JSON.stringify({
+      action: 'analyze_game_error',
+      requestId: req.requestId,
+      error: error.message,
+      stack: error.stack
+    }));
+    
+    const duration = Date.now() - startTime;
+    
+    res.status(500).json({
+      success: false,
+      error: 'Failed to analyze game',
+      errorCode: 'ENGINE_ERROR',
+      details: error.message,
+      computeTimeMs: duration,
+      requestId: req.requestId
+    });
+  } finally {
+    // Release any engines still in use
+    enginesUsed.forEach(engine => releaseEngine(engine));
+  }
+});
+
+/**
  * 404 handler
  */
 app.use((req, res) => {
@@ -969,6 +1231,7 @@ app.listen(PORT, () => {
   console.log('║  Endpoints:                                                ║');
   console.log('║  POST /compute-move  - Compute best move                   ║');
   console.log('║  POST /analyze       - Analyze position (MultiPV)          ║');
+  console.log('║  POST /analyze-game  - Analyze full game                   ║');
   console.log('╚════════════════════════════════════════════════════════════╝');
   console.log('');
   console.log('✅ Real Stockfish engine integration active');

@@ -2,6 +2,7 @@ import { PrismaClient } from '@prisma/client/edge';
 import { withAccelerate } from '@prisma/extension-accelerate';
 import { Chess } from 'chess.js';
 import { StockfishEngine, StockfishMoveRequest } from './stockfish';
+import { getMoveCache } from './moveCache';
 import {
   handleLearningIngest,
   handleLearningPlan,
@@ -31,6 +32,12 @@ interface Env {
   ENABLE_STOCKFISH_KEEPWARM?: string;
   AI_COACH?: Fetcher;
   INTERNAL_AUTH_TOKEN?: string;
+  // Architecture Change #3 flags
+  STOCKFISH_IS_PRIMARY_MOVE_ENGINE?: string;
+  CPU_MOVE_FALLBACK_LOCAL?: string;
+  STOCKFISH_GAME_ANALYSIS_ENABLED?: string;
+  CHESS_MOVE_CACHE_TTL_SECONDS?: string;
+  CHESS_MOVE_CACHE_MAX_SIZE?: string;
 }
 
 // Request/Response types
@@ -297,9 +304,54 @@ async function handleChessMove(request: Request, env: Env): Promise<Response> {
   // For vs-cpu mode, use Stockfish (Render.com)
   if (mode === 'vs-cpu' || !mode) {
     try {
-      const stockfish = new StockfishEngine(env);
       const effectiveCpuLevel = cpuLevel || 5;
       const effectiveTimeMs = timeMs || 3000;
+      
+      // Initialize move cache
+      const moveCache = getMoveCache(
+        parseInt(env.CHESS_MOVE_CACHE_MAX_SIZE || '1000'),
+        parseInt(env.CHESS_MOVE_CACHE_TTL_SECONDS || '30')
+      );
+      
+      // Check cache first
+      const cachedMove = moveCache.get(fen, effectiveCpuLevel);
+      if (cachedMove) {
+        const latencyMs = Date.now() - startTime;
+        console.log(`[Worker API] Cache HIT for FEN (cpuLevel=${effectiveCpuLevel}), latency: ${latencyMs}ms`);
+        
+        const logData: WorkerCallLogData = {
+          endpoint: '/api/chess-move',
+          method: 'POST',
+          success: true,
+          latencyMs,
+          cpuLevel: effectiveCpuLevel,
+          timeMs: effectiveTimeMs,
+          difficulty,
+          mode: 'vs-cpu',
+          engine: 'cache',
+          requestJson: requestBody,
+        };
+        await logWorkerCall(env, logData);
+        
+        return new Response(
+          JSON.stringify({
+            success: true,
+            move: cachedMove,
+            source: 'cache',
+            requestId,
+            diagnostics: {
+              cached: true,
+              latencyMs,
+            },
+            workerCallLog: logData,
+          }),
+          { status: 200, headers: getCacheHeaders() }
+        );
+      }
+      
+      console.log(`[Worker API] Cache MISS for FEN (cpuLevel=${effectiveCpuLevel}), calling Stockfish...`);
+      
+      const stockfish = new StockfishEngine(env);
       
       const result = await stockfish.computeMove({
         fen,
@@ -364,6 +416,15 @@ async function handleChessMove(request: Request, env: Env): Promise<Response> {
         }
         
         sanMove = moveResult.san; // e.g., "e4", "Nf3", "O-O", "exd5"
+        
+        // Store in cache for future requests
+        moveCache.set(
+          fen,
+          effectiveCpuLevel,
+          sanMove,
+          result.evaluation,
+          result.depth
+        );
       } catch (error) {
         const errorMsg = error instanceof Error ? error.message : 'UCI to SAN conversion failed';
         console.error('UCI to SAN conversion error:', {
@@ -419,7 +480,8 @@ async function handleChessMove(request: Request, env: Env): Promise<Response> {
           evaluation: result.evaluation,
           pv: result.pv,
           mate: result.mate,
-          nps: result.nodes && result.time ? Math.round((result.nodes / result.time) * 1000) : undefined
+          nps: result.nodes && result.time ? Math.round((result.nodes / result.time) * 1000) : undefined,
+          cached: false,
         },
       };
 
@@ -791,6 +853,26 @@ async function handleWorkerHealth(request: Request, env: Env): Promise<Response>
   );
 }
 
+async function handleCacheStats(env: Env): Promise<Response> {
+  const moveCache = getMoveCache(
+    parseInt(env.CHESS_MOVE_CACHE_MAX_SIZE || '1000'),
+    parseInt(env.CHESS_MOVE_CACHE_TTL_SECONDS || '30')
+  );
+  
+  const stats = moveCache.getStats();
+  
+  return new Response(
+    JSON.stringify({
+      success: true,
+      stats,
+    }),
+    {
+      status: 200,
+      headers: getCacheHeaders(),
+    }
+  );
+}
+
 async function handleStockfishHealth(request: Request, env: Env): Promise<Response> {
   // Require admin authentication
   const authHeader = request.headers.get('Authorization');
@@ -1016,6 +1098,8 @@ export default {
       response = await handleGetWorkerCalls(request, env);
     } else if (path === '/api/admin/worker-calls/clear' && request.method === 'POST') {
       response = await handleClearWorkerCalls(request, env);
+    } else if (path === '/api/admin/cache-stats' && request.method === 'GET') {
+      response = await handleCacheStats(env);
     } else {
       response = new Response(
         JSON.stringify({
@@ -1036,6 +1120,7 @@ export default {
             'GET /api/admin/stockfish-warm-status',
             'GET /api/admin/worker-calls',
             'POST /api/admin/worker-calls/clear',
+            'GET /api/admin/cache-stats',
           ],
         }),
         { status: 404, headers: getCacheHeaders() }
