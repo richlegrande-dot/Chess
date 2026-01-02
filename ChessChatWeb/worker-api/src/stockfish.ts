@@ -42,8 +42,8 @@ export class StockfishEngine {
   private serverUrl: string;
   private apiKey: string;
   private initialized = false;
-  private readonly maxRetries = 2;
-  private readonly coldStartTimeout = 60000;
+  private readonly maxRetries = 3; // Increased from 2 to allow more cold start attempts
+  private readonly coldStartTimeout = 120000; // Increased to 120s for extreme cold starts
 
   constructor(env: StockfishEnv) {
     this.serverUrl = env.STOCKFISH_SERVER_URL;
@@ -58,7 +58,7 @@ export class StockfishEngine {
     
     for (let attempt = 1; attempt <= this.maxRetries; attempt++) {
       try {
-        const timeout = attempt === 1 ? 10000 : this.coldStartTimeout;
+        const timeout = attempt === 1 ? 30000 : this.coldStartTimeout; // First attempt: 30s, then 120s
         const controller = new AbortController();
         const timeoutId = setTimeout(() => controller.abort(), timeout);
         
@@ -83,9 +83,11 @@ export class StockfishEngine {
           clearTimeout(timeoutId);
         }
       } catch (error: any) {
-        console.error(`[Stockfish] Attempt ${attempt} failed:`, error.message);
+        console.error(`[Stockfish] Attempt ${attempt}/${this.maxRetries} failed:`, error.message);
         if (attempt < this.maxRetries) {
-          await new Promise(resolve => setTimeout(resolve, attempt === 1 ? 5000 : 10000));
+          const delay = attempt === 1 ? 10000 : 15000; // Longer delays between retries
+          console.log(`[Stockfish] Waiting ${delay}ms before retry ${attempt + 1}...`);
+          await new Promise(resolve => setTimeout(resolve, delay));
         }
       }
     }
@@ -105,7 +107,7 @@ export class StockfishEngine {
       const requestId = crypto.randomUUID();
       
       for (let attempt = 1; attempt <= this.maxRetries; attempt++) {
-        const timeout = attempt === 1 ? (request.timeMs || 10000) : this.coldStartTimeout;
+        const timeout = attempt === 1 ? Math.max(request.timeMs || 10000, 30000) : this.coldStartTimeout; // At least 30s first try
         const controller = new AbortController();
         const timeoutId = setTimeout(() => controller.abort(), timeout);
         
