@@ -23,6 +23,7 @@
     "test:e2e": "playwright test",
     "test:e2e:ui": "playwright test --ui",
     "test:all": "npm run test:unit && npm run test:e2e",
+    "warm-start": "node warm-start-render.js",
     "db:generate": "cross-env PRISMA_CLIENT_ENGINE_TYPE=dataproxy prisma generate",
     "db:push": "prisma db push",
     "db:backup": "tsx scripts/backup-knowledge.ts",
