@@ -540,11 +540,35 @@ export async function handleWallePostgame(
       );
     }
     
-    // Build narrative (simplified - real version would be more sophisticated)
+    // Build narrative with learning data
     const weakestConcept = conceptStates[0];
-    const narrative = `Great effort! I noticed you're working on ${weakestConcept.conceptId}. ` +
-      `Your mastery is ${(weakestConcept.mastery * 100).toFixed(0)}%. ` +
-      `Keep practicing and you'll improve! 🌟`;
+    const strongestConcept = conceptStates[conceptStates.length - 1];
+    
+    // Get recent game for context
+    const recentGame = await prisma.learningEvent.findFirst({
+      where: {
+        userId,
+        eventType: 'GAME_INGESTED',
+      },
+      orderBy: { ts: 'desc' },
+    });
+    
+    const narrative = recentGame && recentGame.payload.conceptsUpdated > 0
+      ? `Great effort! This game helped refine ${recentGame.payload.conceptsUpdated} concepts. ` +
+        `Your current focus area is **${weakestConcept.conceptId.replace(/_/g, ' ')}** (${(weakestConcept.mastery * 100).toFixed(0)}% mastery). ` +
+        `You're strongest at **${strongestConcept.conceptId.replace(/_/g, ' ')}** (${(strongestConcept.mastery * 100).toFixed(0)}% mastery). Keep it up! 🌟`
+      : `Great effort! I'm tracking ${conceptStates.length} chess concepts for you. ` +
+        `Your current focus area is **${weakestConcept.conceptId.replace(/_/g, ' ')}** (${(weakestConcept.mastery * 100).toFixed(0)}% mastery). ` +
+        `Keep practicing and you'll improve! 🌟`;
+    
+    // Get key moments from recent game if available
+    const keyMoments = recentGame ? [
+      {
+        concept: weakestConcept.conceptId,
+        mastery: weakestConcept.mastery,
+        recommendation: `Practice positions involving ${weakestConcept.conceptId.replace(/_/g, ' ')}`,
+      }
+    ] : [];
     
     // Finalize audit
     await finalizeAuditEvent(
@@ -564,7 +588,13 @@ export async function handleWallePostgame(
         success: true,
         requestId,
         narrative,
-        conceptsReferenced: [weakestConcept.conceptId],
+        conceptsReferenced: [weakestConcept.conceptId, strongestConcept.conceptId],
+        keyMoments,
+        nextFocus: {
+          concept: weakestConcept.conceptId,
+          mastery: weakestConcept.mastery,
+          recommendation: `Focus on ${weakestConcept.conceptId.replace(/_/g, ' ')} in your next game`,
+        },
         evidenceGameId: gameId,
       }),
       { status: 200, headers: getCacheHeaders() }
@@ -573,6 +603,127 @@ export async function handleWallePostgame(
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : 'Unknown error';
     console.error('[WallePostgame] Error:', error);
+    
+    return new Response(
+      JSON.stringify({
+        success: false,
+        error: errorMessage,
+        requestId,
+      }),
+      { status: 500, headers: getCacheHeaders() }
+    );
+  }
+}
+
+/**
+ * GET /api/learning/progress?userId=...
+ * 
+ * Returns real learning progress for the user
+ */
+export async function handleLearningProgress(
+  request: Request,
+  env: Env,
+  prisma: any
+): Promise<Response> {
+  const requestId = crypto.randomUUID();
+  const startTime = Date.now();
+  
+  try {
+    const url = new URL(request.url);
+    const userId = url.searchParams.get('userId');
+    
+    if (!userId) {
+      return new Response(
+        JSON.stringify({
+          success: false,
+          error: 'Missing required parameter: userId',
+        }),
+        { status: 400, headers: getCacheHeaders() }
+      );
+    }
+    
+    // Get total games analyzed (from learning events)
+    const gameIngestedEvents = await prisma.learningEvent.findMany({
+      where: {
+        userId,
+        eventType: 'GAME_INGESTED',
+      },
+      orderBy: {
+        ts: 'desc',
+      },
+      take: 100, // Limit to recent 100
+    });
+    
+    const gamesAnalyzed = gameIngestedEvents.length;
+    const lastIngestedAt = gameIngestedEvents.length > 0 
+      ? gameIngestedEvents[0].ts.toISOString()
+      : null;
+    
+    // Get concept states
+    const conceptStates = await prisma.userConceptState.findMany({
+      where: { userId },
+      orderBy: { mastery: 'asc' },
+      take: 50, // Limit response size
+    });
+    
+    // Top weak concepts (lowest mastery)
+    const topWeakConcepts = conceptStates
+      .slice(0, 5)
+      .map((c: any) => ({
+        name: c.conceptId.replace(/_/g, ' '),
+        mastery: c.mastery,
+        lastSeen: c.lastSeenAt ? c.lastSeenAt.toISOString() : null,
+      }));
+    
+    // Top strong concepts (highest mastery)
+    const topStrongConcepts = conceptStates
+      .slice(-5)
+      .reverse()
+      .map((c: any) => ({
+        name: c.conceptId.replace(/_/g, ' '),
+        mastery: c.mastery,
+        lastSeen: c.lastSeenAt ? c.lastSeenAt.toISOString() : null,
+      }));
+    
+    // Recent key moments (from recent game events)
+    const recentKeyMoments = gameIngestedEvents
+      .slice(0, 5)
+      .map((event: any) => {
+        const payload = event.payload;
+        return {
+          gameId: payload.gameId,
+          timestamp: event.ts.toISOString(),
+          blunders: payload.blunders || 0,
+          mistakes: payload.mistakes || 0,
+          accuracy: payload.accuracy || 0,
+          conceptsUpdated: payload.conceptsUpdated || 0,
+        };
+      });
+    
+    const progress = {
+      success: true,
+      requestId,
+      userId,
+      gamesAnalyzed,
+      lastIngestedAt,
+      topWeakConcepts,
+      topStrongConcepts,
+      recentKeyMoments,
+      totalConcepts: conceptStates.length,
+      avgMastery: conceptStates.length > 0 
+        ? conceptStates.reduce((sum: number, c: any) => sum + c.mastery, 0) / conceptStates.length 
+        : 0,
+      durationMs: Date.now() - startTime,
+    };
+    
+    return new Response(
+      JSON.stringify(progress),
+      { status: 200, headers: getCacheHeaders() }
+    );
+    
+  } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+    console.error('[LearningProgress] Error:', error);
     
     return new Response(
       JSON.stringify({
@@ -664,6 +815,95 @@ export async function handleLearningHealth(
         error: errorMessage,
         requestId,
         status: 'unhealthy',
+      }),
+      { status: 500, headers: getCacheHeaders() }
+    );
+  }
+}
+
+/**
+ * GET /api/admin/learning-recent?limit=50
+ * 
+ * Returns recent learning events for proof-of-learning diagnostics.
+ * User IDs are hashed by default for privacy.
+ */
+export async function handleLearningRecentEvents(
+  request: Request,
+  env: Env,
+  prisma: any
+): Promise<Response> {
+  const requestId = crypto.randomUUID();
+  const startTime = Date.now();
+  
+  try {
+    // Admin auth required
+    const authHeader = request.headers.get('Authorization');
+    const expectedAuth = `Bearer ${env.ADMIN_PASSWORD}`;
+    
+    if (authHeader !== expectedAuth) {
+      return new Response(
+        JSON.stringify({
+          success: false,
+          error: 'Unauthorized',
+        }),
+        { status: 401, headers: getCacheHeaders() }
+      );
+    }
+    
+    const url = new URL(request.url);
+    const limit = Math.min(parseInt(url.searchParams.get('limit') || '50', 10), 100);
+    const includeUserIds = url.searchParams.get('includeUserIds') === 'true';
+    
+    // Get recent events
+    const events = await prisma.learningEvent.findMany({
+      orderBy: {
+        ts: 'desc',
+      },
+      take: limit,
+    });
+    
+    // Simple hash function for userId privacy
+    const hashUserId = (userId: string): string => {
+      let hash = 0;
+      for (let i = 0; i < userId.length; i++) {
+        const char = userId.charCodeAt(i);
+        hash = ((hash << 5) - hash) + char;
+        hash = hash & hash;
+      }
+      return Math.abs(hash).toString(16).substring(0, 8);
+    };
+    
+    // Format events
+    const formattedEvents = events.map((event: any) => ({
+      id: event.id,
+      ts: event.ts.toISOString(),
+      userId: includeUserIds ? event.userId : hashUserId(event.userId || 'unknown'),
+      eventType: event.eventType,
+      payload: event.payload,
+    }));
+    
+    const response = {
+      success: true,
+      requestId,
+      events: formattedEvents,
+      total: events.length,
+      durationMs: Date.now() - startTime,
+    };
+    
+    return new Response(
+      JSON.stringify(response),
+      { status: 200, headers: getCacheHeaders() }
+    );
+    
+  } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+    console.error('[LearningRecentEvents] Error:', error);
+    
+    return new Response(
+      JSON.stringify({
+        success: false,
+        error: errorMessage,
+        requestId,
       }),
       { status: 500, headers: getCacheHeaders() }
     );
