@@ -14,8 +14,8 @@ interface CPUMoveRequest {
 
 class CPUMoveGuard {
   private currentRequest: CPUMoveRequest | null = null;
-  private readonly DEFAULT_TIMEOUT = 3000; // 3 seconds max
-  private readonly EXTENDED_TIMEOUT = 5000; // 5 seconds for complex positions
+  private readonly DEFAULT_TIMEOUT = 20000; // 20 seconds (handles Render cold start)
+  private readonly EXTENDED_TIMEOUT = 30000; // 30 seconds for complex positions
 
   /**
    * Execute CPU move with timeout and single-flight protection
