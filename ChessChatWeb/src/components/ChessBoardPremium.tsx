@@ -5,6 +5,7 @@ import React, { useState, useCallback, useRef, useEffect } from 'react';
 import type { Square } from 'chess.js';
 import { useGameStore } from '../store/gameStore';
 import { getPieceSymbol, toSquare, getSquareColor } from '../lib/chess';
+import { CapturedPieces } from './CapturedPieces';
 import '../styles/ChessBoardPremium.css';
 
 interface DragState {
@@ -18,7 +19,15 @@ interface DragState {
 }
 
 export const ChessBoardPremium: React.FC = () => {
-  const { chess, isPlayerTurn, isThinking, makePlayerMove, boardVersion } = useGameStore();
+  const { 
+    chess, 
+    isPlayerTurn, 
+    isThinking, 
+    makePlayerMove, 
+    boardVersion,
+    capturedPieces,
+    recentCapture 
+  } = useGameStore();
   const [selectedSquare, setSelectedSquare] = useState<Square | null>(null);
   const [legalMoves, setLegalMoves] = useState<Square[]>([]);
   const [lastMove, setLastMove] = useState<{ from: Square; to: Square } | null>(null);
@@ -363,6 +372,12 @@ export const ChessBoardPremium: React.FC = () => {
           </div>
         </div>
       </div>
+      
+      {/* Captured Pieces Display - RIGHT SIDE */}
+      <CapturedPieces 
+        capturedPieces={capturedPieces}
+        recentCapture={recentCapture}
+      />
     </div>
   );
 };

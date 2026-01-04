@@ -128,6 +128,21 @@ export const PostGameCoaching: React.FC<PostGameCoachingProps> = ({
         `${gameResult} - ${moveHistory.length} moves`
       );
       
+      // Handle async mode (Architecture Change #3)
+      if (result.analysisMode === 'async') {
+        console.log('[Learning V3] Game queued for async analysis:', result.requestId);
+        setLearningStatus({
+          attempted: true,
+          success: true,
+          degraded: false,
+          stockfishWarm: true,
+          message: 'Game sent for analysis! Check Training Portal for progress.',
+          canRetry: false
+        });
+        return;
+      }
+      
+      // Handle synchronous modes (legacy or degraded)
       if (result.partial && result.analysisMode === 'degraded') {
         // Stockfish was cold, degraded mode
         console.log('[Learning V3] Degraded mode:', result.message);
@@ -141,13 +156,16 @@ export const PostGameCoaching: React.FC<PostGameCoachingProps> = ({
         });
       } else if (result.success) {
         // Full analysis completed
-        console.log('[Learning V3] Full analysis completed:', result.conceptsUpdated, 'concepts updated');
+        const conceptCount = result.conceptsUpdated || 0;
+        console.log('[Learning V3] Analysis completed:', conceptCount, 'concepts updated');
         setLearningStatus({
           attempted: true,
           success: true,
           degraded: false,
           stockfishWarm: true,
-          message: `Deep analysis complete! ${result.conceptsUpdated || 0} concepts updated.`,
+          message: conceptCount > 0 
+            ? `Server analysis complete! ${conceptCount} concepts updated.`
+            : 'Server analysis complete! Local coaching remains active.',
           canRetry: false
         });
       } else {

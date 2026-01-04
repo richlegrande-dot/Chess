@@ -1,25 +1,61 @@
 /**
  * Training Data Manager Component
- * Allows viewing, exporting, and managing collected training data
+ * Displays real learning progress from Wall-E's learning system
  */
 
 import React, { useState, useEffect } from 'react';
+import { api } from '../lib/api';
 import { trainingCollector, TrainingExample } from '../lib/coaching';
 import '../styles/TrainingDataManager.css';
+
+interface LearningProgress {
+  success: boolean;
+  userId: string;
+  gamesAnalyzed: number;
+  lastIngestedAt: string | null;
+  topWeakConcepts: Array<{ name: string; mastery: number; lastSeen: string | null }>;
+  topStrongConcepts: Array<{ name: string; mastery: number; lastSeen: string | null }>;
+  recentKeyMoments: Array<any>;
+  totalConcepts: number;
+  avgMastery: number;
+}
 
 export const TrainingDataManager: React.FC = () => {
   const [examples, setExamples] = useState<TrainingExample[]>([]);
   const [statistics, setStatistics] = useState<any>(null);
   const [selectedExample, setSelectedExample] = useState<TrainingExample | null>(null);
   const [showDetails, setShowDetails] = useState(false);
+  
+  // Real server progress
+  const [serverProgress, setServerProgress] = useState<LearningProgress | null>(null);
+  const [loadingProgress, setLoadingProgress] = useState(true);
+  const [progressError, setProgressError] = useState<string | null>(null);
 
   useEffect(() => {
     refreshData();
+    loadServerProgress();
   }, []);
 
   const refreshData = () => {
     setExamples(trainingCollector.getExamples());
     setStatistics(trainingCollector.getStatistics());
+  };
+  
+  const loadServerProgress = async () => {
+    try {
+      setLoadingProgress(true);
+      setProgressError(null);
+      
+      const userId = localStorage.getItem('userId') || `guest-${Date.now()}`;
+      const progress = await api.learning.progress(userId);
+      
+      setServerProgress(progress);
+    } catch (error) {
+      console.error('[TrainingPortal] Failed to load progress:', error);
+      setProgressError(error instanceof Error ? error.message : 'Failed to load progress');
+    } finally {
+      setLoadingProgress(false);
+    }
   };
 
   const handleExport = (format: 'jsonl' | 'json') => {
@@ -44,149 +80,166 @@ export const TrainingDataManager: React.FC = () => {
         <div style={{ fontSize: '4rem', marginBottom: '0.5rem' }}>🤖🧠</div>
         <h1>Wall-E's Learning System</h1>
         <p style={{ fontSize: '1.1rem', marginBottom: '0.5rem' }}>
-          "I learn from our last 50 games together!"
+          "I learn from every game you play!"
         </p>
         <p style={{ fontSize: '0.95rem', opacity: 0.8 }}>
-          🎓 Wall-E adapts to YOUR playstyle, creating personalized teaching moments
-        </p>
-        <p style={{ fontSize: '0.85rem', opacity: 0.6, marginTop: '0.5rem' }}>
-          ⚠️ Training data is protected - it cannot be reset from this interface
+          🎓 Wall-E tracks your chess concepts and builds personalized coaching
         </p>
       </div>
 
-      {/* Statistics Overview */}
-      {statistics && (
-        <div className="statistics-overview">
-          <h2>📊 Collection Statistics</h2>
-          <div className="stats-grid">
-            <div className="stat-card">
-              <div className="stat-value">{statistics.totalGames}</div>
-              <div className="stat-label">Games Collected</div>
-            </div>
-            <div className="stat-card">
-              <div className="stat-value">{statistics.totalMoves}</div>
-              <div className="stat-label">Total Moves</div>
-            </div>
-            <div className="stat-card">
-              <div className="stat-value">{(statistics.averageBlunders || 0).toFixed(1)}</div>
-              <div className="stat-label">Avg Blunders/Game</div>
-            </div>
-            <div className="stat-card">
-              <div className="stat-value">{(statistics.averageMistakes || 0).toFixed(1)}</div>
-              <div className="stat-label">Avg Mistakes/Game</div>
-            </div>
+      {/* Server Learning Progress (Real Data) */}
+      <div className="server-progress-section">
+        <h2>📊 Server Learning Progress</h2>
+        
+        {loadingProgress && (
+          <div className="loading-state">
+            <div className="spinner"></div>
+            <p>Loading learning progress...</p>
           </div>
-
-          {/* Detailed Statistics */}
-          <div className="detailed-stats">
-            <div className="stat-section">
-              <h3>Color Distribution</h3>
-              <div className="distribution-bars">
-                <div className="bar-item">
-                  <span>White</span>
-                  <div className="bar">
-                    <div 
-                      className="bar-fill white" 
-                      style={{ 
-                        width: `${(statistics.colorDistribution.white / statistics.totalGames) * 100}%` 
-                      }}
-                    />
-                  </div>
-                  <span>{statistics.colorDistribution.white}</span>
+        )}
+        
+        {progressError && (
+          <div className="error-state">
+            <p>⚠️ Could not load server progress: {progressError}</p>
+            <button onClick={loadServerProgress} className="retry-button">🔄 Retry</button>
+          </div>
+        )}
+        
+        {serverProgress && !loadingProgress && (
+          <div className="server-stats">
+            <div className="stats-grid">
+              <div className="stat-card">
+                <div className="stat-value">{serverProgress.gamesAnalyzed}</div>
+                <div className="stat-label">Games Analyzed by Server</div>
+              </div>
+              <div className="stat-card">
+                <div className="stat-value">{serverProgress.totalConcepts}</div>
+                <div className="stat-label">Concepts Tracked</div>
+              </div>
+              <div className="stat-card">
+                <div className="stat-value">{(serverProgress.avgMastery * 100).toFixed(0)}%</div>
+                <div className="stat-label">Average Mastery</div>
+              </div>
+              <div className="stat-card">
+                <div className="stat-value">
+                  {serverProgress.lastIngestedAt 
+                    ? new Date(serverProgress.lastIngestedAt).toLocaleDateString()
+                    : 'Never'}
                 </div>
-                <div className="bar-item">
-                  <span>Black</span>
-                  <div className="bar">
-                    <div 
-                      className="bar-fill black" 
-                      style={{ 
-                        width: `${(statistics.colorDistribution.black / statistics.totalGames) * 100}%` 
-                      }}
-                    />
-                  </div>
-                  <span>{statistics.colorDistribution.black}</span>
-                </div>
+                <div className="stat-label">Last Game Analyzed</div>
               </div>
             </div>
-
-            <div className="stat-section">
-              <h3>Top Tactical Patterns</h3>
-              <div className="pattern-list">
-                {Object.entries(statistics.tacticalPatternsFound)
-                  .sort((a: any, b: any) => b[1] - a[1])
-                  .slice(0, 5)
-                  .map(([pattern, count]: any) => (
-                    <div key={pattern} className="pattern-item">
-                      <span className="pattern-name">{pattern.replace(/_/g, ' ')}</span>
-                      <span className="pattern-count">{count}</span>
+            
+            {/* Weak Concepts */}
+            {serverProgress.topWeakConcepts.length > 0 && (
+              <div className="concepts-section">
+                <h3>🎯 Areas to Improve</h3>
+                <div className="concepts-list">
+                  {serverProgress.topWeakConcepts.map((concept, i) => (
+                    <div key={i} className="concept-item weak">
+                      <span className="concept-name">{concept.name}</span>
+                      <div className="mastery-bar">
+                        <div 
+                          className="mastery-fill weak" 
+                          style={{ width: `${concept.mastery * 100}%` }}
+                        />
+                      </div>
+                      <span className="mastery-value">{(concept.mastery * 100).toFixed(0)}%</span>
                     </div>
                   ))}
+                </div>
               </div>
-            </div>
-
-            <div className="stat-section">
-              <h3>Top Strategic Issues</h3>
-              <div className="pattern-list">
-                {Object.entries(statistics.strategicIssuesFound)
-                  .sort((a: any, b: any) => b[1] - a[1])
-                  .slice(0, 5)
-                  .map(([issue, count]: any) => (
-                    <div key={issue} className="pattern-item">
-                      <span className="pattern-name">{issue.replace(/_/g, ' ')}</span>
-                      <span className="pattern-count">{count}</span>
+            )}
+            
+            {/* Strong Concepts */}
+            {serverProgress.topStrongConcepts.length > 0 && (
+              <div className="concepts-section">
+                <h3>💪 Your Strengths</h3>
+                <div className="concepts-list">
+                  {serverProgress.topStrongConcepts.map((concept, i) => (
+                    <div key={i} className="concept-item strong">
+                      <span className="concept-name">{concept.name}</span>
+                      <div className="mastery-bar">
+                        <div 
+                          className="mastery-fill strong" 
+                          style={{ width: `${concept.mastery * 100}%` }}
+                        />
+                      </div>
+                      <span className="mastery-value">{(concept.mastery * 100).toFixed(0)}%</span>
                     </div>
                   ))}
+                </div>
+              </div>
+            )}
+            
+            {/* Recent Key Moments */}
+            {serverProgress.recentKeyMoments.length > 0 && (
+              <div className="key-moments-section">
+                <h3>🔑 Recent Key Moments</h3>
+                <div className="moments-list">
+                  {serverProgress.recentKeyMoments.map((moment, i) => (
+                    <div key={i} className="moment-card">
+                      <div className="moment-header">
+                        <span className="moment-game">Game {serverProgress.gamesAnalyzed - i}</span>
+                        <span className="moment-date">
+                          {new Date(moment.timestamp).toLocaleDateString()}
+                        </span>
+                      </div>
+                      <div className="moment-stats">
+                        <span>Blunders: {moment.blunders}</span>
+                        <span>Mistakes: {moment.mistakes}</span>
+                        <span>Accuracy: {moment.accuracy.toFixed(0)}%</span>
+                        <span className="concepts-updated">
+                          {moment.conceptsUpdated} concepts updated
+                        </span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+            
+            <button onClick={loadServerProgress} className="refresh-button">
+              🔄 Refresh Progress
+            </button>
+          </div>
+        )}
+        
+        {serverProgress && serverProgress.gamesAnalyzed === 0 && (
+          <div className="empty-state">
+            <p>🌱 No games analyzed yet. Play a game to start learning!</p>
+          </div>
+        )}
+      </div>
+
+      {/* Local Browser Cache (Legacy) */}
+      {statistics && examples.length > 0 && (
+        <div className="local-cache-section">
+          <h2>💾 Local Browser Cache</h2>
+          <p style={{ fontSize: '0.9rem', opacity: 0.7, marginBottom: '1rem' }}>
+            Note: This is local browser storage only. Server learning progress is shown above.
+          </p>
+          
+          <div className="statistics-overview">
+            <div className="stats-grid">
+              <div className="stat-card">
+                <div className="stat-value">{statistics.totalGames}</div>
+                <div className="stat-label">Games in Cache</div>
+              </div>
+              <div className="stat-card">
+                <div className="stat-value">{statistics.totalMoves}</div>
+                <div className="stat-label">Total Moves</div>
+              </div>
+              <div className="stat-card">
+                <div className="stat-value">{(statistics.averageBlunders || 0).toFixed(1)}</div>
+                <div className="stat-label">Avg Blunders/Game</div>
+              </div>
+              <div className="stat-card">
+                <div className="stat-value">{(statistics.averageMistakes || 0).toFixed(1)}</div>
+                <div className="stat-label">Avg Mistakes/Game</div>
               </div>
             </div>
           </div>
-
-          {/* Personalized Upgrades Section */}
-          {statistics.totalGames >= 50 && (
-            <div className="personalized-upgrades">
-              <h2>🎯 Personalized System Upgrades Available</h2>
-              <p className="upgrades-intro">
-                Congratulations! You've reached 50 games. Wall-E has gathered enough data to provide highly personalized insights.
-              </p>
-              <div className="upgrades-list">
-                <div className="upgrade-card">
-                  <div className="upgrade-icon">🧠</div>
-                  <h3>Advanced Pattern Recognition</h3>
-                  <p>Wall-E can now identify your unique tactical blind spots with 87% accuracy</p>
-                  <div className="upgrade-status active">Active</div>
-                </div>
-                <div className="upgrade-card">
-                  <div className="upgrade-icon">📊</div>
-                  <h3>Customized Opening Repertoire</h3>
-                  <p>Based on your games, Wall-E suggests openings that match your playstyle</p>
-                  <div className="upgrade-status active">Active</div>
-                </div>
-                <div className="upgrade-card">
-                  <div className="upgrade-icon">⚡</div>
-                  <h3>Real-Time Mistake Prevention</h3>
-                  <p>Wall-E can now predict and warn about mistakes before you make them</p>
-                  <div className="upgrade-status active">Active</div>
-                </div>
-                <div className="upgrade-card">
-                  <div className="upgrade-icon">🎓</div>
-                  <h3>Adaptive Training Plans</h3>
-                  <p>Personalized lesson sequences targeting your specific weaknesses</p>
-                  <div className="upgrade-status active">Active</div>
-                </div>
-                <div className="upgrade-card">
-                  <div className="upgrade-icon">🏆</div>
-                  <h3>Performance Prediction</h3>
-                  <p>Wall-E can estimate your rating and suggest optimal challenge levels</p>
-                  <div className="upgrade-status coming-soon">Coming at 100 games</div>
-                </div>
-                <div className="upgrade-card">
-                  <div className="upgrade-icon">🔮</div>
-                  <h3>Strategic Style Analysis</h3>
-                  <p>Deep analysis of whether you're naturally tactical, positional, or aggressive</p>
-                  <div className="upgrade-status coming-soon">Coming at 100 games</div>
-                </div>
-              </div>
-            </div>
-          )}
         </div>
       )}
 

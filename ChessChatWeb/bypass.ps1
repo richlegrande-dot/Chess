@@ -122,6 +122,60 @@ if ($remainingNodes) {
     Write-Log "These may be from other projects and will be left alone" "INFO"
 }
 
+# Port Selection and Verification
+Write-Log "Testing port availability..." "INFO"
+
+function Test-PortAvailable {
+    param([int]$Port)
+    $activeConnection = Get-NetTCPConnection -LocalPort $Port -ErrorAction SilentlyContinue |
+                        Where-Object { $_.State -notin @('TimeWait', 'CloseWait') -and $_.OwningProcess -ne 0 }
+    return ($null -eq $activeConnection)
+}
+
+# Test and select ports
+$defaultServerPort = 3000
+$defaultTunnelPort = 3001
+$selectedServerPort = $defaultServerPort
+$selectedTunnelPort = $defaultTunnelPort
+
+# Check server port (3000)
+if (Test-PortAvailable -Port $defaultServerPort) {
+    Write-Log "Port $defaultServerPort is available for server" "SUCCESS"
+} else {
+    Write-Log "Port $defaultServerPort is in use, searching for alternative..." "WARN"
+    for ($port = 3002; $port -le 3010; $port++) {
+        if (Test-PortAvailable -Port $port) {
+            $selectedServerPort = $port
+            Write-Log "Found available port $port for server" "SUCCESS"
+            break
+        }
+    }
+    if ($selectedServerPort -eq $defaultServerPort) {
+        Write-Log "Could not find available port for server" "ERROR"
+        exit 1
+    }
+}
+
+# Check tunnel port (3001)
+if (Test-PortAvailable -Port $defaultTunnelPort) {
+    Write-Log "Port $defaultTunnelPort is available for tunnel" "SUCCESS"
+} else {
+    Write-Log "Port $defaultTunnelPort is in use, searching for alternative..." "WARN"
+    for ($port = 3011; $port -le 3020; $port++) {
+        if (Test-PortAvailable -Port $port -and $port -ne $selectedServerPort) {
+            $selectedTunnelPort = $port
+            Write-Log "Found available port $port for tunnel" "SUCCESS"
+            break
+        }
+    }
+    if ($selectedTunnelPort -eq $defaultTunnelPort -and -not (Test-PortAvailable -Port $defaultTunnelPort)) {
+        Write-Log "Could not find available port for tunnel" "ERROR"
+        exit 1
+    }
+}
+
+Write-Log "Selected ports - Server: $selectedServerPort, Tunnel: $selectedTunnelPort" "INFO"
+
 # Check if node_modules exists
 if (-not (Test-Path "node_modules")) {
     Write-Log "node_modules not found. Running npm install..." "WARN"

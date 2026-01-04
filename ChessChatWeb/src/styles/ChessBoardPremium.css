@@ -3,13 +3,14 @@
 /* Main Container */
 .chess-board-container {
   display: flex;
-  flex-direction: column;
+  flex-direction: row;
   align-items: center;
-  gap: 1.5rem;
+  justify-content: center;
+  gap: 2rem;
   padding: 2rem;
   user-select: none;
   min-height: 100vh;
-  justify-content: center;
+  flex-wrap: wrap;
 }
 
 /* Perspective Wrapper */
@@ -615,5 +616,27 @@
   .chess-piece {
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
+  }
+}
+/* Responsive Layout for Captured Pieces */
+@media (max-width: 1200px) {
+  .chess-board-container {
+    flex-direction: column;
+    gap: 1.5rem;
+  }
+}
+
+@media (max-width: 768px) {
+  .chess-board-container {
+    padding: 1rem;
+  }
+  
+  .board-frame {
+    padding: 12px;
+  }
+  
+  .chess-board-premium {
+    grid-template-columns: repeat(8, 50px);
+    grid-template-rows: repeat(8, 50px);
   }
 }
