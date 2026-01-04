@@ -8,6 +8,7 @@ import { persistentLogger } from '../utils/persistentLogger';
 import { findBestMoveWithLearning, recordGameForLearning, getLearningStats } from '../lib/learningAI';
 import { PostGameCoaching } from './PostGameCoaching';
 import { PlayerProfile } from './PlayerProfile';
+import { CapturedPieces, type CapturedPiecesData } from './CapturedPieces';
 import { getCpuWorkerClient } from '../lib/cpu/cpuWorkerClient';
 import { getLevelConfig, getTimeBudget, getTotalTimeout } from '../lib/cpu/cpuConfig';
 import { mapCpuLevelToDifficulty } from '../lib/difficultyMapping';
@@ -42,6 +43,12 @@ interface CoachingModeState {
     reason: string;
   }>;
   showPlayerProfile: boolean;
+  capturedPieces: CapturedPiecesData;
+  recentCapture: {
+    capturedColor: 'red' | 'black';
+    pieceType: string;
+    timestamp: number;
+  } | null;
 }
 
 export const CoachingMode: React.FC = () => {
@@ -58,6 +65,11 @@ export const CoachingMode: React.FC = () => {
     cpuColor: 'w', // CPU plays RED pieces (white), Player plays BLACK
     isThinking: false,
     cpuError: null,
+    capturedPieces: {
+      red: [],
+      black: [],
+    },
+    recentCapture: null,
     moveErrors: [],
   }));
 
@@ -928,6 +940,10 @@ export const CoachingMode: React.FC = () => {
         
         // Check if CPU needs to promote (always promote to queen)
         const promotion = newChess.isPromotionMove(selectedMove.from, selectedMove.to) ? 'q' : undefined;
+        
+        // Check if this move captures a piece
+        const targetPiece = newChess.getPiece(selectedMove.to);
+        
         const move = newChess.makeMove(selectedMove.from, selectedMove.to, promotion);
 
         if (!move) {
@@ -949,6 +965,24 @@ export const CoachingMode: React.FC = () => {
         const finalPgn = newChess.getPGN();
         const moveNum = Math.ceil(prevState.moveHistory.length / 2) + 1;
         moveTracer.logCPUResponse(requestId, `${selectedMove.from}→${selectedMove.to}`, finalFen, finalPgn, moveNum, elapsed);
+
+        // Track captured pieces
+        let updatedCapturedPieces = prevState.capturedPieces;
+        let newRecentCapture = null;
+        if (targetPiece) {
+          // Determine the COLOR of the piece that was captured
+          const capturedPieceColor: 'red' | 'black' = targetPiece.startsWith('w') ? 'red' : 'black';
+          updatedCapturedPieces = {
+            ...prevState.capturedPieces,
+            [capturedPieceColor]: [...prevState.capturedPieces[capturedPieceColor], targetPiece],
+          };
+          newRecentCapture = {
+            capturedColor: capturedPieceColor as 'red' | 'black',
+            pieceType: targetPiece,
+            timestamp: Date.now(),
+          };
+          debugLog.log(`[Capture] ${capturedPieceColor.toUpperCase()} piece captured: ${targetPiece}`);
+        }
 
         // Update state
         const newMoveHistory = [...prevState.moveHistory, {
@@ -1011,6 +1045,13 @@ export const CoachingMode: React.FC = () => {
           });
         }, 0);
 
+        // Clear the animation highlight after 2 seconds
+        if (newRecentCapture) {
+          setTimeout(() => {
+            setState(prev => ({ ...prev, recentCapture: null }));
+          }, 2000);
+        }
+
         return {
           ...prevState,
           chess: newChess, // NEW chess instance - React will detect the change!
@@ -1019,6 +1060,8 @@ export const CoachingMode: React.FC = () => {
           boardVersion: prevState.boardVersion + 1,
           isThinking: false,
           cpuError: null,
+          capturedPieces: updatedCapturedPieces,
+          recentCapture: newRecentCapture,
         };
       });
       
@@ -1183,6 +1226,10 @@ export const CoachingMode: React.FC = () => {
         
         // CRITICAL FIX: Clone chess instance first (immutable pattern)
         const newChess = chess.clone();
+        
+        // Check if this move captures a piece
+        const targetPiece = newChess.getPiece(square);
+        
         const move = newChess.makeMove(selectedSquare, square);
         
         if (move) {
@@ -1194,6 +1241,24 @@ export const CoachingMode: React.FC = () => {
           const successMsg = `[Click] ✅ SUCCESS! ${selectedSquare}→${square} moveNum=${moveNum} newTurn=${newChess.getTurn()} historyLen=${prevState.moveHistory.length}→${prevState.moveHistory.length + 1}`;
           debugLog.log(successMsg);
           addDebugLog(successMsg);
+          
+          // Track captured pieces
+          let updatedCapturedPieces = prevState.capturedPieces;
+          let newRecentCapture = null;
+          if (targetPiece) {
+            // Determine the COLOR of the piece that was captured
+            const capturedPieceColor: 'red' | 'black' = targetPiece.startsWith('w') ? 'red' : 'black';
+            updatedCapturedPieces = {
+              ...prevState.capturedPieces,
+              [capturedPieceColor]: [...prevState.capturedPieces[capturedPieceColor], targetPiece],
+            };
+            newRecentCapture = {
+              capturedColor: capturedPieceColor as 'red' | 'black',
+              pieceType: targetPiece,
+              timestamp: Date.now(),
+            };
+            debugLog.log(`[Capture] ${capturedPieceColor.toUpperCase()} piece captured: ${targetPiece}`);
+          }
           
           // Log player move (deferred to avoid blocking)
           moveTracer.logPlayerMove(requestId, selectedSquare, square, fen, pgn, moveNum);
@@ -1287,6 +1352,8 @@ export const CoachingMode: React.FC = () => {
             boardVersion: newBoardVersion,
             isThinking: false,
             cpuError: null,
+            capturedPieces: updatedCapturedPieces,
+            recentCapture: newRecentCapture,
           };
         } else {
           debugLog.log('[Click] ❌ Invalid move attempt');
@@ -1295,6 +1362,11 @@ export const CoachingMode: React.FC = () => {
 
       return prevState;
     });
+    
+    // Clear recent capture animation after delay (outside setState)
+    setTimeout(() => {
+      setState(prev => ({ ...prev, recentCapture: null }));
+    }, 2000);
   }, [addDebugLog, makeCPUMove]);
 
   const handlePromotionChoice = useCallback((piece: 'q' | 'r' | 'b' | 'n') => {
@@ -1380,6 +1452,11 @@ export const CoachingMode: React.FC = () => {
         cpuError: null,
         moveErrors: [],
         showPlayerProfile: false,
+        capturedPieces: {
+          red: [],
+          black: [],
+        },
+        recentCapture: null,
       };
       
       debugLog.log('[New Game] Starting with cpuLevel:', prevState.cpuLevel, 'cpuColor:', prevState.cpuColor);
@@ -1680,6 +1757,12 @@ export const CoachingMode: React.FC = () => {
             {renderBoard()}
           </div>
         </div>
+        
+        {/* Captured Pieces Display - RIGHT SIDE */}
+        <CapturedPieces 
+          capturedPieces={state.capturedPieces}
+          recentCapture={state.recentCapture}
+        />
       </div>
 
       {/* CPU Error Banner */}
