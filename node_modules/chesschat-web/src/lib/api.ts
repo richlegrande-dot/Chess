@@ -262,6 +262,22 @@ export const api = {
   analyzeGame,
   ingestGameForLearning,
 
+  // Learning endpoints
+  learning: {
+    progress: (userId: string) =>
+      fetchWithRetry<{
+        success: boolean;
+        userId: string;
+        gamesAnalyzed: number;
+        lastIngestedAt: string | null;
+        topWeakConcepts: Array<{ name: string; mastery: number; lastSeen: string | null }>;
+        topStrongConcepts: Array<{ name: string; mastery: number; lastSeen: string | null }>;
+        recentKeyMoments: Array<any>;
+        totalConcepts: number;
+        avgMastery: number;
+      }>(`${API_BASE}/learning/progress?userId=${encodeURIComponent(userId)}`, { method: 'GET' }),
+  },
+
   // Health endpoints
   health: {
     get: () => apiFetch('/api/health'),

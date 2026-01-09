@@ -1,6 +1,6 @@
 /**
- * Learning V3 Game Ingestion API endpoint - Stub implementation
- * Returns honest response about capabilities since server-side learning is not deployed
+ * Learning V3 Game Ingestion API endpoint - Proxy to Worker
+ * Forwards requests to Worker for real ingestion and analysis
  */
 
 export async function onRequestPost(context: {
@@ -9,39 +9,47 @@ export async function onRequestPost(context: {
 }) {
   try {
     const body = await context.request.json() as any;
-    const { userId, gameId, pgn, chatContext } = body;
+    const { userId, gameId, pgn, playerColor, chatContext } = body;
     
-    console.log('[Learning V3] Game ingestion request:', { userId, gameId, moveCount: pgn?.split('.').length });
+    console.log('[Learning V3 Pages] Proxying ingestion request:', { userId, gameId });
     
-    // Return truthful response about server capabilities
+    // Forward to Worker (deployed at same domain)
+    const workerUrl = new URL('/api/learning/ingest-game', context.request.url);
+    workerUrl.hostname = context.request.url.includes('localhost') 
+      ? 'localhost' 
+      : new URL(context.request.url).hostname;
+    
+    const workerResponse = await fetch(workerUrl.toString(), {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ userId, gameId, pgn, playerColor, chatContext }),
+    });
+    
+    // Return Worker response unchanged
+    const workerData = await workerResponse.json();
+    
     return new Response(
-      JSON.stringify({
-        success: true,
-        analysisMode: 'local_only',
-        message: 'Game received. Server-side learning is not enabled yet; your local learning remains active.',
-        requestId: `req_${Date.now()}`,
-        serverCapabilities: {
-          serverLearningEnabled: false,
-          serverAnalysisEnabled: false,
-          localLearningEnabled: true
-        },
-        recommendation: 'Continue playing! Your browser is tracking patterns and providing coaching.',
-        conceptsUpdated: 0,
-      }),
+      JSON.stringify(workerData),
       {
-        status: 200,
-        headers: { 'Content-Type': 'application/json' },
+        status: workerResponse.status,
+        headers: { 
+          'Content-Type': 'application/json',
+          'Cache-Control': 'no-store, no-cache, must-revalidate',
+        },
       }
     );
   } catch (error) {
-    console.error('[Learning V3] Error:', error);
+    console.error('[Learning V3 Pages] Proxy error:', error);
     return new Response(
       JSON.stringify({
         success: false,
-        error: 'Invalid request format or missing parameters',
+        error: 'Failed to reach learning backend',
+        fallback: true,
       }),
       {
-        status: 400,
+        status: 500,
         headers: { 'Content-Type': 'application/json' },
       }
     );

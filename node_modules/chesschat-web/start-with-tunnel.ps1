@@ -78,12 +78,12 @@ function Stop-ProcessesSafely {
                  Select-Object -ExpandProperty OwningProcess | 
                  Get-Unique
     
-    foreach ($pid in $processes) {
+    foreach ($processId in $processes) {
         try {
-            Stop-Process -Id $pid -Force -ErrorAction SilentlyContinue
-            Write-Status "Killed process on port 3000 (PID: $pid)" "Success"
+            Stop-Process -Id $processId -Force -ErrorAction SilentlyContinue
+            Write-Status "Killed process on port 3000 (PID: $processId)" "Success"
         } catch {
-            Write-Status "Could not kill process $pid" "Warning"
+            Write-Status "Could not kill process $processId" "Warning"
         }
     }
     

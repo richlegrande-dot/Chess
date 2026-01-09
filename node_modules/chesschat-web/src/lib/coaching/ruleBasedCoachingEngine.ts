@@ -262,15 +262,16 @@ export class RuleBasedCoachingEngine {
     for (let i = 0; i < moveHistory.length; i++) {
       const { move, fen } = moveHistory[i];
       
-      // Load the position before the move
+      // Load the position before the move to check whose turn it is
       if (i > 0) {
         chess.load(moveHistory[i - 1].fen);
       } else {
         chess.reset();
       }
 
-      // Only analyze player's moves
-      const isPlayerMove = chess.turn() === playerColor;
+      // Only analyze player's moves - check turn BEFORE the move was made
+      const turnBeforeMove = chess.turn();
+      const isPlayerMove = turnBeforeMove === playerColor;
       if (!isPlayerMove) continue;
 
       // Calculate material evaluation

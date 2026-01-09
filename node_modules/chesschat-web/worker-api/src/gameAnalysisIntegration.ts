@@ -105,7 +105,7 @@ export async function analyzeGameWithRender(
 }
 
 /**
- * Store game analysis results in learning_events table
+ * Store game analysis results and update concept states
  */
 export async function storeGameAnalysis(
   gameId: string,
@@ -113,69 +113,212 @@ export async function storeGameAnalysis(
   pgn: string,
   analysis: AnalyzeGameResponse,
   prisma: any
-): Promise<void> {
+): Promise<number> {
   console.log(`[GameAnalysis] Storing results: gameId=${gameId} keyMoments=${analysis.keyMoments.length}`);
   
+  let conceptsUpdated = 0;
+  
   try {
-    // Create learning events for each key moment
-    const events = analysis.keyMoments.map(moment => ({
-      game_id: gameId,
-      player_id: userId,
-      event_type: 'mistake', // Type based on classification
-      ply_number: moment.ply,
-      position_fen: moment.fen,
-      player_move: moment.move,
-      engine_suggestion: moment.bestMove,
-      eval_before_cp: moment.evalCp + moment.evalSwing,
-      eval_after_cp: moment.evalCp,
-      eval_delta_cp: -moment.evalSwing, // Negative because it's a mistake
-      mistake_severity: moment.classification,
-      concept_keys: [], // Will be enriched by concept detection later
-      phase: classifyGamePhase(moment.ply),
-      created_at: new Date().toISOString(),
-    }));
+    // Map key moments to concept IDs
+    const conceptMap: { [concept: string]: { mistakes: number; totalOccurrences: number } } = {};
     
-    // Batch insert events
-    if (events.length > 0) {
-      await prisma.learning_events.createMany({
-        data: events,
-        skipDuplicates: true,
-      });
+    for (const moment of analysis.keyMoments) {
+      // Extract concepts from the moment's characteristics
+      const concepts = extractConceptsFromMoment(moment);
       
-      console.log(`[GameAnalysis] Stored ${events.length} learning events for game ${gameId}`);
-    } else {
-      console.log(`[GameAnalysis] No significant moments to store for game ${gameId}`);
+      for (const concept of concepts) {
+        if (!conceptMap[concept]) {
+          conceptMap[concept] = { mistakes: 0, totalOccurrences: 0 };
+        }
+        conceptMap[concept].totalOccurrences += 1;
+        if (moment.classification === 'blunder' || moment.classification === 'mistake') {
+          conceptMap[concept].mistakes += 1;
+        }
+      }
     }
     
-    // Store game summary
-    await prisma.games.upsert({
-      where: { id: gameId },
-      update: {
-        analyzed: true,
-        analysis_timestamp: new Date().toISOString(),
-        accuracy: analysis.statistics.accuracy,
-        blunders: analysis.statistics.blunders,
-        mistakes: analysis.statistics.mistakes,
-        brilliant_moves: analysis.statistics.brilliant,
-      },
-      create: {
-        id: gameId,
-        player_id: userId,
-        pgn,
-        analyzed: true,
-        analysis_timestamp: new Date().toISOString(),
-        accuracy: analysis.statistics.accuracy,
-        blunders: analysis.statistics.blunders,
-        mistakes: analysis.statistics.mistakes,
-        brilliant_moves: analysis.statistics.brilliant,
-        created_at: new Date().toISOString(),
-      },
+    // Update UserConceptState for each concept
+    for (const [conceptId, stats] of Object.entries(conceptMap)) {
+      try {
+        const existing = await prisma.userConceptState.findUnique({
+          where: {
+            userId_conceptId: {
+              userId,
+              conceptId,
+            }
+          }
+        });
+        
+        if (existing) {
+          // Update existing concept
+          const outcome = stats.mistakes > 0 ? 'mistake' : 'success';
+          const masteryDelta = outcome === 'mistake' ? -0.05 : +0.02;
+          const newMastery = Math.max(0, Math.min(1.0, existing.mastery + masteryDelta));
+          const newConfidence = Math.min(1.0, existing.confidence + 0.01);
+          
+          // Update EMA for mistake rate
+          const alpha = 0.2;
+          const newMistakeEMA = existing.mistakeRateEMA * (1 - alpha) + stats.mistakes * alpha;
+          const newSuccessEMA = existing.successRateEMA * (1 - alpha) + (stats.totalOccurrences - stats.mistakes) * alpha;
+          
+          // Calculate new due date (spaced repetition)
+          const intervalDays = Math.floor(newMastery * 30); // 0-30 days based on mastery
+          const newDueAt = new Date(Date.now() + intervalDays * 24 * 60 * 60 * 1000);
+          
+          // Append evidence
+          const evidence = JSON.parse(existing.evidenceRefs || '[]');
+          evidence.push({
+            gameId,
+            mistakes: stats.mistakes,
+            total: stats.totalOccurrences,
+            timestamp: new Date().toISOString()
+          });
+          const newEvidence = evidence.slice(-10); // Keep last 10
+          
+          await prisma.userConceptState.update({
+            where: { id: existing.id },
+            data: {
+              mastery: newMastery,
+              confidence: newConfidence,
+              mistakeRateEMA: newMistakeEMA,
+              successRateEMA: newSuccessEMA,
+              spacedRepDueAt: newDueAt,
+              lastSeenAt: new Date(),
+              evidenceRefs: JSON.stringify(newEvidence),
+              updatedAt: new Date(),
+            }
+          });
+          
+          conceptsUpdated++;
+          
+        } else {
+          // Create new concept state
+          const initialMastery = stats.mistakes > 0 ? 0.4 : 0.6;
+          const initialDueDate = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000); // 7 days
+          
+          await prisma.userConceptState.create({
+            data: {
+              userId,
+              conceptId,
+              mastery: initialMastery,
+              confidence: 0.1,
+              mistakeRateEMA: stats.mistakes,
+              successRateEMA: stats.totalOccurrences - stats.mistakes,
+              spacedRepDueAt: initialDueDate,
+              lastSeenAt: new Date(),
+              evidenceRefs: JSON.stringify([{
+                gameId,
+                mistakes: stats.mistakes,
+                total: stats.totalOccurrences,
+                timestamp: new Date().toISOString()
+              }]),
+            }
+          });
+          
+          conceptsUpdated++;
+        }
+        
+        // Log learning event
+        await prisma.learningEvent.create({
+          data: {
+            userId,
+            eventType: 'CONCEPT_UPDATED',
+            payload: {
+              conceptId,
+              gameId,
+              mistakes: stats.mistakes,
+              total: stats.totalOccurrences,
+              action: existing ? 'updated' : 'created',
+            }
+          }
+        });
+        
+      } catch (conceptError: any) {
+        console.error(`[GameAnalysis] Error updating concept ${conceptId}:`, conceptError.message);
+        // Continue with other concepts
+      }
+    }
+    
+    // Create a summary learning event for the game
+    await prisma.learningEvent.create({
+      data: {
+        userId,
+        eventType: 'GAME_INGESTED',
+        payload: {
+          gameId,
+          conceptsUpdated,
+          keyMoments: analysis.keyMoments.length,
+          blunders: analysis.statistics.blunders,
+          mistakes: analysis.statistics.mistakes,
+          accuracy: analysis.statistics.accuracy,
+        }
+      }
     });
+    
+    console.log(`[GameAnalysis] Stored analysis for game ${gameId}, updated ${conceptsUpdated} concepts`);
+    return conceptsUpdated;
     
   } catch (error: any) {
     console.error(`[GameAnalysis] Storage error: ${error.message}`);
+    
+    // Log failure event
+    try {
+      await prisma.learningEvent.create({
+        data: {
+          userId,
+          eventType: 'GAME_INGESTED',
+          payload: {
+            gameId,
+            error: error.message,
+            result: 'failed',
+          }
+        }
+      });
+    } catch (e) {
+      console.error('[GameAnalysis] Could not log failure event');
+    }
+    
     throw error;
   }
+}
+
+/**
+ * Extract concept IDs from a key moment
+ * This implements a simple rule-based concept detector
+ */
+function extractConceptsFromMoment(moment: KeyMoment): string[] {
+  const concepts: string[] = [];
+  
+  // Based on classification
+  if (moment.classification === 'blunder') {
+    concepts.push('hanging_pieces');
+    concepts.push('calculation_depth');
+  }
+  if (moment.classification === 'mistake') {
+    concepts.push('positional_awareness');
+  }
+  
+  // Based on evaluation swing (tactical themes)
+  if (Math.abs(moment.evalSwing) > 300) {
+    concepts.push('tactical_vision');
+    if (moment.evalSwing < 0) {
+      concepts.push('hanging_pieces');
+    }
+  }
+  
+  // Based on game phase
+  const phase = classifyGamePhase(moment.ply);
+  if (phase === 'opening') {
+    concepts.push('opening_principles');
+  } else if (phase === 'middlegame') {
+    concepts.push('tactical_awareness');
+    concepts.push('piece_coordination');
+  } else {
+    concepts.push('endgame_technique');
+  }
+  
+  // Deduplicate
+  return Array.from(new Set(concepts));
 }
 
 /**
@@ -189,6 +332,7 @@ function classifyGamePhase(ply: number): string {
 
 /**
  * Async game analysis pipeline (for use with ctx.waitUntil)
+ * Returns conceptsUpdated count
  */
 export async function analyzeAndStoreGame(
   gameId: string,
@@ -198,20 +342,40 @@ export async function analyzeAndStoreGame(
   env: Env,
   prisma: any,
   requestId: string
-): Promise<void> {
+): Promise<number> {
   try {
     console.log(`[GameAnalysis] Starting async analysis: gameId=${gameId} userId=${userId}`);
     
     // Call Render /analyze-game endpoint
     const analysis = await analyzeGameWithRender(pgn, playerColor, env, requestId);
     
-    // Store results in database
-    await storeGameAnalysis(gameId, userId, pgn, analysis, prisma);
+    // Store results and update concepts
+    const conceptsUpdated = await storeGameAnalysis(gameId, userId, pgn, analysis, prisma);
     
-    console.log(`[GameAnalysis] Pipeline complete: gameId=${gameId}`);
+    console.log(`[GameAnalysis] Pipeline complete: gameId=${gameId}, conceptsUpdated=${conceptsUpdated}`);
+    
+    return conceptsUpdated;
     
   } catch (error: any) {
     console.error(`[GameAnalysis] Pipeline error for game ${gameId}: ${error.message}`);
-    // Don't throw - this is async background work
+    
+    // Log failure event
+    try {
+      await prisma.learningEvent.create({
+        data: {
+          userId,
+          eventType: 'GAME_INGESTED',
+          payload: {
+            gameId,
+            error: error.message,
+            result: 'failed',
+          }
+        }
+      });
+    } catch (e) {
+      console.error('[GameAnalysis] Could not log failure event');
+    }
+    
+    return 0; // Failed, no concepts updated
   }
 }

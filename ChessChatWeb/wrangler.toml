@@ -1,5 +1,5 @@
-# Cloudflare Pages configuration for chess project
-name = "chess"
+# Cloudflare Pages configuration for chesschat-web project
+name = "chesschat-web"
 pages_build_output_dir = "dist"
 compatibility_date = "2024-11-21"
 
@@ -41,7 +41,7 @@ service = "walle-assistant"
 
 [env.production]
 # Production environment
-name = "chess"
+name = "chesschat-web"
 
 [[env.production.services]]
 binding = "WALLE_ASSISTANT"

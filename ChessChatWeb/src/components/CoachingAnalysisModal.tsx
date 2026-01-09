@@ -184,9 +184,14 @@ export const CoachingAnalysisModal: React.FC<CoachingAnalysisProps> = ({
     const playerMoves = moveHistory.filter(m => m.player === playerColor);
     const opponentMoves = moveHistory.filter(m => m.player !== playerColor);
     
+    // Debug: Log move history to see captured field
+    console.log('[CoachingAnalysis] Full move history:', moveHistory);
+    console.log('[CoachingAnalysis] Captured fields:', moveHistory.map(m => ({ move: m.move, captured: m.captured })));
+    
     // Analyze move patterns
     const longMoves = moveHistory.filter(m => m.move.length > 4); // Complex moves
     const captures = moveHistory.filter(m => m.captured); // Check if captured property exists
+    const capturesAlternate = moveHistory.filter(m => m.move.includes('x')); // Also check SAN notation
     const checks = moveHistory.filter(m => m.move.includes('+'));
     const castling = moveHistory.filter(m => m.move.includes('O-O'));
     
@@ -195,18 +200,22 @@ export const CoachingAnalysisModal: React.FC<CoachingAnalysisProps> = ({
     const middlegamePhase = moveHistory.slice(10, Math.min(30, moveHistory.length));
     const endgamePhase = moveHistory.slice(30);
     
+    // Use both methods to detect captures - either captured field or 'x' in SAN notation
+    const allCaptures = captures.length > 0 ? captures : capturesAlternate;
+    console.log('[CoachingAnalysis] Captures detected:', captures.length, 'Alternate method:', capturesAlternate.length, 'Using:', allCaptures.length);
+    
     return {
       playerMoves,
       opponentMoves,
-      captures,
+      captures: allCaptures,
       checks,
       castling,
       longMoves,
       openingPhase,
       middlegamePhase,
       endgamePhase,
-      playerCaptures: captures.filter(m => m.player === playerColor).length,
-      opponentCaptures: captures.filter(m => m.player !== playerColor).length,
+      playerCaptures: allCaptures.filter(m => m.player === playerColor).length,
+      opponentCaptures: allCaptures.filter(m => m.player !== playerColor).length,
       playerChecks: checks.filter(m => m.player === playerColor).length,
       opponentChecks: checks.filter(m => m.player !== playerColor).length,
     };
@@ -234,8 +243,8 @@ export const CoachingAnalysisModal: React.FC<CoachingAnalysisProps> = ({
       
       // Analyze what they're asking about
       if (messageLower.includes('mistake') || messageLower.includes('error') || messageLower.includes('blunder')) {
-        const yourMoves = playerMoves.map(m => `${m.moveNum}. ${m.move}`).join(', ');
-        const opponentMoves = analysis.opponentMoves.map(m => `${m.moveNum}. ${m.move}`).join(', ');
+        const yourMoves = playerMoves.map((m, idx) => `${idx + 1}. ${m.move} (turn ${m.moveNum})`).join(', ');
+        const opponentMoves = analysis.opponentMoves.map((m, idx) => `${idx + 1}. ${m.move} (turn ${m.moveNum})`).join(', ');
         
         response = `**Detailed Move Analysis:**\n\n` +
           `**Your Moves (${playerColor}):** ${yourMoves}\n\n` +
@@ -243,7 +252,7 @@ export const CoachingAnalysisModal: React.FC<CoachingAnalysisProps> = ({
           `**Key Statistics:**\n` +
           `• You made ${analysis.playerCaptures} capture(s) vs opponent's ${analysis.opponentCaptures}\n` +
           `• You gave ${analysis.playerChecks} check(s) vs opponent's ${analysis.opponentChecks}\n` +
-          `• Castling: ${analysis.castling.length > 0 ? `Yes (${analysis.castling.map(m => `Move ${m.moveNum}`).join(', ')})` : 'Neither side castled'}\n\n` +
+          `• Castling: ${analysis.castling.filter(c => c.player === playerColor).length > 0 ? `Yes (${analysis.castling.filter(c => c.player === playerColor).map(m => `turn ${m.moveNum}`).join(', ')})` : 'No castling by you'}\n\n` +
           `**Critical Moments:**\n`;
         
         if (analysis.middlegamePhase.length > 0) {

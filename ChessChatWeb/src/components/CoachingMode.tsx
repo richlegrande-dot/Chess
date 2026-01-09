@@ -9,6 +9,7 @@ import { findBestMoveWithLearning, recordGameForLearning, getLearningStats } fro
 import { PostGameCoaching } from './PostGameCoaching';
 import { PlayerProfile } from './PlayerProfile';
 import { CapturedPieces, type CapturedPiecesData } from './CapturedPieces';
+import { OpeningsModal } from './openings/OpeningsModal';
 import { getCpuWorkerClient } from '../lib/cpu/cpuWorkerClient';
 import { getLevelConfig, getTimeBudget, getTotalTimeout } from '../lib/cpu/cpuConfig';
 import { mapCpuLevelToDifficulty } from '../lib/difficultyMapping';
@@ -81,6 +82,7 @@ export const CoachingMode: React.FC = () => {
   const [forceMovePending, setForceMovePending] = useState(false);
   const [showPromotionModal, setShowPromotionModal] = useState(false);
   const [promotionMove, setPromotionMove] = useState<{ from: Square; to: Square } | null>(null);
+  const [showOpeningsModal, setShowOpeningsModal] = useState(false);
   const [lastWorkerMetadata, setLastWorkerMetadata] = useState<{
     depthReached: number;
     timeMs: number;
@@ -391,31 +393,53 @@ export const CoachingMode: React.FC = () => {
               apiStartTime = Date.now();
               debugLog.log(`[CPU Move] 🌐 Calling Worker API: Level ${cpuLevel}, Depth ${searchDepth}, Time ${allocatedTime}ms${retryCount > 0 ? ` (Retry ${retryCount})` : ''}`);
               
-              const apiResponse = await fetch('/api/chess-move', {
-                method: 'POST',
-                headers: {
-                  'Content-Type': 'application/json',
-                },
-                body: JSON.stringify({
-                  fen: chess.getFEN(),
-                  pgn: chess.getPGN(),
-                  difficulty: mapCpuLevelToDifficulty(cpuLevel),
-                  gameId: `game_${Date.now()}`,
-                  depth: searchDepth, // Send actual depth target
-                  timeMs: allocatedTime, // Send actual time budget
-                  cpuLevel: cpuLevel, // Send level for diagnostics
-                }),
-              });
+              // Create AbortController for fetch timeout (30 seconds max per attempt)
+              const controller = new AbortController();
+              const fetchTimeout = setTimeout(() => {
+                debugLog.warn('[CPU Move] ⚠️ Fetch timeout after 30s, aborting...');
+                controller.abort();
+              }, 30000);
               
-              const apiElapsedMs = Date.now() - apiStartTime;
-              debugLog.log(`[CPU Move] 📡 API Response: Status ${apiResponse.status}, Time ${apiElapsedMs}ms${retryCount > 0 ? ` (Retry ${retryCount})` : ''}`);
+              let apiResponse;
+              let apiElapsedMs;
               
-              if (!apiResponse.ok) {
-                const errorText = await apiResponse.text();
-                console.error(`[CPU Move] ❌ API Error Response (${apiResponse.status}):`, errorText);
-                const error = new Error(`API returned ${apiResponse.status}: ${apiResponse.statusText}`);
-                (error as any).statusCode = apiResponse.status; // Attach for telemetry
-                throw error;
+              try {
+                apiResponse = await fetch('/api/chess-move', {
+                  method: 'POST',
+                  headers: {
+                    'Content-Type': 'application/json',
+                  },
+                  body: JSON.stringify({
+                    fen: chess.getFEN(),
+                    pgn: chess.getPGN(),
+                    difficulty: mapCpuLevelToDifficulty(cpuLevel),
+                    gameId: `game_${Date.now()}`,
+                    depth: searchDepth, // Send actual depth target
+                    timeMs: allocatedTime, // Send actual time budget
+                    cpuLevel: cpuLevel, // Send level for diagnostics
+                  }),
+                  signal: controller.signal
+                });
+                
+                clearTimeout(fetchTimeout);
+                
+                apiElapsedMs = Date.now() - apiStartTime;
+                debugLog.log(`[CPU Move] 📡 API Response: Status ${apiResponse.status}, Time ${apiElapsedMs}ms${retryCount > 0 ? ` (Retry ${retryCount})` : ''}`);
+                
+                if (!apiResponse.ok) {
+                  const errorText = await apiResponse.text();
+                  console.error(`[CPU Move] ❌ API Error Response (${apiResponse.status}):`, errorText);
+                  const error = new Error(`API returned ${apiResponse.status}: ${apiResponse.statusText}`);
+                  (error as any).statusCode = apiResponse.status; // Attach for telemetry
+                  throw error;
+                }
+              } catch (fetchError) {
+                clearTimeout(fetchTimeout);
+                if (fetchError instanceof Error && fetchError.name === 'AbortError') {
+                  debugLog.warn('[CPU Move] ⚠️ Fetch aborted due to timeout');
+                  throw new Error('API request timeout after 30s');
+                }
+                throw fetchError;
               }
               
               const apiData = await apiResponse.json();
@@ -1683,7 +1707,7 @@ export const CoachingMode: React.FC = () => {
             🔄 New Game
           </button>
           <button 
-            onClick={() => alert('Openings feature coming soon!')}
+            onClick={() => setShowOpeningsModal(true)}
             className="control-btn"
             disabled={state.isThinking}
           >
@@ -1696,6 +1720,37 @@ export const CoachingMode: React.FC = () => {
           >
             📊 My Profile
           </button>
+          {state.gameMode === 'vs-cpu' && !state.gameResult && state.moveHistory.length >= 2 && (
+            <button 
+              onClick={() => {
+                const concedeResult = state.cpuColor === 'w' 
+                  ? 'You conceded - White wins' 
+                  : 'You conceded - Black wins';
+                setState(prev => ({
+                  ...prev,
+                  gameResult: concedeResult,
+                  isThinking: false
+                }));
+                debugLog.log('[Concede] Game conceded:', concedeResult);
+                persistentLogger.info('Game conceded by player', { 
+                  moveCount: state.moveHistory.length,
+                  result: concedeResult 
+                });
+              }}
+              className="control-btn concede-btn"
+              disabled={state.isThinking}
+              style={{
+                background: '#e53935',
+                color: 'white',
+                fontWeight: '600',
+              }}
+              onMouseOver={(e) => e.currentTarget.style.background = '#c62828'}
+              onMouseOut={(e) => e.currentTarget.style.background = '#e53935'}
+              title="Concede this game and allow Wall-E to learn from it"
+            >
+              🏳️ Concede
+            </button>
+          )}
           {state.gameMode === 'vs-cpu' && (
             <button 
               onClick={() => {
@@ -2632,6 +2687,14 @@ export const CoachingMode: React.FC = () => {
       {state.showPlayerProfile && (
         <PlayerProfile
           onClose={() => setState(prev => ({ ...prev, showPlayerProfile: false }))}
+        />
+      )}
+
+      {/* Openings Modal */}
+      {showOpeningsModal && (
+        <OpeningsModal
+          open={showOpeningsModal}
+          onClose={() => setShowOpeningsModal(false)}
         />
       )}
 

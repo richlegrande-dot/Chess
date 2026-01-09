@@ -1,5 +1,18 @@
-# Quick Start Command - Single line execution
+# ChessChatWeb Automated Startup Script
+# =======================================
+# This script automatically runs when the workspace opens
+# 
+# Features:
+# 1. Cleans up stale processes on ports 3000/3001
+# 2. Finds available ports if defaults are in use
+# 3. Warms up Render Stockfish server to avoid cold starts
+# 4. Starts local dev server and tunnel
+# 5. Runs pre-manual tests on local server
+# 6. Runs pre-manual tests on production site
+# 7. Provides troubleshooting diagnostics on errors
+#
 # Usage: .\bypass.ps1
+# Log: bypass-startup.log
 
 # Set console encoding to UTF-8 for proper emoji display
 [Console]::OutputEncoding = [System.Text.Encoding]::UTF8
@@ -187,6 +200,27 @@ if (-not (Test-Path "node_modules")) {
     Write-Log "npm install completed successfully" "SUCCESS"
 }
 
+# Warm up Render Stockfish server to avoid cold start
+Write-Host ""
+Write-Host "========================================" -ForegroundColor Cyan
+Write-Host "  Warming up Render Stockfish Server" -ForegroundColor Cyan
+Write-Host "========================================" -ForegroundColor Cyan
+Write-Host ""
+Write-Log "Starting Render Stockfish warmup..." "INFO"
+
+try {
+    & "$projectPath\scripts\warm-start-render.ps1"
+    if ($LASTEXITCODE -eq 0) {
+        Write-Log "Render Stockfish server is ready!" "SUCCESS"
+    } else {
+        Write-Log "Render warmup completed with issues (will continue)" "WARN"
+    }
+} catch {
+    Write-Log "Error during Render warmup: $($_.Exception.Message)" "WARN"
+    Write-Log "Continuing with local server startup..." "INFO"
+}
+
+Write-Host ""
 Write-Log "Starting server and tunnel..." "INFO"
 Write-Host ""
 
@@ -195,11 +229,72 @@ try {
     & "$projectPath\start-with-tunnel.ps1" -MaxRetries 3 -HealthCheckInterval 15 -TunnelType "localtunnel"
     if ($LASTEXITCODE -ne 0) {
         Write-Log "start-with-tunnel.ps1 exited with code $LASTEXITCODE" "ERROR"
+        
+        # Run troubleshooting tests
+        Write-Log "Running troubleshooting diagnostics..." "WARN"
+        & "$projectPath\scripts\pre-manual-test.ps1" -Troubleshoot
+        
         exit $LASTEXITCODE
     }
     Write-Log "Startup completed successfully" "SUCCESS"
 } catch {
     Write-Log "Error during startup: $($_.Exception.Message)" "ERROR"
     Write-Log "Stack trace: $($_.ScriptStackTrace)" "ERROR"
+    
+    # Run troubleshooting tests on error
+    Write-Log "Running troubleshooting diagnostics..." "WARN"
+    & "$projectPath\scripts\pre-manual-test.ps1" -Troubleshoot
+    
     exit 1
 }
+
+# Wait a moment for server to be fully ready
+Write-Log "Waiting for server to be fully ready..." "INFO"
+Start-Sleep -Seconds 5
+
+# Run pre-manual tests to verify deployment
+Write-Host ""
+Write-Host "========================================" -ForegroundColor Cyan
+Write-Host "  Running Pre-Manual Tests" -ForegroundColor Cyan
+Write-Host "========================================" -ForegroundColor Cyan
+Write-Host ""
+
+try {
+    # Determine the base URL (local server)
+    $baseUrl = "http://localhost:$selectedServerPort"
+    
+    Write-Log "Testing local server at $baseUrl..." "INFO"
+    & "$projectPath\scripts\pre-manual-test.ps1" -BaseUrl $baseUrl
+    
+    if ($LASTEXITCODE -eq 0) {
+        Write-Log "Local server pre-manual tests passed!" "SUCCESS"
+    } else {
+        Write-Log "Local server pre-manual tests completed with warnings" "WARN"
+    }
+    
+    # Also test production site if Render warmup was successful
+    Write-Host ""
+    Write-Host "========================================" -ForegroundColor Cyan
+    Write-Host "  Testing Production Site" -ForegroundColor Cyan
+    Write-Host "========================================" -ForegroundColor Cyan
+    Write-Host ""
+    Write-Log "Testing production site at https://chesschat.uk..." "INFO"
+    
+    & "$projectPath\scripts\pre-manual-test.ps1" -BaseUrl "https://chesschat.uk"
+    
+    if ($LASTEXITCODE -eq 0) {
+        Write-Log "Production site pre-manual tests passed!" "SUCCESS"
+    } else {
+        Write-Log "Production site pre-manual tests completed with warnings" "WARN"
+    }
+    
+} catch {
+    Write-Log "Error running pre-manual tests: $($_.Exception.Message)" "WARN"
+    Write-Log "You can run tests manually: .\scripts\pre-manual-test.ps1" "INFO"
+}
+
+Write-Host ""
+Write-Host "========================================" -ForegroundColor Green
+Write-Host "  Startup Complete!" -ForegroundColor Green
+Write-Host "========================================" -ForegroundColor Green
+Write-Host ""

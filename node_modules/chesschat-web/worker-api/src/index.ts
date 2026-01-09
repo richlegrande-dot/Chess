@@ -7,8 +7,10 @@ import {
   handleLearningIngest,
   handleLearningPlan,
   handleLearningFeedback,
+  handleLearningProgress,
   handleWallePostgame,
   handleLearningHealth,
+  handleLearningRecentEvents,
 } from './learningEndpoints';
 import { probeStockfishWarmth } from './stockfishWarmup';
 
@@ -1080,12 +1082,16 @@ export default {
       response = await handleLearningIngest(request, env, prisma, ctx);
     } else if (path === '/api/learning/plan' && request.method === 'GET') {
       response = await handleLearningPlan(request, env, prisma);
+    } else if (path === '/api/learning/progress' && request.method === 'GET') {
+      response = await handleLearningProgress(request, env, prisma);
     } else if (path === '/api/learning/feedback' && request.method === 'POST') {
       response = await handleLearningFeedback(request, env, prisma);
     } else if (path === '/api/walle/postgame' && request.method === 'POST') {
       response = await handleWallePostgame(request, env, prisma);
     } else if (path === '/api/admin/learning-health' && request.method === 'GET') {
       response = await handleLearningHealth(request, env, prisma);
+    } else if (path === '/api/admin/learning-recent' && request.method === 'GET') {
+      response = await handleLearningRecentEvents(request, env, prisma);
     } else if (path === '/api/chess-move' && request.method === 'POST') {
       response = await handleChessMove(request, env);
     } else if (path === '/api/admin/worker-health' && request.method === 'GET') {
@@ -1112,9 +1118,11 @@ export default {
             'POST /api/chess-move',
             'POST /api/learning/ingest-game',
             'GET /api/learning/plan',
+            'GET /api/learning/progress',
             'POST /api/learning/feedback',
             'POST /api/walle/postgame',
             'GET /api/admin/learning-health',
+            'GET /api/admin/learning-recent',
             'GET /api/admin/worker-health',
             'GET /api/admin/stockfish-health',
             'GET /api/admin/stockfish-warm-status',

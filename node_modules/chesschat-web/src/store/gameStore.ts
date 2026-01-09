@@ -119,6 +119,18 @@ export interface HealthInfo {
   lastRecoveryTime: number | null;
 }
 
+// Captured pieces tracking
+export interface CapturedPiecesData {
+  red: string[]; // RED/WHITE pieces that were captured
+  black: string[]; // BLACK pieces that were captured
+}
+
+export interface RecentCapture {
+  capturedColor: 'red' | 'black'; // Color of the piece that was captured
+  pieceType: string; // The piece type that was captured
+  timestamp: number;
+}
+
 interface GameStore {
   // Chess game instance
   chess: ChessGame;
@@ -131,6 +143,10 @@ interface GameStore {
   errorMessage: string | null;
   gameResult: string | null;
   gamePhase: 'opening' | 'middlegame' | 'endgame' | null;
+  
+  // Captured pieces
+  capturedPieces: CapturedPiecesData;
+  recentCapture: RecentCapture | null;
 
   // Selected model
   selectedModel: AIModel;
@@ -195,6 +211,11 @@ export const useGameStore = create<GameStore>()(
       errorMessage: null,
       gameResult: null,
       gamePhase: null,
+      capturedPieces: {
+        red: [],
+        black: [],
+      },
+      recentCapture: null,
       selectedModel: AIModelRegistry.defaultModel,
       chatMessages: [],
       gameId: null,
@@ -257,6 +278,10 @@ export const useGameStore = create<GameStore>()(
 
         // Clone first, then make move on the clone (immutable pattern)
         const newChess = state.chess.clone();
+        
+        // Check if this move captures a piece
+        const targetPiece = newChess.getPiece(to);
+        
         const move = newChess.makeMove(from, to, promotion);
         
         if (!move) {
@@ -267,6 +292,24 @@ export const useGameStore = create<GameStore>()(
 
         const uciMove = `${from}${to}${promotion || ''}`;
         gameLogger.info(`Player move: ${uciMove}`);
+        
+        // Update captured pieces if there was a capture
+        let updatedCapturedPieces = state.capturedPieces;
+        let newRecentCapture = null;
+        if (targetPiece) {
+          // Determine the COLOR of the piece that was captured
+          const capturedPieceColor: 'red' | 'black' = targetPiece.startsWith('w') ? 'red' : 'black';
+          updatedCapturedPieces = {
+            ...state.capturedPieces,
+            [capturedPieceColor]: [...state.capturedPieces[capturedPieceColor], targetPiece],
+          };
+          newRecentCapture = {
+            capturedColor: capturedPieceColor as 'red' | 'black',
+            pieceType: targetPiece,
+            timestamp: Date.now(),
+          };
+          console.log(`[Capture] ${capturedPieceColor.toUpperCase()} piece captured: ${targetPiece}`);
+        }
 
         // Update turn validator
         turnValidator.recordMove('human', newChess.getTurn(), 'white');
@@ -296,6 +339,8 @@ export const useGameStore = create<GameStore>()(
             gameResult: result,
             gameState: GameState.PostGame,
             boardVersion: s.boardVersion + 1,
+            capturedPieces: updatedCapturedPieces,
+            recentCapture: newRecentCapture,
             debugInfo: {
               ...s.debugInfo,
               moveHistory: [...s.debugInfo.moveHistory, moveEntry],
@@ -319,11 +364,20 @@ export const useGameStore = create<GameStore>()(
           isPlayerTurn: false,
           gamePhase,
           boardVersion: s.boardVersion + 1,
+          capturedPieces: updatedCapturedPieces,
+          recentCapture: newRecentCapture,
           debugInfo: {
             ...s.debugInfo,
             moveHistory: [...s.debugInfo.moveHistory, moveEntry],
           },
         }));
+        
+        // Clear recent capture animation after a delay
+        if (newRecentCapture) {
+          setTimeout(() => {
+            set({ recentCapture: null });
+          }, 2000);
+        }
 
         // Make AI move (will get the NEW chess instance from state)
         await get().makeAIMove();
@@ -397,9 +451,7 @@ export const useGameStore = create<GameStore>()(
                 debugLog.log('[DIAGNOSTIC] GameStore API Response:', {
                   hasMove: !!response.move,
                   hasWorkerCallLog: !!response.workerCallLog,
-                  workerCallLog: response.workerCallLog,
-                  mode: response.mode,
-                  engine: response.engine
+                  workerCallLog: response.workerCallLog
                 });
 
                 // Log worker call if present in response
@@ -427,6 +479,11 @@ export const useGameStore = create<GameStore>()(
                 // Clone and apply move
                 const currentState = get();
                 const newChess = currentState.chess.clone();
+                
+                // Check if this move captures a piece (parse UCI format)
+                const targetSquare = response.move.substring(2, 4);
+                const targetPiece = newChess.getPiece(targetSquare as Square);
+                
                 const move = newChess.makeMoveUCI(response.move);
 
                 if (!move) {
@@ -434,6 +491,24 @@ export const useGameStore = create<GameStore>()(
                 }
                 
                 cpuLogger.debug(`CPU move applied successfully: ${response.move}`);
+                
+                // Update captured pieces if there was a capture
+                let updatedCapturedPieces = currentState.capturedPieces;
+                let newRecentCapture = null;
+                if (targetPiece) {
+                  // Determine the COLOR of the piece that was captured
+                  const capturedPieceColor: 'red' | 'black' = targetPiece.startsWith('w') ? 'red' : 'black';
+                  updatedCapturedPieces = {
+                    ...currentState.capturedPieces,
+                    [capturedPieceColor]: [...currentState.capturedPieces[capturedPieceColor], targetPiece],
+                  };
+                  newRecentCapture = {
+                    capturedColor: capturedPieceColor as 'red' | 'black',
+                    pieceType: targetPiece,
+                    timestamp: Date.now(),
+                  };
+                  console.log(`[Capture] ${capturedPieceColor.toUpperCase()} piece captured: ${targetPiece}`);
+                }
 
                 // Update turn validator
                 turnValidator.recordMove('cpu', newChess.getTurn(), 'white');
@@ -474,6 +549,8 @@ export const useGameStore = create<GameStore>()(
                   chessConversation: response.chatHistory || s.chessConversation,
                   lastAIResponse: response.conversationalResponse || s.lastAIResponse,
                   boardVersion: s.boardVersion + 1,
+                  capturedPieces: updatedCapturedPieces,
+                  recentCapture: newRecentCapture,
                   debugInfo: {
                     ...s.debugInfo,
                     moveHistory: [...s.debugInfo.moveHistory, moveEntry],
@@ -485,6 +562,13 @@ export const useGameStore = create<GameStore>()(
                     issues: health.issues,
                   },
                 }));
+                
+                // Clear recent capture animation after a delay
+                if (newRecentCapture) {
+                  setTimeout(() => {
+                    set({ recentCapture: null });
+                  }, 2000);
+                }
 
                 return; // Success - exit retry loop
               } catch (error) {
@@ -600,6 +684,11 @@ export const useGameStore = create<GameStore>()(
           errorMessage: null,
           gameResult: null,
           gamePhase: 'opening',
+          capturedPieces: {
+            red: [],
+            black: [],
+          },
+          recentCapture: null,
           chatMessages: [],
           gameId: null,
           chessConversation: [],
@@ -608,6 +697,7 @@ export const useGameStore = create<GameStore>()(
             lastApiCall: null,
             lastApiResponse: null,
             moveHistory: [],
+            workerCalls: [],
             lastWorkerMetadata: null,
             engineFeatures: {
               quiescence: {
