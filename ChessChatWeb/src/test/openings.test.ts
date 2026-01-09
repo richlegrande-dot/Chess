@@ -8,9 +8,9 @@ import { Chess } from 'chess.js';
 import { OPENINGS_SEED, type Opening } from '../data/openings.seed';
 
 describe('Openings Data Model - openings.seed.ts', () => {
-  it('should have exactly 5 seeded openings', () => {
+  it('should have exactly 50 seeded openings', () => {
     expect(OPENINGS_SEED).toBeDefined();
-    expect(OPENINGS_SEED.length).toBe(5);
+    expect(OPENINGS_SEED.length).toBe(50);
   });
 
   it('should have all required fields for each opening', () => {
@@ -37,7 +37,7 @@ describe('Openings Data Model - openings.seed.ts', () => {
     expect(openingNames).toContain('Ruy Lopez');
     expect(openingNames).toContain('Sicilian Defense - Najdorf');
     expect(openingNames).toContain('French Defense');
-    expect(openingNames).toContain("Queen's Gambit");
+    expect(openingNames).toContain("Queen's Gambit Declined");
   });
 
   it('should have ECO codes where applicable', () => {
@@ -434,8 +434,8 @@ describe('Integration Requirements', () => {
 
 describe('Scalability for 50+ Openings', () => {
   it('should handle array-based opening storage efficiently', () => {
-    // Current: 5 openings
-    expect(OPENINGS_SEED.length).toBe(5);
+    // Current: 50 openings, ready for more
+    expect(OPENINGS_SEED.length).toBe(50);
     
     // Verify structure supports expansion
     expect(Array.isArray(OPENINGS_SEED)).toBe(true);
@@ -444,13 +444,13 @@ describe('Scalability for 50+ Openings', () => {
     const expandedOpenings = [
       ...OPENINGS_SEED,
       {
-        id: 'test-opening-6',
-        name: 'Test Opening 6',
+        id: 'test-opening-51',
+        name: 'Test Opening 51',
         movesSAN: ['e4', 'e5'],
       },
     ];
     
-    expect(expandedOpenings.length).toBe(6);
+    expect(expandedOpenings.length).toBe(51);
   });
 
   it('should support lookup by ID efficiently', () => {
