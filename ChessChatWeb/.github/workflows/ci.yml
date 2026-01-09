@@ -90,6 +90,12 @@ jobs:
         run: npm test -- --run functions/lib/personalizedReferences.test.ts || echo "⚠ Unit tests not configured, skipping"
         continue-on-error: true
       
+      - name: Run Openings Feature Tests (REQUIRED - blocks merge on failure)
+        run: |
+          echo "🧪 Running Chess Openings Preview Modal tests..."
+          npx vitest run src/test/openings.test.ts
+          echo "✓ All 45+ openings tests passed (including regression tests)"
+      
       - name: Verify personalization guard exists
         run: |
           # Check that Wall-E engine imports personalization system
