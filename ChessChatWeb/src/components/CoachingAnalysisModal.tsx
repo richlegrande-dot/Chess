@@ -318,7 +318,13 @@ export const CoachingAnalysisModal: React.FC<CoachingAnalysisProps> = ({
           `**Key Statistics:**\n` +
           `• You made ${analysis.playerCaptures} capture(s) vs opponent's ${analysis.opponentCaptures}\n` +
           `• You gave ${analysis.playerChecks} check(s) vs opponent's ${analysis.opponentChecks}\n` +
-          `• Castling: ${analysis.castling.filter(c => c.player === playerColor).length > 0 ? `Yes (${analysis.castling.filter(c => c.player === playerColor).map(m => `turn ${m.moveNum}`).join(', ')})` : 'No castling by you'}\n\n` +
+          `• Castling: ${analysis.castling.filter((c, idx) => {
+            const moveIndex = moveHistory.findIndex(m => m === c);
+            return isPlayerMove(moveIndex);
+          }).length > 0 ? `Yes (${analysis.castling.filter((c, idx) => {
+            const moveIndex = moveHistory.findIndex(m => m === c);
+            return isPlayerMove(moveIndex);
+          }).map(m => `turn ${m.moveNum}`).join(', ')})` : 'No castling by you'}\n\n` +
           `**Critical Moments:**\n`;
         
         if (analysis.middlegamePhase.length > 0) {
@@ -339,7 +345,10 @@ export const CoachingAnalysisModal: React.FC<CoachingAnalysisProps> = ({
           response += `${isWin ? '1' : '2'}. Opponent won the material battle (${analysis.opponentCaptures} vs ${analysis.playerCaptures} captures) - look for hanging pieces\n`;
         }
         
-        if (analysis.castling.filter(c => c.player === playerColor).length === 0 && totalMoves > 15) {
+        if (analysis.castling.filter((c, idx) => {
+          const moveIndex = moveHistory.findIndex(m => m === c);
+          return isPlayerMove(moveIndex);
+        }).length === 0 && totalMoves > 15) {
           response += `${response.includes('2.') ? '3' : isWin ? '1' : '2'}. You never castled - king safety is crucial! Castle by move 8-12 in most games\n`;
         }
         
@@ -395,7 +404,9 @@ export const CoachingAnalysisModal: React.FC<CoachingAnalysisProps> = ({
         
         response += `**Captures Made:**\n`;
         analysis.captures.forEach(c => {
-          response += `• Move ${c.moveNum} (${c.player === playerColor ? 'YOU' : 'Opponent'}): ${c.move}`;
+          const moveIndex = moveHistory.findIndex(m => m === c);
+          const isYours = isPlayerMove(moveIndex);
+          response += `• Move ${c.moveNum} (${isYours ? 'YOU' : 'Opponent'}): ${c.move}`;
           if (c.move.match(/x[QRBN]/)) {
             response += ` 🎯 *Major piece captured!*`;
           }
@@ -405,7 +416,9 @@ export const CoachingAnalysisModal: React.FC<CoachingAnalysisProps> = ({
         response += `\n**Checks Given:**\n`;
         if (analysis.checks.length > 0) {
           analysis.checks.forEach(c => {
-            response += `• Move ${c.moveNum} (${c.player === playerColor ? 'YOU' : 'Opponent'}): ${c.move}`;
+            const moveIndex = moveHistory.findIndex(m => m === c);
+            const isYours = isPlayerMove(moveIndex);
+            response += `• Move ${c.moveNum} (${isYours ? 'YOU' : 'Opponent'}): ${c.move}`;
             if (c.move.includes('#')) {
               response += ` ⚔️ *Checkmate!*`;
             } else if (c.move.includes('++')) {
