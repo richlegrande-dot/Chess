@@ -41,9 +41,20 @@ export const CoachingAnalysisModal: React.FC<CoachingAnalysisProps> = ({
   const [inputText, setInputText] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   
+  // Helper function to determine if a move at a given index was made by the player
+  // In vs-CPU mode, moveHistory.player represents PIECE COLOR, not who made the move
+  // White always moves first (even indices), Black moves second (odd indices)
+  const isPlayerMove = (moveIndex: number): boolean => {
+    if (playerColor === 'White') {
+      return moveIndex % 2 === 0; // Player is White, moves on even indices
+    } else {
+      return moveIndex % 2 === 1; // Player is Black, moves on odd indices
+    }
+  };
+  
   const generateTakeaways = (): Takeaway[] => {
     const takeaways: Takeaway[] = [];
-    const totalMoves = moveHistory.filter(m => m.player === playerColor).length;
+    const totalMoves = moveHistory.filter((m, idx) => isPlayerMove(idx)).length;
     const allMoves = moveHistory.length;
     const isWin = gameResult.toLowerCase().includes('win') || gameResult.toLowerCase().includes(playerColor.toLowerCase());
     const isQuickGame = totalMoves < 10;
@@ -181,8 +192,37 @@ export const CoachingAnalysisModal: React.FC<CoachingAnalysisProps> = ({
   const takeaways = generateTakeaways();
 
   const analyzeGameMoves = () => {
-    const playerMoves = moveHistory.filter(m => m.player === playerColor);
-    const opponentMoves = moveHistory.filter(m => m.player !== playerColor);
+    // CRITICAL FIX: In vs-CPU mode, moveHistory.player represents the PIECE COLOR that moved,
+    // not whether it was the human or CPU. We need to determine actual player/opponent moves correctly.
+    // When human plays Black, their moves are recorded as player:'Black' 
+    // When CPU plays Black, CPU moves are ALSO recorded as player:'Black'
+    // So we must use move index (odd/even) to determine who actually made each move.
+    
+    // In vs-CPU: Human always moves first if they're White, or second if they're Black
+    // Move indices: 0,1,2,3,4,5...
+    // If playerColor is 'White': human moves are even indices (0,2,4...), CPU moves are odd (1,3,5...)
+    // If playerColor is 'Black': human moves are odd indices (1,3,5...), CPU moves are even (0,2,4...)
+    
+    const playerMoves = moveHistory.filter((m, index) => {
+      // playerColor is 'White' or 'Black' representing which color the human plays
+      if (playerColor === 'White') {
+        // Human is White, moves on even indices (starts at 0)
+        return index % 2 === 0;
+      } else {
+        // Human is Black, moves on odd indices (starts at 1)
+        return index % 2 === 1;
+      }
+    });
+    
+    const opponentMoves = moveHistory.filter((m, index) => {
+      if (playerColor === 'White') {
+        // CPU is Black, moves on odd indices
+        return index % 2 === 1;
+      } else {
+        // CPU is White, moves on even indices
+        return index % 2 === 0;
+      }
+    });
     
     // Debug: Log move history to see captured field
     console.log('[CoachingAnalysis] Full move history:', moveHistory);
@@ -204,6 +244,32 @@ export const CoachingAnalysisModal: React.FC<CoachingAnalysisProps> = ({
     const allCaptures = captures.length > 0 ? captures : capturesAlternate;
     console.log('[CoachingAnalysis] Captures detected:', captures.length, 'Alternate method:', capturesAlternate.length, 'Using:', allCaptures.length);
     
+    // Count player/opponent captures and checks using the same index logic
+    const playerCaptures = allCaptures.filter((m, origIndex) => {
+      // Need to find this move's original index in full moveHistory
+      const idx = moveHistory.findIndex(move => move === m);
+      if (playerColor === 'White') return idx % 2 === 0;
+      else return idx % 2 === 1;
+    }).length;
+    
+    const opponentCaptures = allCaptures.filter((m, origIndex) => {
+      const idx = moveHistory.findIndex(move => move === m);
+      if (playerColor === 'White') return idx % 2 === 1;
+      else return idx % 2 === 0;
+    }).length;
+    
+    const playerChecks = checks.filter((m, origIndex) => {
+      const idx = moveHistory.findIndex(move => move === m);
+      if (playerColor === 'White') return idx % 2 === 0;
+      else return idx % 2 === 1;
+    }).length;
+    
+    const opponentChecks = checks.filter((m, origIndex) => {
+      const idx = moveHistory.findIndex(move => move === m);
+      if (playerColor === 'White') return idx % 2 === 1;
+      else return idx % 2 === 0;
+    }).length;
+    
     return {
       playerMoves,
       opponentMoves,
@@ -214,10 +280,10 @@ export const CoachingAnalysisModal: React.FC<CoachingAnalysisProps> = ({
       openingPhase,
       middlegamePhase,
       endgamePhase,
-      playerCaptures: allCaptures.filter(m => m.player === playerColor).length,
-      opponentCaptures: allCaptures.filter(m => m.player !== playerColor).length,
-      playerChecks: checks.filter(m => m.player === playerColor).length,
-      opponentChecks: checks.filter(m => m.player !== playerColor).length,
+      playerCaptures,
+      opponentCaptures,
+      playerChecks,
+      opponentChecks,
     };
   };
 
@@ -283,7 +349,8 @@ export const CoachingAnalysisModal: React.FC<CoachingAnalysisProps> = ({
         response = `**Move-by-Move Opening Analysis:**\n\n`;
         
         analysis.openingPhase.forEach((move, idx) => {
-          const isYourMove = move.player === playerColor;
+          const moveIndex = moveHistory.findIndex(m => m === move);
+          const isYourMove = isPlayerMove(moveIndex);
           response += `${move.moveNum}. ${isYourMove ? '**You' : 'Opponent'} (${move.player}):** ${move.move}`;
           
           // Analyze each opening move
@@ -302,10 +369,16 @@ export const CoachingAnalysisModal: React.FC<CoachingAnalysisProps> = ({
         });
         
         response += `\n**Opening Evaluation:**\n`;
-        const yourOpeningMoves = analysis.openingPhase.filter(m => m.player === playerColor);
+        const yourOpeningMoves = analysis.openingPhase.filter((m, idx) => {
+          const moveIndex = moveHistory.findIndex(move => move === m);
+          return isPlayerMove(moveIndex);
+        });
         const centerMoves = yourOpeningMoves.filter(m => m.move.match(/^[e|d]4/) || m.move.match(/^[e|d]5/));
         const development = yourOpeningMoves.filter(m => m.move.match(/^[NBR]/));
-        const castled = analysis.castling.filter(m => m.player === playerColor && m.moveNum <= 10);
+        const castled = analysis.castling.filter((m, idx) => {
+          const moveIndex = moveHistory.findIndex(move => move === m);
+          return isPlayerMove(moveIndex) && m.moveNum <= 10;
+        });
         
         response += `• Center control: ${centerMoves.length > 0 ? '✓ Yes' : '✗ Needs work'}\n`;
         response += `• Piece development: ${development.length}/${yourOpeningMoves.length} moves\n`;
@@ -595,7 +668,7 @@ export const CoachingAnalysisModal: React.FC<CoachingAnalysisProps> = ({
         <div className="game-summary">
           <p><strong>Result:</strong> {gameResult}</p>
           <p><strong>Your Color:</strong> {playerColor}</p>
-          <p><strong>Total Moves:</strong> {moveHistory.filter(m => m.player === playerColor).length}</p>
+          <p><strong>Total Moves:</strong> {moveHistory.filter((m, idx) => isPlayerMove(idx)).length}</p>
         </div>
 
         <h3 className="section-title">📌 Key Takeaways (Top 5 of 50+)</h3>
