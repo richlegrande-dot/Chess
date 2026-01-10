@@ -214,13 +214,19 @@ class StockfishEngine {
       // Clear output buffer
       this.outputBuffer = [];
       
-      // Set position
-      this.send(`position fen ${fen}`);
-      
-      // Configure for deterministic play (reduce randomization)
+      // CRITICAL FIX: Reset UCI options BEFORE setting position
+      // This ensures the Skill Level is properly applied for this specific move
+      // Without this, the previous game's Skill Level persists!
+      this.send('ucinewgame'); // Clear hash tables and reset state
       this.send(`setoption name Skill Level value ${config.skillLevel}`);
       this.send(`setoption name MultiPV value 1`);
       this.send(`setoption name Contempt value 0`);
+      
+      // Wait a moment for options to be set
+      await new Promise(resolve => setTimeout(resolve, 10));
+      
+      // Set position AFTER configuring options
+      this.send(`position fen ${fen}`);
       
       // Start search with time limit
       const movetime = Math.min(config.movetime, MAX_COMPUTE_TIME);
