@@ -71,32 +71,42 @@ export async function onRequestPost(context: {
 }
 
 function analyzeMoveHistory(moveHistory: MoveRecord[], playerColor: string): AnalysisResult {
-  const playerMoves = moveHistory.filter(m => m.player === playerColor);
-  const opponentMoves = moveHistory.filter(m => m.player !== playerColor);
+  // Helper function: In vs-CPU mode, moveHistory.player represents PIECE COLOR, not who made the move
+  // White moves first (even indices: 0,2,4...), Black moves second (odd indices: 1,3,5...)
+  const isPlayerMove = (moveIndex: number): boolean => {
+    if (playerColor === 'White') {
+      return moveIndex % 2 === 0; // Player is White, moves on even indices
+    } else {
+      return moveIndex % 2 === 1; // Player is Black, moves on odd indices
+    }
+  };
+  
+  const playerMoves = moveHistory.filter((m, idx) => isPlayerMove(idx));
+  const opponentMoves = moveHistory.filter((m, idx) => !isPlayerMove(idx));
   
   // Count captures - a move is a capture if it has captured field OR contains 'x'/'×' notation
   // We deduplicate by move number to avoid double-counting moves with both indicators
   const playerCapturesMoves = new Set();
-  moveHistory.forEach(m => {
-    if (m.player === playerColor && (m.captured || m.move.toLowerCase().includes('x') || m.move.includes('×'))) {
+  moveHistory.forEach((m, idx) => {
+    if (isPlayerMove(idx) && (m.captured || m.move.toLowerCase().includes('x') || m.move.includes('×'))) {
       playerCapturesMoves.add(m.moveNum);
     }
   });
   const playerCaptures = playerCapturesMoves.size;
   
   const opponentCapturesMoves = new Set();
-  moveHistory.forEach(m => {
-    if (m.player !== playerColor && (m.captured || m.move.toLowerCase().includes('x') || m.move.includes('×'))) {
+  moveHistory.forEach((m, idx) => {
+    if (!isPlayerMove(idx) && (m.captured || m.move.toLowerCase().includes('x') || m.move.includes('×'))) {
       opponentCapturesMoves.add(m.moveNum);
     }
   });
   const opponentCaptures = opponentCapturesMoves.size;
   
-  const playerChecks = moveHistory.filter(m => 
-    (m.move.includes('+') || m.move.includes('#')) && m.player === playerColor
+  const playerChecks = moveHistory.filter((m, idx) => 
+    (m.move.includes('+') || m.move.includes('#')) && isPlayerMove(idx)
   ).length;
-  const castled = moveHistory.some(m => 
-    (m.move.includes('O-O') || m.move.includes('0-0')) && m.player === playerColor
+  const castled = moveHistory.some((m, idx) => 
+    (m.move.includes('O-O') || m.move.includes('0-0')) && isPlayerMove(idx)
   );
   
   const totalMoves = moveHistory.length;
@@ -120,8 +130,13 @@ function analyzeMoveHistory(moveHistory: MoveRecord[], playerColor: string): Ana
   if (!castled && totalMoves > 15) {
     mistakes.push('Never castled - king remained unsafe in center');
     recommendations.push('Castle by move 8-12 in most games for king safety');
-  } else if (castled && moveHistory.findIndex(m => m.move.includes('O-O') && m.player === playerColor) <= 10) {
-    strengths.push('Castled early for king safety');
+  } else if (castled) {
+    const castleIndex = moveHistory.findIndex((m, idx) => 
+      m.move.includes('O-O') && isPlayerMove(idx)
+    );
+    if (castleIndex !== -1 && castleIndex <= 10) {
+      strengths.push('Castled early for king safety');
+    }
   }
   
   // Tactical activity
@@ -152,7 +167,7 @@ function analyzeMoveHistory(moveHistory: MoveRecord[], playerColor: string): Ana
   // Capture analysis
   if (playerCaptures > 0) {
     const captureTypes = moveHistory
-      .filter(m => (m.captured || m.move.includes('x')) && m.player === playerColor)
+      .filter((m, idx) => (m.captured || m.move.includes('x')) && isPlayerMove(idx))
       .map(m => m.move);
     tacticalPatterns.push(`Captured pieces: ${captureTypes.join(', ')}`);
   }
