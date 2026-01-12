@@ -571,7 +571,7 @@ app.get('/health', (req, res) => {
   res.json({
     status: 'healthy',
     service: 'stockfish-server',
-    version: '1.0.0',
+    version: '1.0.1', // Updated to trigger deployment
     engines: {
       active: enginePool.length,
       max: MAX_ENGINES
