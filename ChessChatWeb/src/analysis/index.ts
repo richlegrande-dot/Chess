@@ -1,1 +1,400 @@
-/**\n * Chess Analysis Pipeline - Main orchestrator for game analysis\n * \n * This module brings together all analysis components to provide\n * a complete coaching system. It coordinates engine analysis,\n * theme assignment, and takeaway generation to transform raw\n * game data into structured coaching advice.\n */\n\nimport { \n  GameAnalysisResult,\n  TurnPoint,\n  ThemedTurnPoint,\n  Takeaway\n} from './types';\nimport { EngineAnalyzer, EngineAnalysisConfig } from './EngineAnalyzer';\nimport { PhaseClassifier, PhaseClassifierConfig } from './PhaseClassifier';\nimport { ThemeAssigner, ThemeAssignerConfig } from './ThemeAssigner';\nimport { TakeawayGenerator, TakeawayGeneratorConfig } from './TakeawayGenerator';\n\n/**\n * Main analysis pipeline configuration\n */\nexport interface AnalysisPipelineConfig {\n  engine: Partial<EngineAnalysisConfig>;\n  phaseClassifier: Partial<PhaseClassifierConfig>;\n  themeAssigner: Partial<ThemeAssignerConfig>;\n  takeawayGenerator: Partial<TakeawayGeneratorConfig>;\n}\n\nexport const DEFAULT_PIPELINE_CONFIG: AnalysisPipelineConfig = {\n  engine: {},\n  phaseClassifier: {},\n  themeAssigner: {},\n  takeawayGenerator: {}\n};\n\n/**\n * Main chess analysis pipeline\n */\nexport class ChessAnalysisPipeline {\n  private engineAnalyzer: EngineAnalyzer;\n  private phaseClassifier: PhaseClassifier;\n  private themeAssigner: ThemeAssigner;\n  private takeawayGenerator: TakeawayGenerator;\n\n  constructor(config: Partial<AnalysisPipelineConfig> = {}) {\n    const fullConfig = { ...DEFAULT_PIPELINE_CONFIG, ...config };\n    \n    this.engineAnalyzer = new EngineAnalyzer(fullConfig.engine);\n    this.phaseClassifier = new PhaseClassifier(fullConfig.phaseClassifier);\n    this.themeAssigner = new ThemeAssigner(\n      fullConfig.themeAssigner, \n      this.phaseClassifier\n    );\n    this.takeawayGenerator = new TakeawayGenerator(fullConfig.takeawayGenerator);\n  }\n\n  /**\n   * Complete analysis of a chess game\n   * This is the main entry point for the coaching system\n   */\n  async analyzeGame(\n    pgn: string,\n    playerColor: 'white' | 'black' = 'white',\n    skillLevel: 'beginner' | 'intermediate' | 'advanced' = 'intermediate'\n  ): Promise<GameAnalysisResult> {\n    \n    console.log('🔍 Starting chess game analysis...');\n    \n    try {\n      // Step 1: Engine analysis to find turning points\n      console.log('⚡ Running engine analysis...');\n      const turnPoints = await this.engineAnalyzer.analyzeGame(pgn, playerColor);\n      console.log(`📊 Found ${turnPoints.length} turning points`);\n      \n      // Step 2: Assign coaching themes to turning points\n      console.log('🎯 Assigning coaching themes...');\n      const themedTurnPoints = await this.themeAssigner.assignThemes(turnPoints, skillLevel);\n      console.log(`🏷️ Themed ${themedTurnPoints.length} positions`);\n      \n      // Step 3: Generate takeaways and complete analysis\n      console.log('📝 Generating coaching takeaways...');\n      const result = await this.takeawayGenerator.generateAnalysis(\n        themedTurnPoints,\n        pgn,\n        playerColor,\n        skillLevel\n      );\n      \n      console.log(`✅ Analysis complete: ${result.takeaways.length} takeaways generated`);\n      console.log(`🎯 Overall rating: ${result.overallRating}/100`);\n      \n      return result;\n      \n    } catch (error) {\n      console.error('❌ Analysis failed:', error);\n      throw new Error(`Game analysis failed: ${error instanceof Error ? error.message : 'Unknown error'}`);\n    }\n  }\n\n  /**\n   * Analyze a single position for coaching insights\n   */\n  async analyzePosition(\n    fen: string,\n    moveNumber: number = 1,\n    skillLevel: 'beginner' | 'intermediate' | 'advanced' = 'intermediate'\n  ): Promise<{\n    gamePhase: string;\n    evaluation: number;\n    suggestedThemes: string[];\n    keyInsights: string[];\n  }> {\n    \n    // Classify game phase\n    const gamePhase = this.phaseClassifier.classifyPhase(fen, moveNumber);\n    \n    // Get position evaluation\n    const evaluation = await this.engineAnalyzer['engine'].evaluatePosition(fen);\n    \n    // Mock theme suggestions for single position\n    // In a real implementation, this would analyze position characteristics\n    const suggestedThemes = this.getSuggestedThemesForPhase(gamePhase, skillLevel);\n    \n    const keyInsights = [\n      `Position is in the ${gamePhase} phase`,\n      `Evaluation: ${evaluation > 0 ? '+' : ''}${(evaluation / 100).toFixed(2)} pawns`,\n      `Recommended focus: ${suggestedThemes[0] || 'general improvement'}`\n    ];\n    \n    return {\n      gamePhase,\n      evaluation,\n      suggestedThemes,\n      keyInsights\n    };\n  }\n\n  /**\n   * Get improvement recommendations based on analysis history\n   */\n  async getImprovementPlan(\n    recentAnalyses: GameAnalysisResult[],\n    skillLevel: 'beginner' | 'intermediate' | 'advanced' = 'intermediate'\n  ): Promise<{\n    topWeaknesses: string[];\n    recommendedStudy: string[];\n    practiceAreas: string[];\n    estimatedTimeToImprove: string;\n  }> {\n    \n    // Aggregate common themes across recent games\n    const themeFrequency = new Map<string, number>();\n    const categoryFrequency = new Map<string, number>();\n    \n    recentAnalyses.forEach(analysis => {\n      analysis.takeaways.forEach(takeaway => {\n        // Count theme frequency\n        themeFrequency.set(\n          takeaway.theme, \n          (themeFrequency.get(takeaway.theme) || 0) + 1\n        );\n        \n        // Count category frequency\n        categoryFrequency.set(\n          takeaway.category,\n          (categoryFrequency.get(takeaway.category) || 0) + 1\n        );\n      });\n    });\n    \n    // Find top weaknesses\n    const topWeaknesses = Array.from(themeFrequency.entries())\n      .sort(([,freqA], [,freqB]) => freqB - freqA)\n      .slice(0, 3)\n      .map(([theme]) => this.getThemeDisplayName(theme));\n    \n    // Generate study recommendations\n    const topCategories = Array.from(categoryFrequency.entries())\n      .sort(([,freqA], [,freqB]) => freqB - freqA)\n      .slice(0, 2)\n      .map(([category]) => category);\n    \n    const recommendedStudy = this.getStudyRecommendations(topCategories, skillLevel);\n    const practiceAreas = this.getPracticeRecommendations(topWeaknesses, skillLevel);\n    \n    return {\n      topWeaknesses,\n      recommendedStudy,\n      practiceAreas,\n      estimatedTimeToImprove: this.estimateImprovementTime(recentAnalyses.length, skillLevel)\n    };\n  }\n\n  /**\n   * Generate coaching context for chat system\n   */\n  generateChatContext(analysisResult: GameAnalysisResult): {\n    gameOverview: string;\n    keyThemes: string[];\n    specificExamples: string[];\n    improvementQuestions: string[];\n  } {\n    \n    const { takeaways, overallRating, gameStats } = analysisResult;\n    \n    const gameOverview = `This game had an overall rating of ${overallRating}/100. ` +\n      `You had ${gameStats.blunders} blunder(s), ${gameStats.mistakes} mistake(s), ` +\n      `and ${gameStats.inaccuracies} inaccuracy(ies) with an accuracy of ${gameStats.accuracyPercentage}%.`;\n    \n    const keyThemes = takeaways.map(t => t.title);\n    \n    const specificExamples = takeaways\n      .filter(t => t.examples && t.examples.length > 0)\n      .map(t => t.examples![0])\n      .slice(0, 3);\n    \n    const improvementQuestions = [\n      `What specific tactics should I practice based on this game?`,\n      `How can I improve my ${takeaways[0]?.category || 'overall'} play?`,\n      `What opening principles did I miss?`,\n      `How should I approach similar positions in the future?`\n    ];\n    \n    return {\n      gameOverview,\n      keyThemes,\n      specificExamples,\n      improvementQuestions\n    };\n  }\n\n  /**\n   * Export analysis for external use\n   */\n  exportAnalysis(result: GameAnalysisResult): {\n    summary: string;\n    detailed: object;\n    chatReady: object;\n  } {\n    return {\n      summary: this.generateAnalysisSummary(result),\n      detailed: {\n        takeaways: result.takeaways,\n        turnPoints: result.themedTurnPoints,\n        stats: result.gameStats,\n        rating: result.overallRating\n      },\n      chatReady: this.generateChatContext(result)\n    };\n  }\n\n  // Private helper methods\n  \n  private getSuggestedThemesForPhase(phase: string, skillLevel: string): string[] {\n    const themesByPhase: Record<string, Record<string, string[]>> = {\n      'opening': {\n        'beginner': ['Development', 'Center Control', 'King Safety'],\n        'intermediate': ['Opening Principles', 'Tactical Awareness', 'Pawn Structure'],\n        'advanced': ['Opening Theory', 'Positional Understanding', 'Strategic Planning']\n      },\n      'middlegame': {\n        'beginner': ['Tactics', 'Piece Activity', 'Basic Strategy'],\n        'intermediate': ['Calculation', 'Positional Play', 'Time Management'],\n        'advanced': ['Strategic Planning', 'Complex Tactics', 'Evaluation Skills']\n      },\n      'endgame': {\n        'beginner': ['Basic Checkmates', 'King Activity', 'Pawn Promotion'],\n        'intermediate': ['Endgame Technique', 'Opposition', 'Practical Play'],\n        'advanced': ['Theoretical Endgames', 'Precision', 'Conversion Technique']\n      }\n    };\n    \n    return themesByPhase[phase]?.[skillLevel] || ['General Improvement'];\n  }\n  \n  private getThemeDisplayName(themeId: string): string {\n    const displayNames: Record<string, string> = {\n      'calculation_accuracy': 'Calculation Accuracy',\n      'blunder_recovery': 'Blunder Recovery',\n      'pattern_recognition': 'Pattern Recognition',\n      'time_management': 'Time Management',\n      'opening_principles': 'Opening Principles',\n      'tactical_awareness': 'Tactical Awareness'\n    };\n    \n    return displayNames[themeId] || themeId.replace(/_/g, ' ').replace(/\\b\\w/g, l => l.toUpperCase());\n  }\n  \n  private getStudyRecommendations(categories: string[], skillLevel: string): string[] {\n    const recommendations: Record<string, Record<string, string[]>> = {\n      'tactics': {\n        'beginner': ['Basic tactical puzzles', 'Pin and fork patterns'],\n        'intermediate': ['Complex tactical combinations', 'Defensive tactics'],\n        'advanced': ['Advanced tactical motifs', 'Calculation depth exercises']\n      },\n      'strategy': {\n        'beginner': ['Basic positional concepts', 'Piece coordination'],\n        'intermediate': ['Pawn structure evaluation', 'Positional sacrifices'],\n        'advanced': ['Strategic masterpieces', 'Prophylactic thinking']\n      }\n    };\n    \n    const result: string[] = [];\n    categories.forEach(category => {\n      const categoryRecs = recommendations[category]?.[skillLevel];\n      if (categoryRecs) result.push(...categoryRecs);\n    });\n    \n    return result.slice(0, 5); // Limit recommendations\n  }\n  \n  private getPracticeRecommendations(weaknesses: string[], skillLevel: string): string[] {\n    return weaknesses.map(weakness => \n      `Practice ${weakness.toLowerCase()} through targeted exercises`\n    );\n  }\n  \n  private estimateImprovementTime(gamesAnalyzed: number, skillLevel: string): string {\n    const baseTime: Record<string, number> = {\n      'beginner': 2,\n      'intermediate': 4,\n      'advanced': 6\n    };\n    \n    const weeks = Math.max(1, baseTime[skillLevel] - Math.floor(gamesAnalyzed / 5));\n    return `${weeks}-${weeks + 2} weeks with consistent practice`;\n  }\n  \n  private generateAnalysisSummary(result: GameAnalysisResult): string {\n    const { takeaways, overallRating, gameStats } = result;\n    \n    return `Game Analysis Summary:\\n` +\n           `Overall Rating: ${overallRating}/100\\n` +\n           `Accuracy: ${gameStats.accuracyPercentage}%\\n` +\n           `Key Areas: ${takeaways.slice(0, 3).map(t => t.title).join(', ')}\\n` +\n           `Focus: ${takeaways[0]?.description || 'Continue improving overall play'}`;\n  }\n  \n  /**\n   * Get individual component instances for direct access\n   */\n  getEngineAnalyzer(): EngineAnalyzer { return this.engineAnalyzer; }\n  getPhaseClassifier(): PhaseClassifier { return this.phaseClassifier; }\n  getThemeAssigner(): ThemeAssigner { return this.themeAssigner; }\n  getTakeawayGenerator(): TakeawayGenerator { return this.takeawayGenerator; }\n}\n\n/**\n * Factory function for creating analysis pipeline with common configurations\n */\nexport function createAnalysisPipeline(preset: 'fast' | 'balanced' | 'thorough' = 'balanced'): ChessAnalysisPipeline {\n  const configs: Record<string, Partial<AnalysisPipelineConfig>> = {\n    'fast': {\n      engine: {\n        depthLimit: 8,\n        timePerMove: 500,\n        maxTurnPoints: 5\n      },\n      takeawayGenerator: {\n        maxTakeaways: 3\n      }\n    },\n    'balanced': {\n      engine: {\n        depthLimit: 12,\n        timePerMove: 1000,\n        maxTurnPoints: 8\n      },\n      takeawayGenerator: {\n        maxTakeaways: 5\n      }\n    },\n    'thorough': {\n      engine: {\n        depthLimit: 16,\n        timePerMove: 2000,\n        maxTurnPoints: 12\n      },\n      takeawayGenerator: {\n        maxTakeaways: 7\n      }\n    }\n  };\n  \n  return new ChessAnalysisPipeline(configs[preset]);\n}\n\n// Export all types and classes for external use\nexport * from './types';\nexport * from './coachThemes';\nexport { EngineAnalyzer } from './EngineAnalyzer';\nexport { PhaseClassifier } from './PhaseClassifier';\nexport { ThemeAssigner } from './ThemeAssigner';\nexport { TakeawayGenerator } from './TakeawayGenerator';"
+/**
+ * Chess Analysis Pipeline - Main orchestrator for game analysis
+ * 
+ * This module brings together all analysis components to provide
+ * a complete coaching system. It coordinates engine analysis,
+ * theme assignment, and takeaway generation to transform raw
+ * game data into structured coaching advice.
+ */
+
+import { 
+  GameAnalysisResult,
+  TurnPoint,
+  ThemedTurnPoint,
+  Takeaway
+} from './types';
+import { EngineAnalyzer, EngineAnalysisConfig } from './EngineAnalyzer';
+import { PhaseClassifier, PhaseClassifierConfig } from './PhaseClassifier';
+import { ThemeAssigner, ThemeAssignerConfig } from './ThemeAssigner';
+import { TakeawayGenerator, TakeawayGeneratorConfig } from './TakeawayGenerator';
+
+/**
+ * Main analysis pipeline configuration
+ */
+export interface AnalysisPipelineConfig {
+  engine: Partial<EngineAnalysisConfig>;
+  phaseClassifier: Partial<PhaseClassifierConfig>;
+  themeAssigner: Partial<ThemeAssignerConfig>;
+  takeawayGenerator: Partial<TakeawayGeneratorConfig>;
+}
+
+export const DEFAULT_PIPELINE_CONFIG: AnalysisPipelineConfig = {
+  engine: {},
+  phaseClassifier: {},
+  themeAssigner: {},
+  takeawayGenerator: {}
+};
+
+/**
+ * Main chess analysis pipeline
+ */
+export class ChessAnalysisPipeline {
+  private engineAnalyzer: EngineAnalyzer;
+  private phaseClassifier: PhaseClassifier;
+  private themeAssigner: ThemeAssigner;
+  private takeawayGenerator: TakeawayGenerator;
+
+  constructor(config: Partial<AnalysisPipelineConfig> = {}) {
+    const fullConfig = { ...DEFAULT_PIPELINE_CONFIG, ...config };
+    
+    this.engineAnalyzer = new EngineAnalyzer(fullConfig.engine);
+    this.phaseClassifier = new PhaseClassifier(fullConfig.phaseClassifier);
+    this.themeAssigner = new ThemeAssigner(
+      fullConfig.themeAssigner, 
+      this.phaseClassifier
+    );
+    this.takeawayGenerator = new TakeawayGenerator(fullConfig.takeawayGenerator);
+  }
+
+  /**
+   * Complete analysis of a chess game
+   * This is the main entry point for the coaching system
+   */
+  async analyzeGame(
+    pgn: string,
+    playerColor: 'white' | 'black' = 'white',
+    skillLevel: 'beginner' | 'intermediate' | 'advanced' = 'intermediate'
+  ): Promise<GameAnalysisResult> {
+    
+    console.log('🔍 Starting chess game analysis...');
+    
+    try {
+      // Step 1: Engine analysis to find turning points
+      console.log('⚡ Running engine analysis...');
+      const turnPoints = await this.engineAnalyzer.analyzeGame(pgn, playerColor);
+      console.log(`📊 Found ${turnPoints.length} turning points`);
+      
+      // Step 2: Assign coaching themes to turning points
+      console.log('🎯 Assigning coaching themes...');
+      const themedTurnPoints = await this.themeAssigner.assignThemes(turnPoints, skillLevel);
+      console.log(`🏷️ Themed ${themedTurnPoints.length} positions`);
+      
+      // Step 3: Generate takeaways and complete analysis
+      console.log('📝 Generating coaching takeaways...');
+      const result = await this.takeawayGenerator.generateAnalysis(
+        themedTurnPoints,
+        pgn,
+        playerColor,
+        skillLevel
+      );
+      
+      console.log(`✅ Analysis complete: ${result.takeaways.length} takeaways generated`);
+      console.log(`🎯 Overall rating: ${result.overallRating}/100`);
+      
+      return result;
+      
+    } catch (error) {
+      console.error('❌ Analysis failed:', error);
+      throw new Error(`Game analysis failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    }
+  }
+
+  /**
+   * Analyze a single position for coaching insights
+   */
+  async analyzePosition(
+    fen: string,
+    moveNumber: number = 1,
+    skillLevel: 'beginner' | 'intermediate' | 'advanced' = 'intermediate'
+  ): Promise<{
+    gamePhase: string;
+    evaluation: number;
+    suggestedThemes: string[];
+    keyInsights: string[];
+  }> {
+    
+    // Classify game phase
+    const gamePhase = this.phaseClassifier.classifyPhase(fen, moveNumber);
+    
+    // Get position evaluation
+    const evaluation = await this.engineAnalyzer['engine'].evaluatePosition(fen);
+    
+    // Mock theme suggestions for single position
+    // In a real implementation, this would analyze position characteristics
+    const suggestedThemes = this.getSuggestedThemesForPhase(gamePhase, skillLevel);
+    
+    const keyInsights = [
+      `Position is in the ${gamePhase} phase`,
+      `Evaluation: ${evaluation > 0 ? '+' : ''}${(evaluation / 100).toFixed(2)} pawns`,
+      `Recommended focus: ${suggestedThemes[0] || 'general improvement'}`
+    ];
+    
+    return {
+      gamePhase,
+      evaluation,
+      suggestedThemes,
+      keyInsights
+    };
+  }
+
+  /**
+   * Get improvement recommendations based on analysis history
+   */
+  async getImprovementPlan(
+    recentAnalyses: GameAnalysisResult[],
+    skillLevel: 'beginner' | 'intermediate' | 'advanced' = 'intermediate'
+  ): Promise<{
+    topWeaknesses: string[];
+    recommendedStudy: string[];
+    practiceAreas: string[];
+    estimatedTimeToImprove: string;
+  }> {
+    
+    // Aggregate common themes across recent games
+    const themeFrequency = new Map<string, number>();
+    const categoryFrequency = new Map<string, number>();
+    
+    recentAnalyses.forEach(analysis => {
+      analysis.takeaways.forEach(takeaway => {
+        // Count theme frequency
+        themeFrequency.set(
+          takeaway.theme, 
+          (themeFrequency.get(takeaway.theme) || 0) + 1
+        );
+        
+        // Count category frequency
+        categoryFrequency.set(
+          takeaway.category,
+          (categoryFrequency.get(takeaway.category) || 0) + 1
+        );
+      });
+    });
+    
+    // Find top weaknesses
+    const topWeaknesses = Array.from(themeFrequency.entries())
+      .sort(([,freqA], [,freqB]) => freqB - freqA)
+      .slice(0, 3)
+      .map(([theme]) => this.getThemeDisplayName(theme));
+    
+    // Generate study recommendations
+    const topCategories = Array.from(categoryFrequency.entries())
+      .sort(([,freqA], [,freqB]) => freqB - freqA)
+      .slice(0, 2)
+      .map(([category]) => category);
+    
+    const recommendedStudy = this.getStudyRecommendations(topCategories, skillLevel);
+    const practiceAreas = this.getPracticeRecommendations(topWeaknesses, skillLevel);
+    
+    return {
+      topWeaknesses,
+      recommendedStudy,
+      practiceAreas,
+      estimatedTimeToImprove: this.estimateImprovementTime(recentAnalyses.length, skillLevel)
+    };
+  }
+
+  /**
+   * Generate coaching context for chat system
+   */
+  generateChatContext(analysisResult: GameAnalysisResult): {
+    gameOverview: string;
+    keyThemes: string[];
+    specificExamples: string[];
+    improvementQuestions: string[];
+  } {
+    
+    const { takeaways, overallRating, gameStats } = analysisResult;
+    
+    const gameOverview = `This game had an overall rating of ${overallRating}/100. ` +
+      `You had ${gameStats.blunders} blunder(s), ${gameStats.mistakes} mistake(s), ` +
+      `and ${gameStats.inaccuracies} inaccuracy(ies) with an accuracy of ${gameStats.accuracyPercentage}%.`;
+    
+    const keyThemes = takeaways.map(t => t.title);
+    
+    const specificExamples = takeaways
+      .filter(t => t.examples && t.examples.length > 0)
+      .map(t => t.examples![0])
+      .slice(0, 3);
+    
+    const improvementQuestions = [
+      `What specific tactics should I practice based on this game?`,
+      `How can I improve my ${takeaways[0]?.category || 'overall'} play?`,
+      `What opening principles did I miss?`,
+      `How should I approach similar positions in the future?`
+    ];
+    
+    return {
+      gameOverview,
+      keyThemes,
+      specificExamples,
+      improvementQuestions
+    };
+  }
+
+  /**
+   * Export analysis for external use
+   */
+  exportAnalysis(result: GameAnalysisResult): {
+    summary: string;
+    detailed: object;
+    chatReady: object;
+  } {
+    return {
+      summary: this.generateAnalysisSummary(result),
+      detailed: {
+        takeaways: result.takeaways,
+        turnPoints: result.themedTurnPoints,
+        stats: result.gameStats,
+        rating: result.overallRating
+      },
+      chatReady: this.generateChatContext(result)
+    };
+  }
+
+  // Private helper methods
+  
+  private getSuggestedThemesForPhase(phase: string, skillLevel: string): string[] {
+    const themesByPhase: Record<string, Record<string, string[]>> = {
+      'opening': {
+        'beginner': ['Development', 'Center Control', 'King Safety'],
+        'intermediate': ['Opening Principles', 'Tactical Awareness', 'Pawn Structure'],
+        'advanced': ['Opening Theory', 'Positional Understanding', 'Strategic Planning']
+      },
+      'middlegame': {
+        'beginner': ['Tactics', 'Piece Activity', 'Basic Strategy'],
+        'intermediate': ['Calculation', 'Positional Play', 'Time Management'],
+        'advanced': ['Strategic Planning', 'Complex Tactics', 'Evaluation Skills']
+      },
+      'endgame': {
+        'beginner': ['Basic Checkmates', 'King Activity', 'Pawn Promotion'],
+        'intermediate': ['Endgame Technique', 'Opposition', 'Practical Play'],
+        'advanced': ['Theoretical Endgames', 'Precision', 'Conversion Technique']
+      }
+    };
+    
+    return themesByPhase[phase]?.[skillLevel] || ['General Improvement'];
+  }
+  
+  private getThemeDisplayName(themeId: string): string {
+    const displayNames: Record<string, string> = {
+      'calculation_accuracy': 'Calculation Accuracy',
+      'blunder_recovery': 'Blunder Recovery',
+      'pattern_recognition': 'Pattern Recognition',
+      'time_management': 'Time Management',
+      'opening_principles': 'Opening Principles',
+      'tactical_awareness': 'Tactical Awareness'
+    };
+    
+    return displayNames[themeId] || themeId.replace(/_/g, ' ').replace(/\\b\\w/g, l => l.toUpperCase());
+  }
+  
+  private getStudyRecommendations(categories: string[], skillLevel: string): string[] {
+    const recommendations: Record<string, Record<string, string[]>> = {
+      'tactics': {
+        'beginner': ['Basic tactical puzzles', 'Pin and fork patterns'],
+        'intermediate': ['Complex tactical combinations', 'Defensive tactics'],
+        'advanced': ['Advanced tactical motifs', 'Calculation depth exercises']
+      },
+      'strategy': {
+        'beginner': ['Basic positional concepts', 'Piece coordination'],
+        'intermediate': ['Pawn structure evaluation', 'Positional sacrifices'],
+        'advanced': ['Strategic masterpieces', 'Prophylactic thinking']
+      }
+    };
+    
+    const result: string[] = [];
+    categories.forEach(category => {
+      const categoryRecs = recommendations[category]?.[skillLevel];
+      if (categoryRecs) result.push(...categoryRecs);
+    });
+    
+    return result.slice(0, 5); // Limit recommendations
+  }
+  
+  private getPracticeRecommendations(weaknesses: string[], skillLevel: string): string[] {
+    return weaknesses.map(weakness => 
+      `Practice ${weakness.toLowerCase()} through targeted exercises`
+    );
+  }
+  
+  private estimateImprovementTime(gamesAnalyzed: number, skillLevel: string): string {
+    const baseTime: Record<string, number> = {
+      'beginner': 2,
+      'intermediate': 4,
+      'advanced': 6
+    };
+    
+    const weeks = Math.max(1, baseTime[skillLevel] - Math.floor(gamesAnalyzed / 5));
+    return `${weeks}-${weeks + 2} weeks with consistent practice`;
+  }
+  
+  private generateAnalysisSummary(result: GameAnalysisResult): string {
+    const { takeaways, overallRating, gameStats } = result;
+    
+    return `Game Analysis Summary:\
+` +
+           `Overall Rating: ${overallRating}/100\
+` +
+           `Accuracy: ${gameStats.accuracyPercentage}%\
+` +
+           `Key Areas: ${takeaways.slice(0, 3).map(t => t.title).join(', ')}\
+` +
+           `Focus: ${takeaways[0]?.description || 'Continue improving overall play'}`;
+  }
+  
+  /**
+   * Get individual component instances for direct access
+   */
+  getEngineAnalyzer(): EngineAnalyzer { return this.engineAnalyzer; }
+  getPhaseClassifier(): PhaseClassifier { return this.phaseClassifier; }
+  getThemeAssigner(): ThemeAssigner { return this.themeAssigner; }
+  getTakeawayGenerator(): TakeawayGenerator { return this.takeawayGenerator; }
+}
+
+/**
+ * Factory function for creating analysis pipeline with common configurations
+ */
+export function createAnalysisPipeline(preset: 'fast' | 'balanced' | 'thorough' = 'balanced'): ChessAnalysisPipeline {
+  const configs: Record<string, Partial<AnalysisPipelineConfig>> = {
+    'fast': {
+      engine: {
+        depthLimit: 8,
+        timePerMove: 500,
+        maxTurnPoints: 5
+      },
+      takeawayGenerator: {
+        maxTakeaways: 3
+      }
+    },
+    'balanced': {
+      engine: {
+        depthLimit: 12,
+        timePerMove: 1000,
+        maxTurnPoints: 8
+      },
+      takeawayGenerator: {
+        maxTakeaways: 5
+      }
+    },
+    'thorough': {
+      engine: {
+        depthLimit: 16,
+        timePerMove: 2000,
+        maxTurnPoints: 12
+      },
+      takeawayGenerator: {
+        maxTakeaways: 7
+      }
+    }
+  };
+  
+  return new ChessAnalysisPipeline(configs[preset]);
+}
+
+// Export all types and classes for external use
+export * from './types';
+export * from './coachThemes';
+export { EngineAnalyzer } from './EngineAnalyzer';
+export { PhaseClassifier } from './PhaseClassifier';
+export { ThemeAssigner } from './ThemeAssigner';
+export { TakeawayGenerator } from './TakeawayGenerator';"

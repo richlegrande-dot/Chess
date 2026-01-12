@@ -1,1 +1,469 @@
-/**\n * Takeaway Generator - Creates structured coaching takeaways\n * \n * This module generates the final coaching advice by combining\n * themed turn points into actionable insights. It creates the\n * \"5 key takeaways\" that will be displayed to users and provides\n * rich context for the \"More insights\" chat system.\n */\n\nimport { \n  ThemedTurnPoint, \n  Takeaway, \n  GameAnalysisResult,\n  CoachTheme,\n  GamePhase \n} from './types';\n\n/**\n * Configuration for takeaway generation\n */\nexport interface TakeawayGeneratorConfig {\n  maxTakeaways: number;           // Maximum number of takeaways to generate\n  priorityWeighting: number;      // How much to weight theme priority\n  frequencyWeighting: number;     // How much to weight theme frequency\n  phaseBalancing: boolean;        // Balance takeaways across game phases\n  skillLevelAdaptation: boolean;  // Adapt advice complexity to skill level\n}\n\nexport const DEFAULT_TAKEAWAY_CONFIG: TakeawayGeneratorConfig = {\n  maxTakeaways: 5,\n  priorityWeighting: 1.5,\n  frequencyWeighting: 1.2,\n  phaseBalancing: true,\n  skillLevelAdaptation: true\n};\n\n/**\n * Template for generating advice text based on themes\n */\ninterface AdviceTemplate {\n  title: string;\n  description: string;\n  actionItems: string[];\n  relatedConcepts: string[];\n}\n\n/**\n * Generates structured coaching takeaways from themed turn points\n */\nexport class TakeawayGenerator {\n  private config: TakeawayGeneratorConfig;\n\n  constructor(config: Partial<TakeawayGeneratorConfig> = {}) {\n    this.config = { ...DEFAULT_TAKEAWAY_CONFIG, ...config };\n  }\n\n  /**\n   * Generate comprehensive game analysis with takeaways\n   */\n  async generateAnalysis(\n    themedTurnPoints: ThemedTurnPoint[],\n    pgn: string,\n    playerColor: 'white' | 'black' = 'white',\n    skillLevel: 'beginner' | 'intermediate' | 'advanced' = 'intermediate'\n  ): Promise<GameAnalysisResult> {\n    \n    // Group themes by frequency and importance\n    const themeAnalysis = this.analyzeThemeDistribution(themedTurnPoints);\n    \n    // Generate takeaways based on most relevant themes\n    const takeaways = this.generateTakeaways(\n      themeAnalysis,\n      themedTurnPoints,\n      skillLevel\n    );\n    \n    // Calculate overall game statistics\n    const gameStats = this.calculateGameStatistics(themedTurnPoints, playerColor);\n    \n    return {\n      takeaways,\n      themedTurnPoints,\n      overallRating: this.calculateOverallRating(themedTurnPoints, playerColor),\n      gameStats,\n      improvementAreas: this.identifyImprovementAreas(themeAnalysis, skillLevel),\n      strengthAreas: this.identifyStrengthAreas(themeAnalysis, themedTurnPoints)\n    };\n  }\n\n  /**\n   * Analyze theme distribution across turn points\n   */\n  private analyzeThemeDistribution(themedTurnPoints: ThemedTurnPoint[]): {\n    themeFrequency: Map<string, number>;\n    themesByPhase: Map<GamePhase, CoachTheme[]>;\n    averagePriority: Map<string, number>;\n    totalEvalLoss: Map<string, number>;\n  } {\n    const themeFrequency = new Map<string, number>();\n    const themesByPhase = new Map<GamePhase, CoachTheme[]>();\n    const averagePriority = new Map<string, number>();\n    const totalEvalLoss = new Map<string, number>();\n    \n    // Initialize phase maps\n    (['opening', 'middlegame', 'endgame'] as GamePhase[]).forEach(phase => {\n      themesByPhase.set(phase, []);\n    });\n\n    themedTurnPoints.forEach(turnPoint => {\n      const phase = turnPoint.gamePhase;\n      \n      turnPoint.themes.forEach(theme => {\n        // Count frequency\n        themeFrequency.set(theme.id, (themeFrequency.get(theme.id) || 0) + 1);\n        \n        // Group by phase\n        const phaseThemes = themesByPhase.get(phase) || [];\n        phaseThemes.push(theme);\n        themesByPhase.set(phase, phaseThemes);\n        \n        // Calculate average priority\n        const currentPriority = averagePriority.get(theme.id) || 0;\n        averagePriority.set(theme.id, (currentPriority + theme.priority) / 2);\n        \n        // Sum evaluation loss\n        const currentLoss = totalEvalLoss.get(theme.id) || 0;\n        totalEvalLoss.set(theme.id, currentLoss + Math.abs(turnPoint.evalDelta));\n      });\n    });\n\n    return {\n      themeFrequency,\n      themesByPhase,\n      averagePriority,\n      totalEvalLoss\n    };\n  }\n\n  /**\n   * Generate takeaways from theme analysis\n   */\n  private generateTakeaways(\n    themeAnalysis: ReturnType<TakeawayGenerator['analyzeThemeDistribution']>,\n    themedTurnPoints: ThemedTurnPoint[],\n    skillLevel: 'beginner' | 'intermediate' | 'advanced'\n  ): Takeaway[] {\n    \n    // Score themes by relevance\n    const themeScores = new Map<string, number>();\n    \n    themeAnalysis.themeFrequency.forEach((frequency, themeId) => {\n      const priority = themeAnalysis.averagePriority.get(themeId) || 0;\n      const evalLoss = themeAnalysis.totalEvalLoss.get(themeId) || 0;\n      \n      let score = 0;\n      score += frequency * this.config.frequencyWeighting;\n      score += priority * this.config.priorityWeighting;\n      score += (evalLoss / 100) * 0.5; // Normalize eval loss\n      \n      themeScores.set(themeId, score);\n    });\n\n    // Sort themes by score and select top themes\n    const sortedThemes = Array.from(themeScores.entries())\n      .sort(([,scoreA], [,scoreB]) => scoreB - scoreA)\n      .slice(0, this.config.maxTakeaways);\n\n    // Generate takeaways for selected themes\n    const takeaways: Takeaway[] = [];\n    \n    sortedThemes.forEach(([themeId, score], index) => {\n      const relevantTurnPoints = themedTurnPoints.filter(\n        tp => tp.themes.some(theme => theme.id === themeId)\n      );\n      \n      const theme = relevantTurnPoints[0]?.themes.find(t => t.id === themeId);\n      if (!theme) return;\n      \n      const takeaway = this.generateTakeawayFromTheme(\n        theme,\n        relevantTurnPoints,\n        index + 1,\n        skillLevel\n      );\n      \n      takeaways.push(takeaway);\n    });\n\n    return takeaways;\n  }\n\n  /**\n   * Generate individual takeaway from theme and turn points\n   */\n  private generateTakeawayFromTheme(\n    theme: CoachTheme,\n    turnPoints: ThemedTurnPoint[],\n    priority: number,\n    skillLevel: 'beginner' | 'intermediate' | 'advanced'\n  ): Takeaway {\n    \n    const template = this.getAdviceTemplate(theme, skillLevel);\n    const examples = this.generateExamples(turnPoints);\n    \n    return {\n      title: template.title,\n      description: template.description,\n      priority,\n      theme: theme.id,\n      category: theme.category,\n      actionItems: template.actionItems,\n      examples,\n      relatedConcepts: template.relatedConcepts,\n      skillLevel,\n      estimatedImpact: this.calculateEstimatedImpact(turnPoints)\n    };\n  }\n\n  /**\n   * Get advice template for theme and skill level\n   */\n  private getAdviceTemplate(\n    theme: CoachTheme,\n    skillLevel: 'beginner' | 'intermediate' | 'advanced'\n  ): AdviceTemplate {\n    \n    // Base template from theme\n    const baseTemplate = {\n      title: theme.name,\n      description: theme.description,\n      actionItems: theme.adviceTemplate.actionItems || [],\n      relatedConcepts: theme.adviceTemplate.relatedConcepts || []\n    };\n\n    // Adapt complexity based on skill level\n    if (skillLevel === 'beginner') {\n      return {\n        ...baseTemplate,\n        description: this.simplifyDescription(baseTemplate.description),\n        actionItems: baseTemplate.actionItems.slice(0, 3), // Limit to 3 items\n        relatedConcepts: baseTemplate.relatedConcepts.slice(0, 2)\n      };\n    }\n    \n    if (skillLevel === 'advanced') {\n      return {\n        ...baseTemplate,\n        description: this.enhanceDescription(baseTemplate.description),\n        actionItems: [...baseTemplate.actionItems, ...this.getAdvancedActionItems(theme)],\n        relatedConcepts: [...baseTemplate.relatedConcepts, ...this.getAdvancedConcepts(theme)]\n      };\n    }\n\n    return baseTemplate; // Intermediate level\n  }\n\n  /**\n   * Generate examples from turn points\n   */\n  private generateExamples(turnPoints: ThemedTurnPoint[]): string[] {\n    return turnPoints.slice(0, 2).map(tp => {\n      const moveQuality = this.classifyMoveFromEvalDelta(tp.evalDelta);\n      const evalChange = Math.abs(tp.evalDelta);\n      \n      return `Move ${tp.moveNumber}: ${tp.playedMoveSAN} was a ${moveQuality} ` +\n             `(${evalChange > 0 ? '-' : '+'}${evalChange.toFixed(0)} centipawns). ` +\n             `Better was ${tp.bestMoveSAN}.`;\n    });\n  }\n\n  /**\n   * Calculate game statistics\n   */\n  private calculateGameStatistics(\n    themedTurnPoints: ThemedTurnPoint[],\n    playerColor: 'white' | 'black'\n  ): {\n    totalMoves: number;\n    blunders: number;\n    mistakes: number;\n    inaccuracies: number;\n    accuracyPercentage: number;\n    avgEvalLoss: number;\n  } {\n    \n    const playerTurnPoints = themedTurnPoints.filter(\n      tp => tp.sideToMove === playerColor\n    );\n    \n    let blunders = 0, mistakes = 0, inaccuracies = 0;\n    let totalEvalLoss = 0;\n    \n    playerTurnPoints.forEach(tp => {\n      const moveQuality = this.classifyMoveFromEvalDelta(tp.evalDelta);\n      const evalLoss = Math.abs(tp.evalDelta);\n      \n      switch (moveQuality) {\n        case 'blunder': blunders++; break;\n        case 'mistake': mistakes++; break;\n        case 'inaccuracy': inaccuracies++; break;\n      }\n      \n      totalEvalLoss += evalLoss;\n    });\n    \n    const totalErrors = blunders + mistakes + inaccuracies;\n    const accuracyPercentage = Math.max(0, 100 - (totalErrors / playerTurnPoints.length * 100));\n    \n    return {\n      totalMoves: playerTurnPoints.length,\n      blunders,\n      mistakes,\n      inaccuracies,\n      accuracyPercentage: Math.round(accuracyPercentage),\n      avgEvalLoss: Math.round(totalEvalLoss / playerTurnPoints.length)\n    };\n  }\n\n  /**\n   * Calculate overall rating from performance\n   */\n  private calculateOverallRating(\n    themedTurnPoints: ThemedTurnPoint[],\n    playerColor: 'white' | 'black'\n  ): number {\n    const stats = this.calculateGameStatistics(themedTurnPoints, playerColor);\n    \n    // Rating based on accuracy and error severity\n    let rating = stats.accuracyPercentage;\n    \n    // Penalize errors more heavily\n    rating -= stats.blunders * 15;\n    rating -= stats.mistakes * 8;\n    rating -= stats.inaccuracies * 3;\n    \n    return Math.max(0, Math.min(100, rating));\n  }\n\n  /**\n   * Identify areas needing improvement\n   */\n  private identifyImprovementAreas(\n    themeAnalysis: ReturnType<TakeawayGenerator['analyzeThemeDistribution']>,\n    skillLevel: 'beginner' | 'intermediate' | 'advanced'\n  ): string[] {\n    \n    const improvements: string[] = [];\n    \n    // Find most frequent problematic themes\n    const sortedByFrequency = Array.from(themeAnalysis.themeFrequency.entries())\n      .sort(([,freqA], [,freqB]) => freqB - freqA)\n      .slice(0, 3);\n    \n    sortedByFrequency.forEach(([themeId, frequency]) => {\n      if (frequency >= 2) {\n        improvements.push(this.getImprovementSuggestion(themeId, skillLevel));\n      }\n    });\n    \n    return improvements;\n  }\n\n  /**\n   * Identify strength areas\n   */\n  private identifyStrengthAreas(\n    themeAnalysis: ReturnType<TakeawayGenerator['analyzeThemeDistribution']>,\n    themedTurnPoints: ThemedTurnPoint[]\n  ): string[] {\n    \n    const strengths: string[] = [];\n    \n    // Find phases with fewer errors\n    const phaseErrors = new Map<GamePhase, number>();\n    \n    themedTurnPoints.forEach(tp => {\n      const currentErrors = phaseErrors.get(tp.gamePhase) || 0;\n      phaseErrors.set(tp.gamePhase, currentErrors + 1);\n    });\n    \n    const sortedPhases = Array.from(phaseErrors.entries())\n      .sort(([,errorsA], [,errorsB]) => errorsA - errorsB);\n    \n    if (sortedPhases.length > 0) {\n      const [strongestPhase] = sortedPhases[0];\n      strengths.push(`Strong ${strongestPhase} play`);\n    }\n    \n    return strengths;\n  }\n\n  // Utility methods\n\n  private classifyMoveFromEvalDelta(evalDelta: number): string {\n    const abs = Math.abs(evalDelta);\n    if (abs >= 300) return 'blunder';\n    if (abs >= 150) return 'mistake';\n    if (abs >= 75) return 'inaccuracy';\n    return 'good';\n  }\n\n  private calculateEstimatedImpact(turnPoints: ThemedTurnPoint[]): number {\n    const totalEvalLoss = turnPoints.reduce(\n      (sum, tp) => sum + Math.abs(tp.evalDelta), 0\n    );\n    return Math.min(100, totalEvalLoss / 10); // Normalize to 0-100\n  }\n\n  private simplifyDescription(description: string): string {\n    // Simplify language for beginners\n    return description\n      .replace(/centipawn/g, 'point')\n      .replace(/evaluation/g, 'position value')\n      .replace(/tactical motif/g, 'tactical pattern');\n  }\n\n  private enhanceDescription(description: string): string {\n    // Add more technical detail for advanced players\n    return description + \" Consider studying master games with similar patterns.\";\n  }\n\n  private getAdvancedActionItems(theme: CoachTheme): string[] {\n    // Add advanced action items based on theme\n    const advancedItems: Record<string, string[]> = {\n      'tactics': ['Study tactical motif databases', 'Practice blindfold visualization'],\n      'strategy': ['Analyze pawn structures in detail', 'Study positional sacrifices'],\n      'endgame': ['Memorize theoretical positions', 'Practice technique with tablebases']\n    };\n    \n    return advancedItems[theme.category] || [];\n  }\n\n  private getAdvancedConcepts(theme: CoachTheme): string[] {\n    // Add advanced concepts based on theme\n    const advancedConcepts: Record<string, string[]> = {\n      'tactics': ['Zwischenzug', 'Deflection', 'Interference'],\n      'strategy': ['Prophylaxis', 'Restriction', 'Transformation'],\n      'endgame': ['Opposition', 'Triangulation', 'Corresponding squares']\n    };\n    \n    return advancedConcepts[theme.category] || [];\n  }\n\n  private getImprovementSuggestion(themeId: string, skillLevel: string): string {\n    // Generate improvement suggestions based on theme\n    const suggestions: Record<string, string> = {\n      'calculation_accuracy': 'Practice calculating variations more deeply',\n      'blunder_recovery': 'Learn to stay calm after mistakes and find the best practical chances',\n      'pattern_recognition': 'Study more tactical puzzles to improve pattern recognition',\n      'time_management': 'Work on balancing speed and accuracy in your calculations'\n    };\n    \n    return suggestions[themeId] || 'Focus on consistent improvement in this area';\n  }\n\n  /**\n   * Get configuration\n   */\n  getConfig(): TakeawayGeneratorConfig {\n    return { ...this.config };\n  }\n\n  /**\n   * Update configuration\n   */\n  updateConfig(newConfig: Partial<TakeawayGeneratorConfig>): void {\n    this.config = { ...this.config, ...newConfig };\n  }\n}"
+/**
+ * Takeaway Generator - Creates structured coaching takeaways
+ * 
+ * This module generates the final coaching advice by combining
+ * themed turn points into actionable insights. It creates the
+ * \"5 key takeaways\" that will be displayed to users and provides
+ * rich context for the \"More insights\" chat system.
+ */
+
+import { 
+  ThemedTurnPoint, 
+  Takeaway, 
+  GameAnalysisResult,
+  CoachTheme,
+  GamePhase 
+} from './types';
+
+/**
+ * Configuration for takeaway generation
+ */
+export interface TakeawayGeneratorConfig {
+  maxTakeaways: number;           // Maximum number of takeaways to generate
+  priorityWeighting: number;      // How much to weight theme priority
+  frequencyWeighting: number;     // How much to weight theme frequency
+  phaseBalancing: boolean;        // Balance takeaways across game phases
+  skillLevelAdaptation: boolean;  // Adapt advice complexity to skill level
+}
+
+export const DEFAULT_TAKEAWAY_CONFIG: TakeawayGeneratorConfig = {
+  maxTakeaways: 5,
+  priorityWeighting: 1.5,
+  frequencyWeighting: 1.2,
+  phaseBalancing: true,
+  skillLevelAdaptation: true
+};
+
+/**
+ * Template for generating advice text based on themes
+ */
+interface AdviceTemplate {
+  title: string;
+  description: string;
+  actionItems: string[];
+  relatedConcepts: string[];
+}
+
+/**
+ * Generates structured coaching takeaways from themed turn points
+ */
+export class TakeawayGenerator {
+  private config: TakeawayGeneratorConfig;
+
+  constructor(config: Partial<TakeawayGeneratorConfig> = {}) {
+    this.config = { ...DEFAULT_TAKEAWAY_CONFIG, ...config };
+  }
+
+  /**
+   * Generate comprehensive game analysis with takeaways
+   */
+  async generateAnalysis(
+    themedTurnPoints: ThemedTurnPoint[],
+    pgn: string,
+    playerColor: 'white' | 'black' = 'white',
+    skillLevel: 'beginner' | 'intermediate' | 'advanced' = 'intermediate'
+  ): Promise<GameAnalysisResult> {
+    
+    // Group themes by frequency and importance
+    const themeAnalysis = this.analyzeThemeDistribution(themedTurnPoints);
+    
+    // Generate takeaways based on most relevant themes
+    const takeaways = this.generateTakeaways(
+      themeAnalysis,
+      themedTurnPoints,
+      skillLevel
+    );
+    
+    // Calculate overall game statistics
+    const gameStats = this.calculateGameStatistics(themedTurnPoints, playerColor);
+    
+    return {
+      takeaways,
+      themedTurnPoints,
+      overallRating: this.calculateOverallRating(themedTurnPoints, playerColor),
+      gameStats,
+      improvementAreas: this.identifyImprovementAreas(themeAnalysis, skillLevel),
+      strengthAreas: this.identifyStrengthAreas(themeAnalysis, themedTurnPoints)
+    };
+  }
+
+  /**
+   * Analyze theme distribution across turn points
+   */
+  private analyzeThemeDistribution(themedTurnPoints: ThemedTurnPoint[]): {
+    themeFrequency: Map<string, number>;
+    themesByPhase: Map<GamePhase, CoachTheme[]>;
+    averagePriority: Map<string, number>;
+    totalEvalLoss: Map<string, number>;
+  } {
+    const themeFrequency = new Map<string, number>();
+    const themesByPhase = new Map<GamePhase, CoachTheme[]>();
+    const averagePriority = new Map<string, number>();
+    const totalEvalLoss = new Map<string, number>();
+    
+    // Initialize phase maps
+    (['opening', 'middlegame', 'endgame'] as GamePhase[]).forEach(phase => {
+      themesByPhase.set(phase, []);
+    });
+
+    themedTurnPoints.forEach(turnPoint => {
+      const phase = turnPoint.gamePhase;
+      
+      turnPoint.themes.forEach(theme => {
+        // Count frequency
+        themeFrequency.set(theme.id, (themeFrequency.get(theme.id) || 0) + 1);
+        
+        // Group by phase
+        const phaseThemes = themesByPhase.get(phase) || [];
+        phaseThemes.push(theme);
+        themesByPhase.set(phase, phaseThemes);
+        
+        // Calculate average priority
+        const currentPriority = averagePriority.get(theme.id) || 0;
+        averagePriority.set(theme.id, (currentPriority + theme.priority) / 2);
+        
+        // Sum evaluation loss
+        const currentLoss = totalEvalLoss.get(theme.id) || 0;
+        totalEvalLoss.set(theme.id, currentLoss + Math.abs(turnPoint.evalDelta));
+      });
+    });
+
+    return {
+      themeFrequency,
+      themesByPhase,
+      averagePriority,
+      totalEvalLoss
+    };
+  }
+
+  /**
+   * Generate takeaways from theme analysis
+   */
+  private generateTakeaways(
+    themeAnalysis: ReturnType<TakeawayGenerator['analyzeThemeDistribution']>,
+    themedTurnPoints: ThemedTurnPoint[],
+    skillLevel: 'beginner' | 'intermediate' | 'advanced'
+  ): Takeaway[] {
+    
+    // Score themes by relevance
+    const themeScores = new Map<string, number>();
+    
+    themeAnalysis.themeFrequency.forEach((frequency, themeId) => {
+      const priority = themeAnalysis.averagePriority.get(themeId) || 0;
+      const evalLoss = themeAnalysis.totalEvalLoss.get(themeId) || 0;
+      
+      let score = 0;
+      score += frequency * this.config.frequencyWeighting;
+      score += priority * this.config.priorityWeighting;
+      score += (evalLoss / 100) * 0.5; // Normalize eval loss
+      
+      themeScores.set(themeId, score);
+    });
+
+    // Sort themes by score and select top themes
+    const sortedThemes = Array.from(themeScores.entries())
+      .sort(([,scoreA], [,scoreB]) => scoreB - scoreA)
+      .slice(0, this.config.maxTakeaways);
+
+    // Generate takeaways for selected themes
+    const takeaways: Takeaway[] = [];
+    
+    sortedThemes.forEach(([themeId, score], index) => {
+      const relevantTurnPoints = themedTurnPoints.filter(
+        tp => tp.themes.some(theme => theme.id === themeId)
+      );
+      
+      const theme = relevantTurnPoints[0]?.themes.find(t => t.id === themeId);
+      if (!theme) return;
+      
+      const takeaway = this.generateTakeawayFromTheme(
+        theme,
+        relevantTurnPoints,
+        index + 1,
+        skillLevel
+      );
+      
+      takeaways.push(takeaway);
+    });
+
+    return takeaways;
+  }
+
+  /**
+   * Generate individual takeaway from theme and turn points
+   */
+  private generateTakeawayFromTheme(
+    theme: CoachTheme,
+    turnPoints: ThemedTurnPoint[],
+    priority: number,
+    skillLevel: 'beginner' | 'intermediate' | 'advanced'
+  ): Takeaway {
+    
+    const template = this.getAdviceTemplate(theme, skillLevel);
+    const examples = this.generateExamples(turnPoints);
+    
+    return {
+      title: template.title,
+      description: template.description,
+      priority,
+      theme: theme.id,
+      category: theme.category,
+      actionItems: template.actionItems,
+      examples,
+      relatedConcepts: template.relatedConcepts,
+      skillLevel,
+      estimatedImpact: this.calculateEstimatedImpact(turnPoints)
+    };
+  }
+
+  /**
+   * Get advice template for theme and skill level
+   */
+  private getAdviceTemplate(
+    theme: CoachTheme,
+    skillLevel: 'beginner' | 'intermediate' | 'advanced'
+  ): AdviceTemplate {
+    
+    // Base template from theme
+    const baseTemplate = {
+      title: theme.name,
+      description: theme.description,
+      actionItems: theme.adviceTemplate.actionItems || [],
+      relatedConcepts: theme.adviceTemplate.relatedConcepts || []
+    };
+
+    // Adapt complexity based on skill level
+    if (skillLevel === 'beginner') {
+      return {
+        ...baseTemplate,
+        description: this.simplifyDescription(baseTemplate.description),
+        actionItems: baseTemplate.actionItems.slice(0, 3), // Limit to 3 items
+        relatedConcepts: baseTemplate.relatedConcepts.slice(0, 2)
+      };
+    }
+    
+    if (skillLevel === 'advanced') {
+      return {
+        ...baseTemplate,
+        description: this.enhanceDescription(baseTemplate.description),
+        actionItems: [...baseTemplate.actionItems, ...this.getAdvancedActionItems(theme)],
+        relatedConcepts: [...baseTemplate.relatedConcepts, ...this.getAdvancedConcepts(theme)]
+      };
+    }
+
+    return baseTemplate; // Intermediate level
+  }
+
+  /**
+   * Generate examples from turn points
+   */
+  private generateExamples(turnPoints: ThemedTurnPoint[]): string[] {
+    return turnPoints.slice(0, 2).map(tp => {
+      const moveQuality = this.classifyMoveFromEvalDelta(tp.evalDelta);
+      const evalChange = Math.abs(tp.evalDelta);
+      
+      return `Move ${tp.moveNumber}: ${tp.playedMoveSAN} was a ${moveQuality} ` +
+             `(${evalChange > 0 ? '-' : '+'}${evalChange.toFixed(0)} centipawns). ` +
+             `Better was ${tp.bestMoveSAN}.`;
+    });
+  }
+
+  /**
+   * Calculate game statistics
+   */
+  private calculateGameStatistics(
+    themedTurnPoints: ThemedTurnPoint[],
+    playerColor: 'white' | 'black'
+  ): {
+    totalMoves: number;
+    blunders: number;
+    mistakes: number;
+    inaccuracies: number;
+    accuracyPercentage: number;
+    avgEvalLoss: number;
+  } {
+    
+    const playerTurnPoints = themedTurnPoints.filter(
+      tp => tp.sideToMove === playerColor
+    );
+    
+    let blunders = 0, mistakes = 0, inaccuracies = 0;
+    let totalEvalLoss = 0;
+    
+    playerTurnPoints.forEach(tp => {
+      const moveQuality = this.classifyMoveFromEvalDelta(tp.evalDelta);
+      const evalLoss = Math.abs(tp.evalDelta);
+      
+      switch (moveQuality) {
+        case 'blunder': blunders++; break;
+        case 'mistake': mistakes++; break;
+        case 'inaccuracy': inaccuracies++; break;
+      }
+      
+      totalEvalLoss += evalLoss;
+    });
+    
+    const totalErrors = blunders + mistakes + inaccuracies;
+    const accuracyPercentage = Math.max(0, 100 - (totalErrors / playerTurnPoints.length * 100));
+    
+    return {
+      totalMoves: playerTurnPoints.length,
+      blunders,
+      mistakes,
+      inaccuracies,
+      accuracyPercentage: Math.round(accuracyPercentage),
+      avgEvalLoss: Math.round(totalEvalLoss / playerTurnPoints.length)
+    };
+  }
+
+  /**
+   * Calculate overall rating from performance
+   */
+  private calculateOverallRating(
+    themedTurnPoints: ThemedTurnPoint[],
+    playerColor: 'white' | 'black'
+  ): number {
+    const stats = this.calculateGameStatistics(themedTurnPoints, playerColor);
+    
+    // Rating based on accuracy and error severity
+    let rating = stats.accuracyPercentage;
+    
+    // Penalize errors more heavily
+    rating -= stats.blunders * 15;
+    rating -= stats.mistakes * 8;
+    rating -= stats.inaccuracies * 3;
+    
+    return Math.max(0, Math.min(100, rating));
+  }
+
+  /**
+   * Identify areas needing improvement
+   */
+  private identifyImprovementAreas(
+    themeAnalysis: ReturnType<TakeawayGenerator['analyzeThemeDistribution']>,
+    skillLevel: 'beginner' | 'intermediate' | 'advanced'
+  ): string[] {
+    
+    const improvements: string[] = [];
+    
+    // Find most frequent problematic themes
+    const sortedByFrequency = Array.from(themeAnalysis.themeFrequency.entries())
+      .sort(([,freqA], [,freqB]) => freqB - freqA)
+      .slice(0, 3);
+    
+    sortedByFrequency.forEach(([themeId, frequency]) => {
+      if (frequency >= 2) {
+        improvements.push(this.getImprovementSuggestion(themeId, skillLevel));
+      }
+    });
+    
+    return improvements;
+  }
+
+  /**
+   * Identify strength areas
+   */
+  private identifyStrengthAreas(
+    themeAnalysis: ReturnType<TakeawayGenerator['analyzeThemeDistribution']>,
+    themedTurnPoints: ThemedTurnPoint[]
+  ): string[] {
+    
+    const strengths: string[] = [];
+    
+    // Find phases with fewer errors
+    const phaseErrors = new Map<GamePhase, number>();
+    
+    themedTurnPoints.forEach(tp => {
+      const currentErrors = phaseErrors.get(tp.gamePhase) || 0;
+      phaseErrors.set(tp.gamePhase, currentErrors + 1);
+    });
+    
+    const sortedPhases = Array.from(phaseErrors.entries())
+      .sort(([,errorsA], [,errorsB]) => errorsA - errorsB);
+    
+    if (sortedPhases.length > 0) {
+      const [strongestPhase] = sortedPhases[0];
+      strengths.push(`Strong ${strongestPhase} play`);
+    }
+    
+    return strengths;
+  }
+
+  // Utility methods
+
+  private classifyMoveFromEvalDelta(evalDelta: number): string {
+    const abs = Math.abs(evalDelta);
+    if (abs >= 300) return 'blunder';
+    if (abs >= 150) return 'mistake';
+    if (abs >= 75) return 'inaccuracy';
+    return 'good';
+  }
+
+  private calculateEstimatedImpact(turnPoints: ThemedTurnPoint[]): number {
+    const totalEvalLoss = turnPoints.reduce(
+      (sum, tp) => sum + Math.abs(tp.evalDelta), 0
+    );
+    return Math.min(100, totalEvalLoss / 10); // Normalize to 0-100
+  }
+
+  private simplifyDescription(description: string): string {
+    // Simplify language for beginners
+    return description
+      .replace(/centipawn/g, 'point')
+      .replace(/evaluation/g, 'position value')
+      .replace(/tactical motif/g, 'tactical pattern');
+  }
+
+  private enhanceDescription(description: string): string {
+    // Add more technical detail for advanced players
+    return description + \" Consider studying master games with similar patterns.\";
+  }
+
+  private getAdvancedActionItems(theme: CoachTheme): string[] {
+    // Add advanced action items based on theme
+    const advancedItems: Record<string, string[]> = {
+      'tactics': ['Study tactical motif databases', 'Practice blindfold visualization'],
+      'strategy': ['Analyze pawn structures in detail', 'Study positional sacrifices'],
+      'endgame': ['Memorize theoretical positions', 'Practice technique with tablebases']
+    };
+    
+    return advancedItems[theme.category] || [];
+  }
+
+  private getAdvancedConcepts(theme: CoachTheme): string[] {
+    // Add advanced concepts based on theme
+    const advancedConcepts: Record<string, string[]> = {
+      'tactics': ['Zwischenzug', 'Deflection', 'Interference'],
+      'strategy': ['Prophylaxis', 'Restriction', 'Transformation'],
+      'endgame': ['Opposition', 'Triangulation', 'Corresponding squares']
+    };
+    
+    return advancedConcepts[theme.category] || [];
+  }
+
+  private getImprovementSuggestion(themeId: string, skillLevel: string): string {
+    // Generate improvement suggestions based on theme
+    const suggestions: Record<string, string> = {
+      'calculation_accuracy': 'Practice calculating variations more deeply',
+      'blunder_recovery': 'Learn to stay calm after mistakes and find the best practical chances',
+      'pattern_recognition': 'Study more tactical puzzles to improve pattern recognition',
+      'time_management': 'Work on balancing speed and accuracy in your calculations'
+    };
+    
+    return suggestions[themeId] || 'Focus on consistent improvement in this area';
+  }
+
+  /**
+   * Get configuration
+   */
+  getConfig(): TakeawayGeneratorConfig {
+    return { ...this.config };
+  }
+
+  /**
+   * Update configuration
+   */
+  updateConfig(newConfig: Partial<TakeawayGeneratorConfig>): void {
+    this.config = { ...this.config, ...newConfig };
+  }
+}"

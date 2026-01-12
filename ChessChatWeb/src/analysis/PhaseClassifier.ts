@@ -12,4 +12,288 @@ import { GamePhase, MaterialCount } from './types';
 /**
  * Configuration for phase classification
  */
-export interface PhaseClassifierConfig {\n  // Material thresholds for phase transitions\n  endgameThreshold: number;    // Total material below which = endgame\n  openingMoveLimit: number;    // Move number below which could be opening\n  \n  // Development criteria for opening phase\n  minDevelopedPieces: number;  // Pieces that should be developed\n  castlingWeight: number;      // Importance of castling in opening\n  centerControlWeight: number; // Importance of center control\n}\n\nexport const DEFAULT_PHASE_CONFIG: PhaseClassifierConfig = {\n  endgameThreshold: 16,  // 16 points of material or less\n  openingMoveLimit: 15,  // First 15 moves could be opening\n  minDevelopedPieces: 3, // At least 3 pieces should be developed\n  castlingWeight: 2.0,   // Castling is important\n  centerControlWeight: 1.5 // Center control matters\n};\n\n/**\n * Analyzes game positions to determine phase\n */\nexport class PhaseClassifier {\n  private config: PhaseClassifierConfig;\n\n  constructor(config: Partial<PhaseClassifierConfig> = {}) {\n    this.config = { ...DEFAULT_PHASE_CONFIG, ...config };\n  }\n\n  /**\n   * Classify current game phase from FEN position\n   */\n  classifyPhase(fen: string, moveNumber: number = 1): GamePhase {\n    const chess = new Chess(fen);\n    const materialCount = this.calculateMaterialCount(chess);\n    const totalMaterial = materialCount.white + materialCount.black;\n    \n    // Clear endgame: low material\n    if (totalMaterial <= this.config.endgameThreshold) {\n      return 'endgame';\n    }\n    \n    // Opening phase analysis\n    if (moveNumber <= this.config.openingMoveLimit) {\n      const openingScore = this.calculateOpeningScore(chess);\n      \n      // Still in opening if development is incomplete\n      if (openingScore < 0.7) {\n        return 'opening';\n      }\n    }\n    \n    // Default to middlegame\n    return 'middlegame';\n  }\n\n  /**\n   * Calculate detailed phase information with confidence scores\n   */\n  analyzePhaseDetails(fen: string, moveNumber: number = 1): {\n    phase: GamePhase;\n    confidence: number;\n    factors: {\n      materialScore: number;\n      developmentScore: number;\n      structureScore: number;\n      mobilityScore: number;\n    };\n  } {\n    const chess = new Chess(fen);\n    const materialCount = this.calculateMaterialCount(chess);\n    const totalMaterial = materialCount.white + materialCount.black;\n    \n    const factors = {\n      materialScore: this.calculateMaterialScore(totalMaterial),\n      developmentScore: this.calculateDevelopmentScore(chess),\n      structureScore: this.calculateStructureScore(chess),\n      mobilityScore: this.calculateMobilityScore(chess)\n    };\n    \n    let phase: GamePhase;\n    let confidence: number;\n    \n    // Endgame classification\n    if (totalMaterial <= this.config.endgameThreshold) {\n      phase = 'endgame';\n      confidence = Math.min(0.9, 1 - (totalMaterial / this.config.endgameThreshold));\n    }\n    // Opening classification\n    else if (moveNumber <= this.config.openingMoveLimit && factors.developmentScore < 0.7) {\n      phase = 'opening';\n      confidence = Math.max(0.6, 1 - factors.developmentScore);\n    }\n    // Middlegame default\n    else {\n      phase = 'middlegame';\n      confidence = 0.8; // Default confidence for middlegame\n    }\n    \n    return { phase, confidence, factors };\n  }\n\n  /**\n   * Determine if position has specific phase characteristics\n   */\n  hasPhaseCharacteristics(fen: string, targetPhase: GamePhase): boolean {\n    const analysis = this.analyzePhaseDetails(fen);\n    return analysis.phase === targetPhase && analysis.confidence > 0.7;\n  }\n\n  /**\n   * Calculate material count for both sides\n   */\n  private calculateMaterialCount(chess: Chess): MaterialCount {\n    const board = chess.board();\n    const pieceValues = {\n      'p': 1, 'n': 3, 'b': 3, 'r': 5, 'q': 9, 'k': 0\n    };\n    \n    let white = 0, black = 0;\n    \n    board.forEach(row => {\n      row.forEach(square => {\n        if (square) {\n          const value = pieceValues[square.type as keyof typeof pieceValues];\n          if (square.color === 'w') white += value;\n          else black += value;\n        }\n      });\n    });\n    \n    return { white, black };\n  }\n\n  /**\n   * Score based on total material remaining\n   * 0.0 = clear endgame, 1.0 = full material\n   */\n  private calculateMaterialScore(totalMaterial: number): number {\n    const maxMaterial = 78; // Starting material for both sides\n    return Math.min(1.0, totalMaterial / maxMaterial);\n  }\n\n  /**\n   * Score piece development (0.0 = undeveloped, 1.0 = fully developed)\n   */\n  private calculateDevelopmentScore(chess: Chess): number {\n    let developmentScore = 0;\n    const maxScore = 10; // Arbitrary max for normalization\n    \n    // Check piece development\n    const whiteDeveloped = this.countDevelopedPieces(chess, 'w');\n    const blackDeveloped = this.countDevelopedPieces(chess, 'b');\n    developmentScore += (whiteDeveloped + blackDeveloped) * 0.5;\n    \n    // Check castling status\n    const whiteCanCastle = this.canCastle(chess, 'w');\n    const blackCanCastle = this.canCastle(chess, 'b');\n    \n    // Bonus for having castled (indicated by king not being on starting square)\n    const whiteKingMoved = !this.isKingOnStartSquare(chess, 'w');\n    const blackKingMoved = !this.isKingOnStartSquare(chess, 'b');\n    \n    if (whiteKingMoved || !whiteCanCastle) developmentScore += 1;\n    if (blackKingMoved || !blackCanCastle) developmentScore += 1;\n    \n    // Check center control\n    developmentScore += this.calculateCenterControl(chess) * 2;\n    \n    return Math.min(1.0, developmentScore / maxScore);\n  }\n\n  /**\n   * Score pawn structure complexity\n   */\n  private calculateStructureScore(chess: Chess): number {\n    const board = chess.board();\n    let structureComplexity = 0;\n    \n    // Count pawn chains, isolated pawns, passed pawns\n    for (let file = 0; file < 8; file++) {\n      const whitePawns: number[] = [];\n      const blackPawns: number[] = [];\n      \n      for (let rank = 0; rank < 8; rank++) {\n        const piece = board[rank][file];\n        if (piece && piece.type === 'p') {\n          if (piece.color === 'w') whitePawns.push(rank);\n          else blackPawns.push(rank);\n        }\n      }\n      \n      // Doubled pawns increase complexity\n      if (whitePawns.length > 1) structureComplexity += 0.5;\n      if (blackPawns.length > 1) structureComplexity += 0.5;\n    }\n    \n    return Math.min(1.0, structureComplexity / 5.0);\n  }\n\n  /**\n   * Calculate piece mobility and activity\n   */\n  private calculateMobilityScore(chess: Chess): number {\n    const whiteMoves = chess.moves({ color: 'w' }).length;\n    const blackMoves = chess.moves({ color: 'b' }).length;\n    const totalMoves = whiteMoves + blackMoves;\n    \n    // Normalize based on typical move counts\n    // Early game: ~40-60 moves, Endgame: ~20-30 moves\n    const normalizedScore = Math.min(1.0, totalMoves / 50.0);\n    \n    return normalizedScore;\n  }\n\n  /**\n   * Count developed pieces (off back rank)\n   */\n  private countDevelopedPieces(chess: Chess, color: 'w' | 'b'): number {\n    const board = chess.board();\n    let developed = 0;\n    const backRank = color === 'w' ? 7 : 0;\n    \n    board.forEach((row, rank) => {\n      row.forEach(square => {\n        if (square && \n            square.color === color && \n            ['n', 'b', 'q'].includes(square.type) && \n            rank !== backRank) {\n          developed++;\n        }\n      });\n    });\n    \n    return developed;\n  }\n\n  /**\n   * Check if side can still castle\n   */\n  private canCastle(chess: Chess, color: 'w' | 'b'): boolean {\n    const castlingRights = chess.getCastlingRights(color);\n    return castlingRights.k || castlingRights.q;\n  }\n\n  /**\n   * Check if king is still on starting square\n   */\n  private isKingOnStartSquare(chess: Chess, color: 'w' | 'b'): boolean {\n    const startSquare = color === 'w' ? 'e1' : 'e8';\n    const piece = chess.get(startSquare);\n    return piece !== null && piece.type === 'k' && piece.color === color;\n  }\n\n  /**\n   * Calculate center control (e4, e5, d4, d5 squares)\n   */\n  private calculateCenterControl(chess: Chess): number {\n    const centerSquares = ['e4', 'e5', 'd4', 'd5'];\n    let controlScore = 0;\n    \n    centerSquares.forEach(square => {\n      const piece = chess.get(square);\n      if (piece) {\n        controlScore += piece.type === 'p' ? 0.5 : 0.3; // Pawns better for control\n      }\n    });\n    \n    return Math.min(1.0, controlScore / 2.0);\n  }\n\n  /**\n   * Get configuration\n   */\n  getConfig(): PhaseClassifierConfig {\n    return { ...this.config };\n  }\n\n  /**\n   * Update configuration\n   */\n  updateConfig(newConfig: Partial<PhaseClassifierConfig>): void {\n    this.config = { ...this.config, ...newConfig };\n  }\n}"
+export interface PhaseClassifierConfig {
+  // Material thresholds for phase transitions
+  endgameThreshold: number;    // Total material below which = endgame
+  openingMoveLimit: number;    // Move number below which could be opening
+  
+  // Development criteria for opening phase
+  minDevelopedPieces: number;  // Pieces that should be developed
+  castlingWeight: number;      // Importance of castling in opening
+  centerControlWeight: number; // Importance of center control
+}
+
+export const DEFAULT_PHASE_CONFIG: PhaseClassifierConfig = {
+  endgameThreshold: 16,  // 16 points of material or less
+  openingMoveLimit: 15,  // First 15 moves could be opening
+  minDevelopedPieces: 3, // At least 3 pieces should be developed
+  castlingWeight: 2.0,   // Castling is important
+  centerControlWeight: 1.5 // Center control matters
+};
+
+/**
+ * Analyzes game positions to determine phase
+ */
+export class PhaseClassifier {
+  private config: PhaseClassifierConfig;
+
+  constructor(config: Partial<PhaseClassifierConfig> = {}) {
+    this.config = { ...DEFAULT_PHASE_CONFIG, ...config };
+  }
+
+  /**
+   * Classify current game phase from FEN position
+   */
+  classifyPhase(fen: string, moveNumber: number = 1): GamePhase {
+    const chess = new Chess(fen);
+    const materialCount = this.calculateMaterialCount(chess);
+    const totalMaterial = materialCount.white + materialCount.black;
+    
+    // Clear endgame: low material
+    if (totalMaterial <= this.config.endgameThreshold) {
+      return 'endgame';
+    }
+    
+    // Opening phase analysis
+    if (moveNumber <= this.config.openingMoveLimit) {
+      const openingScore = this.calculateOpeningScore(chess);
+      
+      // Still in opening if development is incomplete
+      if (openingScore < 0.7) {
+        return 'opening';
+      }
+    }
+    
+    // Default to middlegame
+    return 'middlegame';
+  }
+
+  /**
+   * Calculate detailed phase information with confidence scores
+   */
+  analyzePhaseDetails(fen: string, moveNumber: number = 1): {
+    phase: GamePhase;
+    confidence: number;
+    factors: {
+      materialScore: number;
+      developmentScore: number;
+      structureScore: number;
+      mobilityScore: number;
+    };
+  } {
+    const chess = new Chess(fen);
+    const materialCount = this.calculateMaterialCount(chess);
+    const totalMaterial = materialCount.white + materialCount.black;
+    
+    const factors = {
+      materialScore: this.calculateMaterialScore(totalMaterial),
+      developmentScore: this.calculateDevelopmentScore(chess),
+      structureScore: this.calculateStructureScore(chess),
+      mobilityScore: this.calculateMobilityScore(chess)
+    };
+    
+    let phase: GamePhase;
+    let confidence: number;
+    
+    // Endgame classification
+    if (totalMaterial <= this.config.endgameThreshold) {
+      phase = 'endgame';
+      confidence = Math.min(0.9, 1 - (totalMaterial / this.config.endgameThreshold));
+    }
+    // Opening classification
+    else if (moveNumber <= this.config.openingMoveLimit && factors.developmentScore < 0.7) {
+      phase = 'opening';
+      confidence = Math.max(0.6, 1 - factors.developmentScore);
+    }
+    // Middlegame default
+    else {
+      phase = 'middlegame';
+      confidence = 0.8; // Default confidence for middlegame
+    }
+    
+    return { phase, confidence, factors };
+  }
+
+  /**
+   * Determine if position has specific phase characteristics
+   */
+  hasPhaseCharacteristics(fen: string, targetPhase: GamePhase): boolean {
+    const analysis = this.analyzePhaseDetails(fen);
+    return analysis.phase === targetPhase && analysis.confidence > 0.7;
+  }
+
+  /**
+   * Calculate material count for both sides
+   */
+  private calculateMaterialCount(chess: Chess): MaterialCount {
+    const board = chess.board();
+    const pieceValues = {
+      'p': 1, 'n': 3, 'b': 3, 'r': 5, 'q': 9, 'k': 0
+    };
+    
+    let white = 0, black = 0;
+    
+    board.forEach(row => {
+      row.forEach(square => {
+        if (square) {
+          const value = pieceValues[square.type as keyof typeof pieceValues];
+          if (square.color === 'w') white += value;
+          else black += value;
+        }
+      });
+    });
+    
+    return { white, black };
+  }
+
+  /**
+   * Score based on total material remaining
+   * 0.0 = clear endgame, 1.0 = full material
+   */
+  private calculateMaterialScore(totalMaterial: number): number {
+    const maxMaterial = 78; // Starting material for both sides
+    return Math.min(1.0, totalMaterial / maxMaterial);
+  }
+
+  /**
+   * Score piece development (0.0 = undeveloped, 1.0 = fully developed)
+   */
+  private calculateDevelopmentScore(chess: Chess): number {
+    let developmentScore = 0;
+    const maxScore = 10; // Arbitrary max for normalization
+    
+    // Check piece development
+    const whiteDeveloped = this.countDevelopedPieces(chess, 'w');
+    const blackDeveloped = this.countDevelopedPieces(chess, 'b');
+    developmentScore += (whiteDeveloped + blackDeveloped) * 0.5;
+    
+    // Check castling status
+    const whiteCanCastle = this.canCastle(chess, 'w');
+    const blackCanCastle = this.canCastle(chess, 'b');
+    
+    // Bonus for having castled (indicated by king not being on starting square)
+    const whiteKingMoved = !this.isKingOnStartSquare(chess, 'w');
+    const blackKingMoved = !this.isKingOnStartSquare(chess, 'b');
+    
+    if (whiteKingMoved || !whiteCanCastle) developmentScore += 1;
+    if (blackKingMoved || !blackCanCastle) developmentScore += 1;
+    
+    // Check center control
+    developmentScore += this.calculateCenterControl(chess) * 2;
+    
+    return Math.min(1.0, developmentScore / maxScore);
+  }
+
+  /**
+   * Score pawn structure complexity
+   */
+  private calculateStructureScore(chess: Chess): number {
+    const board = chess.board();
+    let structureComplexity = 0;
+    
+    // Count pawn chains, isolated pawns, passed pawns
+    for (let file = 0; file < 8; file++) {
+      const whitePawns: number[] = [];
+      const blackPawns: number[] = [];
+      
+      for (let rank = 0; rank < 8; rank++) {
+        const piece = board[rank][file];
+        if (piece && piece.type === 'p') {
+          if (piece.color === 'w') whitePawns.push(rank);
+          else blackPawns.push(rank);
+        }
+      }
+      
+      // Doubled pawns increase complexity
+      if (whitePawns.length > 1) structureComplexity += 0.5;
+      if (blackPawns.length > 1) structureComplexity += 0.5;
+    }
+    
+    return Math.min(1.0, structureComplexity / 5.0);
+  }
+
+  /**
+   * Calculate piece mobility and activity
+   */
+  private calculateMobilityScore(chess: Chess): number {
+    const whiteMoves = chess.moves({ color: 'w' }).length;
+    const blackMoves = chess.moves({ color: 'b' }).length;
+    const totalMoves = whiteMoves + blackMoves;
+    
+    // Normalize based on typical move counts
+    // Early game: ~40-60 moves, Endgame: ~20-30 moves
+    const normalizedScore = Math.min(1.0, totalMoves / 50.0);
+    
+    return normalizedScore;
+  }
+
+  /**
+   * Count developed pieces (off back rank)
+   */
+  private countDevelopedPieces(chess: Chess, color: 'w' | 'b'): number {
+    const board = chess.board();
+    let developed = 0;
+    const backRank = color === 'w' ? 7 : 0;
+    
+    board.forEach((row, rank) => {
+      row.forEach(square => {
+        if (square && 
+            square.color === color && 
+            ['n', 'b', 'q'].includes(square.type) && 
+            rank !== backRank) {
+          developed++;
+        }
+      });
+    });
+    
+    return developed;
+  }
+
+  /**
+   * Check if side can still castle
+   */
+  private canCastle(chess: Chess, color: 'w' | 'b'): boolean {
+    const castlingRights = chess.getCastlingRights(color);
+    return castlingRights.k || castlingRights.q;
+  }
+
+  /**
+   * Check if king is still on starting square
+   */
+  private isKingOnStartSquare(chess: Chess, color: 'w' | 'b'): boolean {
+    const startSquare = color === 'w' ? 'e1' : 'e8';
+    const piece = chess.get(startSquare);
+    return piece !== null && piece.type === 'k' && piece.color === color;
+  }
+
+  /**
+   * Calculate center control (e4, e5, d4, d5 squares)
+   */
+  private calculateCenterControl(chess: Chess): number {
+    const centerSquares = ['e4', 'e5', 'd4', 'd5'];
+    let controlScore = 0;
+    
+    centerSquares.forEach(square => {
+      const piece = chess.get(square);
+      if (piece) {
+        controlScore += piece.type === 'p' ? 0.5 : 0.3; // Pawns better for control
+      }
+    });
+    
+    return Math.min(1.0, controlScore / 2.0);
+  }
+
+  /**
+   * Get configuration
+   */
+  getConfig(): PhaseClassifierConfig {
+    return { ...this.config };
+  }
+
+  /**
+   * Update configuration
+   */
+  updateConfig(newConfig: Partial<PhaseClassifierConfig>): void {
+    this.config = { ...this.config, ...newConfig };
+  }
+}"

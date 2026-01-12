@@ -1,1 +1,364 @@
-/**\n * Theme Assigner - Assigns coaching themes to turning points\n * \n * This module takes turning points from engine analysis and assigns\n * appropriate coaching themes based on position characteristics,\n * move quality, and game phase. It forms the bridge between raw\n * analysis data and structured coaching advice.\n */\n\nimport { Chess } from 'chess.js';\nimport { \n  TurnPoint, \n  ThemedTurnPoint, \n  GamePhase, \n  MoveClassification,\n  CoachTheme \n} from './types';\nimport { COACH_THEMES } from './coachThemes';\nimport { PhaseClassifier } from './PhaseClassifier';\n\n/**\n * Configuration for theme assignment\n */\nexport interface ThemeAssignerConfig {\n  maxThemesPerTurnPoint: number;  // Max themes to assign per position\n  priorityThreshold: number;       // Minimum priority for theme assignment\n  phaseWeighting: number;         // How much to weight phase-specific themes\n  skillLevelWeighting: number;    // How much to weight skill-appropriate themes\n}\n\nexport const DEFAULT_THEME_CONFIG: ThemeAssignerConfig = {\n  maxThemesPerTurnPoint: 3,\n  priorityThreshold: 0.6,\n  phaseWeighting: 1.5,\n  skillLevelWeighting: 1.2\n};\n\n/**\n * Assigns coaching themes to turning points\n */\nexport class ThemeAssigner {\n  private config: ThemeAssignerConfig;\n  private phaseClassifier: PhaseClassifier;\n\n  constructor(\n    config: Partial<ThemeAssignerConfig> = {},\n    phaseClassifier?: PhaseClassifier\n  ) {\n    this.config = { ...DEFAULT_THEME_CONFIG, ...config };\n    this.phaseClassifier = phaseClassifier || new PhaseClassifier();\n  }\n\n  /**\n   * Assign themes to a collection of turn points\n   */\n  async assignThemes(\n    turnPoints: TurnPoint[],\n    skillLevel: 'beginner' | 'intermediate' | 'advanced' = 'intermediate'\n  ): Promise<ThemedTurnPoint[]> {\n    const themedTurnPoints: ThemedTurnPoint[] = [];\n\n    for (const turnPoint of turnPoints) {\n      const themes = await this.assignThemesToTurnPoint(turnPoint, skillLevel);\n      \n      themedTurnPoints.push({\n        ...turnPoint,\n        themes,\n        gamePhase: this.phaseClassifier.classifyPhase(\n          turnPoint.fenBefore, \n          turnPoint.moveNumber\n        )\n      });\n    }\n\n    return themedTurnPoints;\n  }\n\n  /**\n   * Assign themes to a single turning point\n   */\n  private async assignThemesToTurnPoint(\n    turnPoint: TurnPoint,\n    skillLevel: 'beginner' | 'intermediate' | 'advanced'\n  ): Promise<CoachTheme[]> {\n    const chess = new Chess(turnPoint.fenBefore);\n    const gamePhase = this.phaseClassifier.classifyPhase(\n      turnPoint.fenBefore, \n      turnPoint.moveNumber\n    );\n    \n    const candidateThemes: Array<{ theme: CoachTheme; score: number }> = [];\n\n    // Evaluate each theme for relevance\n    for (const theme of Object.values(COACH_THEMES)) {\n      const score = this.calculateThemeRelevance(\n        theme,\n        turnPoint,\n        gamePhase,\n        chess,\n        skillLevel\n      );\n      \n      if (score >= this.config.priorityThreshold) {\n        candidateThemes.push({ theme, score });\n      }\n    }\n\n    // Sort by relevance score and return top themes\n    return candidateThemes\n      .sort((a, b) => b.score - a.score)\n      .slice(0, this.config.maxThemesPerTurnPoint)\n      .map(item => item.theme);\n  }\n\n  /**\n   * Calculate how relevant a theme is to a specific turning point\n   */\n  private calculateThemeRelevance(\n    theme: CoachTheme,\n    turnPoint: TurnPoint,\n    gamePhase: GamePhase,\n    chess: Chess,\n    skillLevel: 'beginner' | 'intermediate' | 'advanced'\n  ): number {\n    let score = theme.priority;\n\n    // Phase-specific weighting\n    if (theme.gamePhases.includes(gamePhase)) {\n      score *= this.config.phaseWeighting;\n    }\n\n    // Skill level weighting\n    if (theme.skillLevels.includes(skillLevel)) {\n      score *= this.config.skillLevelWeighting;\n    }\n\n    // Move quality specific themes\n    const moveClassification = this.classifyMoveFromEvalDelta(turnPoint.evalDelta);\n    score *= this.getMoveQualityWeight(theme, moveClassification);\n\n    // Position-specific detection\n    score *= this.getPositionSpecificWeight(theme, turnPoint, chess);\n\n    return Math.min(1.0, score);\n  }\n\n  /**\n   * Get weight based on move quality\n   */\n  private getMoveQualityWeight(\n    theme: CoachTheme,\n    moveClassification: MoveClassification\n  ): number {\n    // Theme-specific move quality preferences\n    const moveQualityWeights: Record<string, Record<MoveClassification, number>> = {\n      'blunder_recovery': {\n        'blunder': 2.0,\n        'mistake': 1.5,\n        'inaccuracy': 1.0,\n        'good': 0.3,\n        'excellent': 0.1\n      },\n      'calculation_accuracy': {\n        'blunder': 2.0,\n        'mistake': 1.8,\n        'inaccuracy': 1.3,\n        'good': 0.8,\n        'excellent': 0.5\n      },\n      'pattern_recognition': {\n        'blunder': 1.8,\n        'mistake': 1.5,\n        'inaccuracy': 1.2,\n        'good': 0.9,\n        'excellent': 0.7\n      }\n    };\n\n    return moveQualityWeights[theme.id]?.[moveClassification] || 1.0;\n  }\n\n  /**\n   * Get weight based on position-specific characteristics\n   */\n  private getPositionSpecificWeight(\n    theme: CoachTheme,\n    turnPoint: TurnPoint,\n    chess: Chess\n  ): number {\n    let weight = 1.0;\n\n    // Category-specific position analysis\n    switch (theme.category) {\n      case 'tactics':\n        weight *= this.getTacticalWeight(chess, turnPoint);\n        break;\n      case 'strategy':\n        weight *= this.getStrategicWeight(chess);\n        break;\n      case 'opening':\n        weight *= this.getOpeningWeight(chess, turnPoint.moveNumber);\n        break;\n      case 'endgame':\n        weight *= this.getEndgameWeight(chess);\n        break;\n      case 'time_management':\n        weight *= this.getTimeManagementWeight(turnPoint);\n        break;\n      case 'psychology':\n        weight *= this.getPsychologyWeight(turnPoint);\n        break;\n    }\n\n    return weight;\n  }\n\n  /**\n   * Calculate tactical position weight\n   */\n  private getTacticalWeight(chess: Chess, turnPoint: TurnPoint): number {\n    let weight = 1.0;\n\n    // Check for tactical motifs\n    if (this.hasTacticalMotifs(chess)) {\n      weight *= 1.5;\n    }\n\n    // Large evaluation swing suggests tactics\n    if (Math.abs(turnPoint.evalDelta) > 200) {\n      weight *= 1.3;\n    }\n\n    return weight;\n  }\n\n  /**\n   * Calculate strategic position weight\n   */\n  private getStrategicWeight(chess: Chess): number {\n    let weight = 1.0;\n\n    // Closed positions favor strategic themes\n    const mobilityScore = chess.moves().length;\n    if (mobilityScore < 30) {\n      weight *= 1.4; // Closed position\n    }\n\n    return weight;\n  }\n\n  /**\n   * Calculate opening-specific weight\n   */\n  private getOpeningWeight(chess: Chess, moveNumber: number): number {\n    if (moveNumber > 15) return 0.3; // Late for opening themes\n    if (moveNumber <= 10) return 1.5; // Perfect for opening themes\n    return 1.0;\n  }\n\n  /**\n   * Calculate endgame-specific weight\n   */\n  private getEndgameWeight(chess: Chess): number {\n    const materialCount = this.calculateMaterialCount(chess);\n    const totalMaterial = materialCount.white + materialCount.black;\n    \n    if (totalMaterial <= 12) return 1.8; // Clear endgame\n    if (totalMaterial <= 20) return 1.3; // Transitioning to endgame\n    return 0.4; // Too much material for endgame themes\n  }\n\n  /**\n   * Calculate time management weight\n   */\n  private getTimeManagementWeight(turnPoint: TurnPoint): number {\n    // Time management themes are more relevant for significant moves\n    const evalMagnitude = Math.abs(turnPoint.evalDelta);\n    return evalMagnitude > 100 ? 1.3 : 1.0;\n  }\n\n  /**\n   * Calculate psychology weight\n   */\n  private getPsychologyWeight(turnPoint: TurnPoint): number {\n    // Psychology themes are relevant for all significant turning points\n    return Math.abs(turnPoint.evalDelta) > 150 ? 1.2 : 1.0;\n  }\n\n  /**\n   * Check for tactical motifs in position\n   */\n  private hasTacticalMotifs(chess: Chess): boolean {\n    // Simple heuristic: check for pieces that can capture each other\n    const moves = chess.moves({ verbose: true });\n    \n    // Check for captures\n    const captures = moves.filter(move => move.captured);\n    if (captures.length > 2) return true;\n\n    // Check for checks\n    const checks = moves.filter(move => move.san.includes('+'));\n    if (checks.length > 0) return true;\n\n    return false;\n  }\n\n  /**\n   * Classify move based on evaluation delta\n   */\n  private classifyMoveFromEvalDelta(evalDelta: number): MoveClassification {\n    const abs = Math.abs(evalDelta);\n    \n    if (abs >= 300) return 'blunder';\n    if (abs >= 150) return 'mistake';\n    if (abs >= 75) return 'inaccuracy';\n    if (abs <= 25) return 'excellent';\n    return 'good';\n  }\n\n  /**\n   * Calculate material count\n   */\n  private calculateMaterialCount(chess: Chess): { white: number; black: number } {\n    const board = chess.board();\n    const pieceValues = {\n      'p': 1, 'n': 3, 'b': 3, 'r': 5, 'q': 9, 'k': 0\n    };\n    \n    let white = 0, black = 0;\n    \n    board.forEach(row => {\n      row.forEach(square => {\n        if (square) {\n          const value = pieceValues[square.type as keyof typeof pieceValues];\n          if (square.color === 'w') white += value;\n          else black += value;\n        }\n      });\n    });\n    \n    return { white, black };\n  }\n\n  /**\n   * Get configuration\n   */\n  getConfig(): ThemeAssignerConfig {\n    return { ...this.config };\n  }\n\n  /**\n   * Update configuration\n   */\n  updateConfig(newConfig: Partial<ThemeAssignerConfig>): void {\n    this.config = { ...this.config, ...newConfig };\n  }\n\n  /**\n   * Get phase classifier instance\n   */\n  getPhaseClassifier(): PhaseClassifier {\n    return this.phaseClassifier;\n  }\n}"
+/**
+ * Theme Assigner - Assigns coaching themes to turning points
+ * 
+ * This module takes turning points from engine analysis and assigns
+ * appropriate coaching themes based on position characteristics,
+ * move quality, and game phase. It forms the bridge between raw
+ * analysis data and structured coaching advice.
+ */
+
+import { Chess } from 'chess.js';
+import { 
+  TurnPoint, 
+  ThemedTurnPoint, 
+  GamePhase, 
+  MoveClassification,
+  CoachTheme 
+} from './types';
+import { COACH_THEMES } from './coachThemes';
+import { PhaseClassifier } from './PhaseClassifier';
+
+/**
+ * Configuration for theme assignment
+ */
+export interface ThemeAssignerConfig {
+  maxThemesPerTurnPoint: number;  // Max themes to assign per position
+  priorityThreshold: number;       // Minimum priority for theme assignment
+  phaseWeighting: number;         // How much to weight phase-specific themes
+  skillLevelWeighting: number;    // How much to weight skill-appropriate themes
+}
+
+export const DEFAULT_THEME_CONFIG: ThemeAssignerConfig = {
+  maxThemesPerTurnPoint: 3,
+  priorityThreshold: 0.6,
+  phaseWeighting: 1.5,
+  skillLevelWeighting: 1.2
+};
+
+/**
+ * Assigns coaching themes to turning points
+ */
+export class ThemeAssigner {
+  private config: ThemeAssignerConfig;
+  private phaseClassifier: PhaseClassifier;
+
+  constructor(
+    config: Partial<ThemeAssignerConfig> = {},
+    phaseClassifier?: PhaseClassifier
+  ) {
+    this.config = { ...DEFAULT_THEME_CONFIG, ...config };
+    this.phaseClassifier = phaseClassifier || new PhaseClassifier();
+  }
+
+  /**
+   * Assign themes to a collection of turn points
+   */
+  async assignThemes(
+    turnPoints: TurnPoint[],
+    skillLevel: 'beginner' | 'intermediate' | 'advanced' = 'intermediate'
+  ): Promise<ThemedTurnPoint[]> {
+    const themedTurnPoints: ThemedTurnPoint[] = [];
+
+    for (const turnPoint of turnPoints) {
+      const themes = await this.assignThemesToTurnPoint(turnPoint, skillLevel);
+      
+      themedTurnPoints.push({
+        ...turnPoint,
+        themes,
+        gamePhase: this.phaseClassifier.classifyPhase(
+          turnPoint.fenBefore, 
+          turnPoint.moveNumber
+        )
+      });
+    }
+
+    return themedTurnPoints;
+  }
+
+  /**
+   * Assign themes to a single turning point
+   */
+  private async assignThemesToTurnPoint(
+    turnPoint: TurnPoint,
+    skillLevel: 'beginner' | 'intermediate' | 'advanced'
+  ): Promise<CoachTheme[]> {
+    const chess = new Chess(turnPoint.fenBefore);
+    const gamePhase = this.phaseClassifier.classifyPhase(
+      turnPoint.fenBefore, 
+      turnPoint.moveNumber
+    );
+    
+    const candidateThemes: Array<{ theme: CoachTheme; score: number }> = [];
+
+    // Evaluate each theme for relevance
+    for (const theme of Object.values(COACH_THEMES)) {
+      const score = this.calculateThemeRelevance(
+        theme,
+        turnPoint,
+        gamePhase,
+        chess,
+        skillLevel
+      );
+      
+      if (score >= this.config.priorityThreshold) {
+        candidateThemes.push({ theme, score });
+      }
+    }
+
+    // Sort by relevance score and return top themes
+    return candidateThemes
+      .sort((a, b) => b.score - a.score)
+      .slice(0, this.config.maxThemesPerTurnPoint)
+      .map(item => item.theme);
+  }
+
+  /**
+   * Calculate how relevant a theme is to a specific turning point
+   */
+  private calculateThemeRelevance(
+    theme: CoachTheme,
+    turnPoint: TurnPoint,
+    gamePhase: GamePhase,
+    chess: Chess,
+    skillLevel: 'beginner' | 'intermediate' | 'advanced'
+  ): number {
+    let score = theme.priority;
+
+    // Phase-specific weighting
+    if (theme.gamePhases.includes(gamePhase)) {
+      score *= this.config.phaseWeighting;
+    }
+
+    // Skill level weighting
+    if (theme.skillLevels.includes(skillLevel)) {
+      score *= this.config.skillLevelWeighting;
+    }
+
+    // Move quality specific themes
+    const moveClassification = this.classifyMoveFromEvalDelta(turnPoint.evalDelta);
+    score *= this.getMoveQualityWeight(theme, moveClassification);
+
+    // Position-specific detection
+    score *= this.getPositionSpecificWeight(theme, turnPoint, chess);
+
+    return Math.min(1.0, score);
+  }
+
+  /**
+   * Get weight based on move quality
+   */
+  private getMoveQualityWeight(
+    theme: CoachTheme,
+    moveClassification: MoveClassification
+  ): number {
+    // Theme-specific move quality preferences
+    const moveQualityWeights: Record<string, Record<MoveClassification, number>> = {
+      'blunder_recovery': {
+        'blunder': 2.0,
+        'mistake': 1.5,
+        'inaccuracy': 1.0,
+        'good': 0.3,
+        'excellent': 0.1
+      },
+      'calculation_accuracy': {
+        'blunder': 2.0,
+        'mistake': 1.8,
+        'inaccuracy': 1.3,
+        'good': 0.8,
+        'excellent': 0.5
+      },
+      'pattern_recognition': {
+        'blunder': 1.8,
+        'mistake': 1.5,
+        'inaccuracy': 1.2,
+        'good': 0.9,
+        'excellent': 0.7
+      }
+    };
+
+    return moveQualityWeights[theme.id]?.[moveClassification] || 1.0;
+  }
+
+  /**
+   * Get weight based on position-specific characteristics
+   */
+  private getPositionSpecificWeight(
+    theme: CoachTheme,
+    turnPoint: TurnPoint,
+    chess: Chess
+  ): number {
+    let weight = 1.0;
+
+    // Category-specific position analysis
+    switch (theme.category) {
+      case 'tactics':
+        weight *= this.getTacticalWeight(chess, turnPoint);
+        break;
+      case 'strategy':
+        weight *= this.getStrategicWeight(chess);
+        break;
+      case 'opening':
+        weight *= this.getOpeningWeight(chess, turnPoint.moveNumber);
+        break;
+      case 'endgame':
+        weight *= this.getEndgameWeight(chess);
+        break;
+      case 'time_management':
+        weight *= this.getTimeManagementWeight(turnPoint);
+        break;
+      case 'psychology':
+        weight *= this.getPsychologyWeight(turnPoint);
+        break;
+    }
+
+    return weight;
+  }
+
+  /**
+   * Calculate tactical position weight
+   */
+  private getTacticalWeight(chess: Chess, turnPoint: TurnPoint): number {
+    let weight = 1.0;
+
+    // Check for tactical motifs
+    if (this.hasTacticalMotifs(chess)) {
+      weight *= 1.5;
+    }
+
+    // Large evaluation swing suggests tactics
+    if (Math.abs(turnPoint.evalDelta) > 200) {
+      weight *= 1.3;
+    }
+
+    return weight;
+  }
+
+  /**
+   * Calculate strategic position weight
+   */
+  private getStrategicWeight(chess: Chess): number {
+    let weight = 1.0;
+
+    // Closed positions favor strategic themes
+    const mobilityScore = chess.moves().length;
+    if (mobilityScore < 30) {
+      weight *= 1.4; // Closed position
+    }
+
+    return weight;
+  }
+
+  /**
+   * Calculate opening-specific weight
+   */
+  private getOpeningWeight(chess: Chess, moveNumber: number): number {
+    if (moveNumber > 15) return 0.3; // Late for opening themes
+    if (moveNumber <= 10) return 1.5; // Perfect for opening themes
+    return 1.0;
+  }
+
+  /**
+   * Calculate endgame-specific weight
+   */
+  private getEndgameWeight(chess: Chess): number {
+    const materialCount = this.calculateMaterialCount(chess);
+    const totalMaterial = materialCount.white + materialCount.black;
+    
+    if (totalMaterial <= 12) return 1.8; // Clear endgame
+    if (totalMaterial <= 20) return 1.3; // Transitioning to endgame
+    return 0.4; // Too much material for endgame themes
+  }
+
+  /**
+   * Calculate time management weight
+   */
+  private getTimeManagementWeight(turnPoint: TurnPoint): number {
+    // Time management themes are more relevant for significant moves
+    const evalMagnitude = Math.abs(turnPoint.evalDelta);
+    return evalMagnitude > 100 ? 1.3 : 1.0;
+  }
+
+  /**
+   * Calculate psychology weight
+   */
+  private getPsychologyWeight(turnPoint: TurnPoint): number {
+    // Psychology themes are relevant for all significant turning points
+    return Math.abs(turnPoint.evalDelta) > 150 ? 1.2 : 1.0;
+  }
+
+  /**
+   * Check for tactical motifs in position
+   */
+  private hasTacticalMotifs(chess: Chess): boolean {
+    // Simple heuristic: check for pieces that can capture each other
+    const moves = chess.moves({ verbose: true });
+    
+    // Check for captures
+    const captures = moves.filter(move => move.captured);
+    if (captures.length > 2) return true;
+
+    // Check for checks
+    const checks = moves.filter(move => move.san.includes('+'));
+    if (checks.length > 0) return true;
+
+    return false;
+  }
+
+  /**
+   * Classify move based on evaluation delta
+   */
+  private classifyMoveFromEvalDelta(evalDelta: number): MoveClassification {
+    const abs = Math.abs(evalDelta);
+    
+    if (abs >= 300) return 'blunder';
+    if (abs >= 150) return 'mistake';
+    if (abs >= 75) return 'inaccuracy';
+    if (abs <= 25) return 'excellent';
+    return 'good';
+  }
+
+  /**
+   * Calculate material count
+   */
+  private calculateMaterialCount(chess: Chess): { white: number; black: number } {
+    const board = chess.board();
+    const pieceValues = {
+      'p': 1, 'n': 3, 'b': 3, 'r': 5, 'q': 9, 'k': 0
+    };
+    
+    let white = 0, black = 0;
+    
+    board.forEach(row => {
+      row.forEach(square => {
+        if (square) {
+          const value = pieceValues[square.type as keyof typeof pieceValues];
+          if (square.color === 'w') white += value;
+          else black += value;
+        }
+      });
+    });
+    
+    return { white, black };
+  }
+
+  /**
+   * Get configuration
+   */
+  getConfig(): ThemeAssignerConfig {
+    return { ...this.config };
+  }
+
+  /**
+   * Update configuration
+   */
+  updateConfig(newConfig: Partial<ThemeAssignerConfig>): void {
+    this.config = { ...this.config, ...newConfig };
+  }
+
+  /**
+   * Get phase classifier instance
+   */
+  getPhaseClassifier(): PhaseClassifier {
+    return this.phaseClassifier;
+  }
+}"
