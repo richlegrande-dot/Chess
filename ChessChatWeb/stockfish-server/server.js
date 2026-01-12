@@ -1180,6 +1180,329 @@ app.post('/analyze-game', authenticateApiKey, async (req, res) => {
 });
 
 /**
+ * POST /analyze-game-async
+ * Async game analysis - accepts job and callbacks when complete
+ * 
+ * Body:
+ * - jobId: string (required) - Job identifier
+ * - userId: string (required) - User identifier
+ * - gameId: string (required) - Game identifier
+ * - pgn: string (required) - PGN notation
+ * - playerColor: string (default 'white') - Player's color
+ * - depth: number (default 15) - Analysis depth
+ * - maxPlies: number (default 40) - Max plies to analyze
+ * - callbackUrl: string (required) - URL to POST results
+ * - callbackKey: string (required) - Authorization key for callback
+ * 
+ * Response:
+ * - accepted: boolean (returns 202 immediately)
+ */
+app.post('/analyze-game-async', authenticateApiKey, async (req, res) => {
+  const { 
+    jobId, 
+    userId, 
+    gameId, 
+    pgn, 
+    playerColor = 'white',
+    depth = 15, 
+    maxPlies = 40,
+    callbackUrl,
+    callbackKey
+  } = req.body;
+  
+  // Validate required fields
+  if (!jobId || !userId || !gameId || !pgn || !callbackUrl || !callbackKey) {
+    return res.status(400).json({ 
+      success: false,
+      error: 'Missing required fields: jobId, userId, gameId, pgn, callbackUrl, callbackKey',
+      requestId: req.requestId
+    });
+  }
+  
+  console.log(JSON.stringify({
+    action: 'async_job_accepted',
+    jobId,
+    gameId,
+    userId,
+    requestId: req.requestId
+  }));
+  
+  // Return 202 immediately
+  res.status(202).json({
+    accepted: true,
+    jobId,
+    requestId: req.requestId
+  });
+  
+  // Process analysis in background
+  (async () => {
+    const startTime = Date.now();
+    const enginesUsed = [];
+    
+    try {
+      console.log(JSON.stringify({
+        action: 'async_job_start',
+        jobId,
+        gameId,
+        depth,
+        maxPlies
+      }));
+      
+      // Parse PGN
+      const chess = new Chess();
+      const loadResult = chess.loadPgn(pgn);
+      
+      if (!loadResult) {
+        throw new Error('Invalid PGN');
+      }
+      
+      // Get all positions
+      const history = chess.history({ verbose: true });
+      const positions = [];
+      const tempChess = new Chess();
+      
+      positions.push({
+        fen: tempChess.fen(),
+        moveNumber: 0,
+        move: null
+      });
+      
+      for (let i = 0; i < history.length; i++) {
+        tempChess.move(history[i]);
+        positions.push({
+          fen: tempChess.fen(),
+          moveNumber: i + 1,
+          move: history[i]
+        });
+      }
+      
+      // Determine which positions to analyze (player's moves only)
+      const positionsToAnalyze = [];
+      for (let i = 0; i < positions.length && i < maxPlies; i++) {
+        const pos = positions[i];
+        const chess = new Chess(pos.fen);
+        const currentTurn = chess.turn();
+        const isPlayerTurn = (playerColor === 'white' && currentTurn === 'w') || 
+                             (playerColor === 'black' && currentTurn === 'b');
+        
+        if (isPlayerTurn && pos.move) {
+          positionsToAnalyze.push(pos);
+        }
+      }
+      
+      console.log(JSON.stringify({
+        action: 'async_job_analyzing',
+        jobId,
+        totalPositions: positions.length,
+        analyzingCount: positionsToAnalyze.length
+      }));
+      
+      // Analyze each position
+      const mistakes = [];
+      const blunders = [];
+      const inaccuracies = [];
+      const keyMoments = [];
+      
+      for (const pos of positionsToAnalyze) {
+        try {
+          // Get engine
+          const engine = await getEngine();
+          enginesUsed.push(engine);
+          
+          // Get eval before move
+          const beforeFen = positions[pos.moveNumber - 1].fen;
+          const beforeEval = await engine.evaluatePosition(beforeFen, 500, depth, req.requestId);
+          
+          // Get eval after move
+          const afterEval = await engine.evaluatePosition(pos.fen, 500, depth, req.requestId);
+          
+          // Calculate centipawn loss
+          let cpLoss = 0;
+          if (beforeEval.evaluation !== null && afterEval.evaluation !== null) {
+            if (playerColor === 'white') {
+              cpLoss = (beforeEval.evaluation * 100) - (afterEval.evaluation * 100);
+            } else {
+              cpLoss = (afterEval.evaluation * 100) - (beforeEval.evaluation * 100);
+            }
+          }
+          
+          // Classify mistake
+          if (Math.abs(cpLoss) >= 300) {
+            blunders.push({
+              moveNumber: pos.moveNumber,
+              move: pos.move.san,
+              cpLoss,
+              beforeEval: beforeEval.evaluation,
+              afterEval: afterEval.evaluation,
+              bestMove: beforeEval.bestMove
+            });
+          } else if (Math.abs(cpLoss) >= 150) {
+            mistakes.push({
+              moveNumber: pos.moveNumber,
+              move: pos.move.san,
+              cpLoss,
+              beforeEval: beforeEval.evaluation,
+              afterEval: afterEval.evaluation,
+              bestMove: beforeEval.bestMove
+            });
+          } else if (Math.abs(cpLoss) >= 70) {
+            inaccuracies.push({
+              moveNumber: pos.moveNumber,
+              move: pos.move.san,
+              cpLoss,
+              beforeEval: beforeEval.evaluation,
+              afterEval: afterEval.evaluation,
+              bestMove: beforeEval.bestMove
+            });
+          }
+          
+          // Release engine
+          releaseEngine(engine);
+          enginesUsed.pop();
+          
+        } catch (error) {
+          console.error(JSON.stringify({
+            action: 'async_position_analysis_error',
+            jobId,
+            moveNumber: pos.moveNumber,
+            error: error.message
+          }));
+        }
+      }
+      
+      // Compile results
+      const duration = Date.now() - startTime;
+      const mistakeSummary = {
+        mistakes: mistakes.length,
+        blunders: blunders.length,
+        inaccuracies: inaccuracies.length,
+        keyMoments: [...blunders, ...mistakes].slice(0, 5).map(m => ({
+          moveNumber: m.moveNumber,
+          move: m.move,
+          cpLoss: m.cpLoss,
+          bestMove: m.bestMove
+        }))
+      };
+      
+      const analysis = {
+        blunders,
+        mistakes,
+        inaccuracies,
+        totalPositionsAnalyzed: positionsToAnalyze.length
+      };
+      
+      console.log(JSON.stringify({
+        action: 'async_job_complete',
+        jobId,
+        gameId,
+        duration,
+        mistakeSummary
+      }));
+      
+      // Callback to Worker
+      try {
+        const callbackResponse = await fetch(callbackUrl, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${callbackKey}`
+          },
+          body: JSON.stringify({
+            jobId,
+            userId,
+            gameId,
+            analysis,
+            mistakeSummary,
+            timings: {
+              startTime,
+              duration,
+              positionsAnalyzed: positionsToAnalyze.length
+            }
+          })
+        });
+        
+        if (!callbackResponse.ok) {
+          throw new Error(`Callback returned ${callbackResponse.status}`);
+        }
+        
+        console.log(JSON.stringify({
+          action: 'async_callback_success',
+          jobId,
+          gameId
+        }));
+        
+      } catch (error) {
+        console.error(JSON.stringify({
+          action: 'async_callback_failed',
+          jobId,
+          gameId,
+          error: error.message
+        }));
+        
+        // Try to report failure back
+        try {
+          await fetch(callbackUrl, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${callbackKey}`
+            },
+            body: JSON.stringify({
+              jobId,
+              userId,
+              gameId,
+              error: `Callback failed: ${error.message}`
+            })
+          });
+        } catch (retryError) {
+          console.error(JSON.stringify({
+            action: 'async_callback_retry_failed',
+            jobId,
+            error: retryError.message
+          }));
+        }
+      }
+      
+    } catch (error) {
+      console.error(JSON.stringify({
+        action: 'async_job_error',
+        jobId,
+        gameId,
+        error: error.message,
+        stack: error.stack
+      }));
+      
+      // Report failure via callback
+      try {
+        await fetch(callbackUrl, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${callbackKey}`
+          },
+          body: JSON.stringify({
+            jobId,
+            userId,
+            gameId,
+            error: `Analysis failed: ${error.message}`
+          })
+        });
+      } catch (callbackError) {
+        console.error(JSON.stringify({
+          action: 'async_error_callback_failed',
+          jobId,
+          error: callbackError.message
+        }));
+      }
+      
+    } finally {
+      // Release any remaining engines
+      enginesUsed.forEach(engine => releaseEngine(engine));
+    }
+  })();
+});
+
+/**
  * 404 handler
  */
 app.use((req, res) => {
@@ -1235,9 +1558,10 @@ app.listen(PORT, () => {
   console.log(`║  Engine Pool: Max ${MAX_ENGINES} concurrent engines        ║`);
   console.log('╠════════════════════════════════════════════════════════════╣');
   console.log('║  Endpoints:                                                ║');
-  console.log('║  POST /compute-move  - Compute best move                   ║');
-  console.log('║  POST /analyze       - Analyze position (MultiPV)          ║');
-  console.log('║  POST /analyze-game  - Analyze full game                   ║');
+  console.log('║  POST /compute-move      - Compute best move               ║');
+  console.log('║  POST /analyze           - Analyze position (MultiPV)      ║');
+  console.log('║  POST /analyze-game      - Analyze full game               ║');
+  console.log('║  POST /analyze-game-async - Async game analysis + callback ║');
   console.log('╚════════════════════════════════════════════════════════════╝');
   console.log('');
   console.log('✅ Real Stockfish engine integration active');
